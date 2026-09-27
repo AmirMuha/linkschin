@@ -1,7 +1,7 @@
 # Contract: Web Endpoints & UI Routes
 
 - **Feature**: `001-mvp`
-- **Component**: `movie_fetcher.web.app`
+- **Component**: `web.app`
 - **Status**: Draft
 
 This document defines the web routes, HTTP methods, parameters, and response contracts for the server-rendered application.

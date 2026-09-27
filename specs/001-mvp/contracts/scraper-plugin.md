@@ -1,7 +1,7 @@
 # Contract: Scraper Plugin Interface
 
 - **Feature**: `001-mvp`
-- **Component**: `movie_fetcher.sources.base`
+- **Component**: `sources.base`
 - **Status**: Draft
 
 This contract defines the standard interface and behavior required for all source scraper plugins across Movies, Games, and Music.
@@ -15,7 +15,7 @@ Every scraper module MUST implement the `SourcePlugin` protocol.
 ```python
 from typing import Protocol, List
 import httpx
-from movie_fetcher.models import Category, SearchQuery, MediaItem, SourceConfig
+from models import Category, SearchQuery, MediaItem, SourceConfig
 
 class SourcePlugin(Protocol):
     """Protocol that every category source plugin must implement."""

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}نتایج جستجو برای "{{ query }}" - مدیا فچِر{% endblock %}
+
+{% block content %}
+  {% if warnings %}
+    {% for w in warnings %}
+      <div class="warning-banner">
+        ⚠️ {{ w }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2>نتایج برای «{{ query }}» ({{ items | length }} مورد)</h2>
+    {% if is_cached %}
+      <span class="badge active" style="font-size: 0.85rem;">⚡ خوانده شده از کش (سریع)</span>
+    {% endif %}
+  </div>
+
+  {% if items %}
+    <div class="results-grid">
+      {% for item in items %}
+        {% if item.category.value == "games" %}
+          {% include "_game_card.html" %}
+        {% elif item.category.value == "music" %}
+          {% include "_music_card.html" %}
+        {% elif item.category.value == "movies" %}
+          {% include "_movie_card.html" %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h3>هیچ نتیجه‌ای یافت نشد</h3>
+      <p style="margin-top: 0.5rem;">
+        برای عبارت «{{ query }}» در دسته <strong>{{ active_category }}</strong> موردی پیدا نشد.<br>
+        پیشنهاد: املای کلمات را بررسی کنید یا نام انگلیسی و فارسی را امتحان کنید.
+      </p>
+    </div>
+  {% endif %}
+{% endblock %}

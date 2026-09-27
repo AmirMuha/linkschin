@@ -1,0 +1,38 @@
+<div class="media-card music-card">
+  <div class="media-header">
+    {% if item.poster_url %}
+      <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="media-poster" loading="lazy">
+    {% endif %}
+    <div class="media-meta">
+      <h3>{{ item.title }}</h3>
+      <div class="media-source">
+        منبع: <strong>{{ item.source_id }}</strong> | <a href="{{ item.page_url }}" target="_blank" rel="noopener">مشاهده صفحه اصلی</a>
+      </div>
+    </div>
+  </div>
+
+  {% if item.stream_url %}
+    <div style="margin: 0.5rem 0;">
+      <audio controls preload="none">
+        <source src="{{ item.stream_url }}" type="audio/mpeg">
+        مرورگر شما از پخش مستقیم فایل صوتی پشتیبانی نمی‌کند.
+      </audio>
+    </div>
+  {% endif %}
+
+  {% for track in item.music_tracks %}
+    {% if track.downloads %}
+      <div class="parts-list" style="margin-top: 0.5rem;">
+        {% for dl in track.downloads %}
+          <a href="{{ dl.download_url }}" class="btn-download" target="_blank" rel="noopener">
+            🎵 دانلود با کیفیت {{ dl.bitrate }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% else %}
+    {% if not item.stream_url %}
+      <div class="media-source">لینک دانلود مستقیمی یافت نشد.</div>
+    {% endif %}
+  {% endfor %}
+</div>

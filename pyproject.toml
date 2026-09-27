@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "movie-fetcher"
+version = "0.1.0"
+description = "Iranian Multi-Media Direct Link Aggregator (MVP)"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Amir" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "jinja2>=3.1.3",
+    "httpx>=0.27.0",
+    "selectolax>=0.3.21",
+    "cachetools>=5.3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "respx>=0.21.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sources*", "web*", "metadata*"]
+
+[tool.setuptools]
+py-modules = ["cache", "cli_check", "http_client", "main", "models"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,106 @@
+"""In-memory cache with Persian text normalization."""
+
+from __future__ import annotations
+
+import re
+import time
+import unicodedata
+from typing import Any
+
+from models import Category, MediaItem
+
+
+def normalize_persian_text(text: str) -> str:
+    """
+    Apply Unicode normalization (NFKC) and standardize Persian characters.
+    - Arabic Yeh (ي) -> Persian Yeh (ی)
+    - Arabic Kaf (ك) -> Persian Keheh (ک)
+    - Arabic Heh with Yeh (ة / ۀ) -> Persian Heh (ه)
+    - Zero-width non-joiner (ZWNJ) -> space
+    - Collapse redundant whitespace and trim
+    """
+    if not text:
+        return ""
+
+    # NFKC normalizes compatibility characters
+    normalized = unicodedata.normalize("NFKC", text)
+
+    # Character substitutions
+    substitutions = {
+        "ي": "ی",  # ي -> ی
+        "ك": "ک",  # ك -> ک
+        "ة": "ه",  # ة -> ه
+        "ۀ": "ه",  # ۀ -> ه
+        "‌": " ",       # ZWNJ -> space
+        "‏": "",        # RLM -> empty
+        "‎": "",        # LRM -> empty
+    }
+    for src, dst in substitutions.items():
+        normalized = normalized.replace(src, dst)
+
+    # Clean punctuation and normalize spacing
+    normalized = re.sub(r"[\s\-_.:,;!?()\[\]{}\"\']+", " ", normalized)
+    return normalized.strip().lower()
+
+
+def extract_release_year(text: str) -> int | None:
+    """Extract 4-digit release year between 1950 and 2035 from query text."""
+    match = re.search(r"\b(19[5-9]\d|20[0-3]\d)\b", text)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+class SearchCache:
+    """
+    In-memory TTL cache for category queries.
+    Default TTL: 45 minutes (2700 seconds). Max entries: 2000.
+    """
+
+    def __init__(self, maxsize: int = 2000, ttl_seconds: int = 2700):
+        self.maxsize = maxsize
+        self.ttl_seconds = ttl_seconds
+        self._store: dict[str, tuple[list[MediaItem], float]] = {}
+
+    def _make_key(self, category: Category | str, query: str) -> str:
+        cat_str = category.value if isinstance(category, Category) else str(category)
+        norm_q = normalize_persian_text(query)
+        return f"{cat_str.lower()}:{norm_q}"
+
+    def get(self, category: Category | str, query: str) -> list[MediaItem] | None:
+        key = self._make_key(category, query)
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        items, expires_at = entry
+        if time.time() > expires_at:
+            del self._store[key]
+            return None
+        return items
+
+    def set(self, category: Category | str, query: str, items: list[MediaItem]) -> None:
+        if len(self._store) >= self.maxsize:
+            # Evict oldest entry (simple FIFO / TTL eviction)
+            now = time.time()
+            expired = [k for k, (_, exp) in self._store.items() if now > exp]
+            if expired:
+                for k in expired:
+                    del self._store[k]
+            elif self._store:
+                first_key = next(iter(self._store))
+                del self._store[first_key]
+
+        key = self._make_key(category, query)
+        expires_at = time.time() + self.ttl_seconds
+        self._store[key] = (items, expires_at)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+    @property
+    def size(self) -> int:
+        return len(self._store)
+
+
+# Global singleton instance
+GLOBAL_CACHE = SearchCache()

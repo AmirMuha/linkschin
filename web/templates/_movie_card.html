@@ -1,0 +1,32 @@
+<div class="media-card movie-card">
+  <div class="media-header">
+    {% if item.poster_url %}
+      <img src="{{ item.poster_url }}" alt="{{ item.title }}" class="media-poster" loading="lazy">
+    {% endif %}
+    <div class="media-meta">
+      <h3>{{ item.title }} {% if item.release_year %}({{ item.release_year }}){% endif %}</h3>
+      <div class="media-source">
+        منبع: <strong>{{ item.source_id }}</strong> | <a href="{{ item.page_url }}" target="_blank" rel="noopener">مشاهده صفحه اصلی</a>
+      </div>
+    </div>
+  </div>
+
+  {% if item.stream_url %}
+    <div style="margin: 0.5rem 0;">
+      <video controls preload="metadata" style="width: 100%; max-height: 400px; border-radius: 0.5rem; background: #000;">
+        <source src="{{ item.stream_url }}" type="video/mp4">
+        پخش مستقیم ویدیو در مرورگر پشتیبانی نمی‌شود.
+      </video>
+    </div>
+  {% endif %}
+
+  {% if item.movie_variants %}
+    <div class="parts-list" style="margin-top: 0.5rem;">
+      {% for variant in item.movie_variants %}
+        <a href="{{ variant.download_url }}" class="btn-download" target="_blank" rel="noopener">
+          🎬 {{ variant.quality }} {{ variant.codec }} ({{ variant.audio_track }})
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

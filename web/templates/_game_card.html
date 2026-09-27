@@ -1,0 +1,44 @@
+<div class="media-card game-card">
+  <div class="media-header">
+    <div class="media-meta">
+      <h3>{{ item.title }}</h3>
+      <div class="media-source">
+        منبع: <strong>{{ item.source_id }}</strong> | <a href="{{ item.page_url }}" target="_blank" rel="noopener">مشاهده صفحه اصلی</a>
+      </div>
+    </div>
+  </div>
+
+  {% for release in item.game_releases %}
+    <div class="parts-container" id="parts-{{ item.id }}-{{ loop.index }}">
+      <div class="release-info">
+        {% if release.release_group %}
+          <span>گروه ریلیز: <strong>{{ release.release_group }}</strong></span>
+        {% endif %}
+        {% if release.archive_password %}
+          <div class="password-box">
+            <span>رمز فایل:</span>
+            <code>{{ release.archive_password }}</code>
+            <button class="btn-action" onclick="copyText('{{ release.archive_password }}', this)">کپی رمز</button>
+          </div>
+        {% endif %}
+        <button class="btn-action" onclick="copyAllLinks('parts-{{ item.id }}-{{ loop.index }}', this)">📋 کپی همه لینک‌ها</button>
+      </div>
+
+      {% if release.has_missing_parts %}
+        <div class="warning-banner">
+          ⚠️ هشدار: پارت‌های شماره {{ release.missing_part_numbers | join(', ') }} در صفحه منبع موجود نیستند!
+        </div>
+      {% endif %}
+
+      <div class="parts-list">
+        {% for part in release.parts %}
+          <a href="{{ part.download_url }}" class="btn-download" target="_blank" rel="noopener">
+            📥 {{ part.part_label }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="media-source">لینک مستقیمی برای این عنوان استخراج نشد. لطفاً از طریق لینک صفحه اصلی بررسی کنید.</div>
+  {% endfor %}
+</div>
