@@ -11,20 +11,20 @@ This guide details how to set up the environment, run the application, execute a
 ## 1. Prerequisites & Environment Setup
 
 ### System Requirements
+- Node.js 18+ and `pnpm` (for Turborepo orchestration).
 - Python 3.11 or newer (or `uv` package manager).
 - Modern web browser (Chrome, Firefox, Safari, Edge).
 
-### Setup Commands (using uv)
+### Setup Commands (Monorepo)
 ```bash
 # 1. Clone/navigate to project root
 cd /run/media/amirmuha/0C944DAF23695833/projects/movie-fetcher
 
-# 2. Create Python 3.12 virtual environment
-uv venv --python 3.12
-source .venv/bin/activate
+# 2. Install monorepo tools (Turborepo)
+pnpm install
 
-# 3. (Optional) Install dependencies in editable mode
-uv pip install -e ".[dev]"
+# 3. Create/sync Python environment inside apps/api
+cd apps/api && uv sync
 ```
 
 ---
@@ -34,8 +34,11 @@ uv pip install -e ".[dev]"
 Run the offline unit and fixture test suite (19 test cases verifying data models, Persian normalization, TTLCache, Downloadha split-archive extraction, Pop-Music audio stream extraction, and environment variable overrides):
 
 ```bash
-# Run full offline test suite
-.venv/bin/python tests/run_all.py
+# From root via Turborepo
+pnpm test
+
+# Or directly from apps/api
+cd apps/api && uv run python tests/run_all.py
 ```
 
 ---
@@ -46,10 +49,10 @@ Verify individual source connectivity and link extraction directly against live 
 
 ```bash
 # Smoke test live game scraper (verifies multi-part links and password)
-.venv/bin/python cli_check.py --category games --source downloadha --query "noire"
+cd apps/api && uv run python cli_check.py --category games --source downloadha --query "noire"
 
 # Smoke test live music scraper (verifies direct MP3 stream URL and 128k/320k links)
-.venv/bin/python cli_check.py --category music --source popmusic --query "محسن"
+cd apps/api && uv run python cli_check.py --category music --source popmusic --query "محسن"
 ```
 
 Expected output:
@@ -65,7 +68,11 @@ Expected output:
 Launch the local web server:
 
 ```bash
-.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+# From root via Turborepo
+pnpm dev
+
+# Or directly inside apps/api
+cd apps/api && uv run python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open your browser to: `http://127.0.0.1:8000`

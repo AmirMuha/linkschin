@@ -1,0 +1,13 @@
+{
+  "name": "@repo/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "uv run --frozen python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload",
+    "start": "uv run --frozen python -m uvicorn main:app --host 127.0.0.1 --port 8000",
+    "build": "echo 'No build step for @repo/api'",
+    "test": "uv run --frozen python tests/run_all.py",
+    "lint": "uv run --frozen python -m compileall -q main.py models.py cache.py http_client.py cli_check.py sources web",
+    "check": "uv run --frozen python cli_check.py"
+  }
+}
