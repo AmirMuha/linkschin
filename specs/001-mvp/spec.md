@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-27
 
-**Status**: Draft
+**Status**: Implemented (MVP) - Primary categories Games & Music live; Movies honest empty state pending active mirror domains
 
 **Input**: User description: "slug=mvp - Problem: Persian-speaking internet users face extreme friction finding clean media links across fragmented Iranian websites due to invasive pop-under ads, broken domains, confusing multi-part game downloads, and scattered format options. Chosen approach: Option A — Pluggable Multi-Media Direct Link Aggregator. A fast web application with explicit category tabs (Movies, Games, Music), a modular scraper plugin engine for targeted Iranian portals, category-specific metadata resolution, structured split-archive presentation for games, and inline audio playback for music."
 

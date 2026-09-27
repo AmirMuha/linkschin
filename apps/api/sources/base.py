@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Protocol, runtime_checkable
+from typing import Mapping, Protocol, runtime_checkable
 from urllib.parse import urljoin, urlparse
 
 from http_client import AsyncHttpClient
@@ -18,7 +18,7 @@ AD_SHORTENER_DOMAINS = {
 
 # Signatures indicating domain parking, ad landing pages, or expired domains
 PARKED_PAGE_SIGNATURES = [
-    r"/lander\?",
+    r"/lander",
     r"buy this domain",
     r"domain is for sale",
     r"parked-domain",
@@ -80,7 +80,6 @@ def extract_archive_password(text: str) -> str:
         return ""
     patterns = [
         r"(?:رمز فایل|رمز عبور|پسورد|password|pass)\s*[:：\-]\s*([a-zA-Z0-9\.\-_]+)",
-        r"(?:www\.[a-zA-Z0-9\-_]+\.[a-zA-Z]{2,})",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
@@ -102,6 +101,32 @@ def clean_absolute_url(base_url: str, link: str) -> str:
     if parsed.scheme.lower() not in ("http", "https"):
         return ""
     return joined
+
+
+def is_directly_playable(status_code: int, headers: Mapping[str, str] | None) -> bool:
+    """
+    Pure verdict from a HEAD response.
+    Requires: status < 400, audio/video Content-Type, and permissive CORS.
+    """
+    if status_code >= 400:
+        return False
+    h = {k.lower(): v for k, v in (headers or {}).items()}
+    mime = h.get("content-type", "").split(";")[0].strip().lower()
+    if not (mime.startswith("audio/") or mime.startswith("video/")):
+        return False
+    cors = h.get("access-control-allow-origin", "").strip()
+    return bool(cors)
+
+
+async def validate_stream_url(url: str, client: AsyncHttpClient) -> bool:
+    """Validate whether direct stream URL is directly playable in browser."""
+    if not url or is_ad_or_shortener_url(url):
+        return False
+    try:
+        resp = await client.head(url)
+    except Exception:
+        return False
+    return is_directly_playable(resp.status_code, resp.headers)
 
 
 @runtime_checkable

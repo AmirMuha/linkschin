@@ -29,7 +29,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sources*", "web*", "metadata*"]
+include = ["sources*", "web*"]
 
 [tool.setuptools]
 py-modules = ["cache", "cli_check", "http_client", "main", "models"]

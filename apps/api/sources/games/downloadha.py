@@ -116,8 +116,16 @@ class DownloadhaPlugin:
             return item
 
     def parse_item_page(self, html: str, item: MediaItem) -> None:
-        """Parse parts and password from game post HTML."""
-        password = extract_archive_password(html) or "www.downloadha.com"
+        """Parse parts, total size, and password from game post HTML."""
+        password = extract_archive_password(html)
+        total_size = ""
+        size_match = re.search(
+            r"(?:حجم فایل|حجم)\s*[:：]?\s*([\d.,]+\s*(?:مگابایت|گیگابایت|ترابایت|MB|GB|TB))",
+            html,
+            re.IGNORECASE,
+        )
+        if size_match:
+            total_size = size_match.group(1).strip()
 
         # Find all direct archive download links
         link_pattern = re.compile(
@@ -177,6 +185,7 @@ class DownloadhaPlugin:
                 id=f"{item.id}_release",
                 source_name=self.config.name,
                 release_group=release_group,
+                total_size=total_size,
                 archive_password=password,
                 parts=parts,
             )

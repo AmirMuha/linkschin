@@ -14,6 +14,9 @@
         {% if release.release_group %}
           <span>گروه ریلیز: <strong>{{ release.release_group }}</strong></span>
         {% endif %}
+        {% if release.total_size %}
+          <span>حجم کل: <strong>{{ release.total_size }}</strong></span>
+        {% endif %}
         {% if release.archive_password %}
           <div class="password-box">
             <span>رمز فایل:</span>

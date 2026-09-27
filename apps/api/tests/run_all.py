@@ -1,5 +1,6 @@
 """Standalone test runner requiring zero third-party dependencies."""
 
+import asyncio
 import inspect
 import sys
 from pathlib import Path
@@ -13,6 +14,7 @@ import tests.test_cache as tc
 import tests.test_games_scrapers as tg
 import tests.test_music_scrapers as tmu
 import tests.test_sources_config as ts
+import tests.test_streaming as tst
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -52,6 +54,7 @@ def main():
         (tg, {"downloadha_search_html": dlha_search, "downloadha_item_html": dlha_item}),
         (tmu, {"popmusic_search_html": pop_search, "popmusic_item_html": pop_item}),
         (ts, {}),
+        (tst, {}),
     ]
 
     total = 0
@@ -77,7 +80,10 @@ def main():
                     kwargs[p] = fix_map[p]
 
             try:
-                func(**kwargs)
+                if inspect.iscoroutinefunction(func):
+                    asyncio.run(func(**kwargs))
+                else:
+                    func(**kwargs)
                 if mp:
                     mp.undo()
                 print(f"  ✓ {name}")

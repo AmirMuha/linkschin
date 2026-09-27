@@ -31,7 +31,7 @@ cd apps/api && uv sync
 
 ## 2. Running Automated Tests
 
-Run the offline unit and fixture test suite (19 test cases verifying data models, Persian normalization, TTLCache, Downloadha split-archive extraction, Pop-Music audio stream extraction, and environment variable overrides):
+Run the offline unit and fixture test suite (29 test cases verifying data models, Persian normalization, TTLCache, Downloadha split-archive extraction, Pop-Music audio stream extraction, stream URL validation, and environment variable overrides):
 
 ```bash
 # From root via Turborepo

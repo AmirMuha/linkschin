@@ -73,6 +73,19 @@ try:
                 headers=dict(resp.headers),
             )
 
+        async def head(self, url: str, headers: dict[str, str] | None = None, timeout: float | None = None) -> SimpleResponse:
+            req_headers = {**DEFAULT_HEADERS, **(headers or {})}
+            req_timeout = timeout if timeout is not None else self.timeout
+            resp = await self._client.head(url, headers=req_headers, timeout=req_timeout)
+            final_url = str(resp.url)
+            track_redirect(url, final_url)
+            return SimpleResponse(
+                status_code=resp.status_code,
+                text="",
+                url=final_url,
+                headers=dict(resp.headers),
+            )
+
         async def aclose(self) -> None:
             await self._client.aclose()
 
@@ -121,6 +134,36 @@ except ImportError:
                     raise e
 
             return await loop.run_in_executor(None, _fetch)
+
+        async def head(self, url: str, headers: dict[str, str] | None = None, timeout: float | None = None) -> SimpleResponse:
+            loop = asyncio.get_running_loop()
+            req_headers = {**DEFAULT_HEADERS, **(headers or {})}
+            req_timeout = timeout if timeout is not None else self.timeout
+
+            def _head() -> SimpleResponse:
+                req = urllib.request.Request(url, headers=req_headers, method="HEAD")
+                try:
+                    with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                        final_url = resp.geturl()
+                        track_redirect(url, final_url)
+                        return SimpleResponse(
+                            status_code=resp.status,
+                            text="",
+                            url=final_url,
+                            headers=dict(resp.headers),
+                        )
+                except urllib.error.HTTPError as e:
+                    track_redirect(url, e.geturl())
+                    return SimpleResponse(
+                        status_code=e.code,
+                        text="",
+                        url=e.geturl(),
+                        headers=dict(e.headers),
+                    )
+                except Exception as e:
+                    raise e
+
+            return await loop.run_in_executor(None, _head)
 
         async def aclose(self) -> None:
             pass

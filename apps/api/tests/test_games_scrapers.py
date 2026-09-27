@@ -38,6 +38,7 @@ def test_downloadha_item_link_extraction(downloadha_item_html: str):
     rel = target.game_releases[0]
     assert rel.release_group == "ElAmigos"
     assert rel.archive_password == "www.downloadha.com"
+    assert rel.total_size == "13.4 گیگابایت"
     assert len(rel.parts) == 5
 
     # Invariant: Parts strictly ascending 1..5 with no gaps
@@ -70,3 +71,20 @@ def test_downloadha_gap_detection_on_missing_parts():
     rel = item.game_releases[0]
     assert rel.has_missing_parts is True
     assert rel.missing_part_numbers == [3]
+
+
+def test_downloadha_item_no_password():
+    """Verify that pages without password labels do not fabricate arbitrary domain passwords."""
+    plugin = DownloadhaPlugin()
+    mock_html = """
+    <div class='download-box'>
+        <a href='https://dl.example.com/game.part1.rar'>دانلود پارت 1 با لینک مستقیم</a>
+        <p>برای دریافت اطلاعات بیشتر به سایت www.other-site.com مراجعه کنید.</p>
+    </div>
+    """
+    item = plugin.parse_search_results("<h1 class='entry-title'><a href='https://www.downloadha.com/game/test/'>Test Game FitGirl</a></h1>")[0]
+    plugin.parse_item_page(mock_html, item)
+
+    assert len(item.game_releases) == 1
+    rel = item.game_releases[0]
+    assert rel.archive_password == ""

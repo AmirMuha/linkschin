@@ -15,6 +15,7 @@ from cache import GLOBAL_CACHE, normalize_persian_text
 from http_client import AsyncHttpClient
 from models import Category, MediaItem, SearchQuery
 from sources import get_all_source_configs, get_sources_for_category
+from sources.base import validate_stream_url
 
 APP_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = APP_DIR / "templates"
@@ -121,7 +122,11 @@ async def search_media(
                 if found:
                     extract_tasks = [plugin.extract_links(item, client) for item in found[:5]]
                     await asyncio.gather(*extract_tasks, return_exceptions=True)
-                return found
+                    for item in found[:5]:
+                        if item.category == Category.MOVIES and item.stream_url:
+                            if not await validate_stream_url(item.stream_url, client):
+                                item.stream_url = None
+                    return found
             except asyncio.TimeoutError:
                 warnings.append(f"منبع {plugin.config.name} به دلیل تأخیر پاسخ موقتاً در دسترس نبود.")
                 return []
