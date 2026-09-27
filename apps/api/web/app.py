@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from cache import GLOBAL_CACHE, normalize_persian_text
+import db
 from http_client import AsyncHttpClient
 from models import Category, MediaItem, SearchQuery
 from sources import get_all_source_configs, get_sources_for_category
@@ -46,9 +47,9 @@ async def index_page(
 
     all_sources = get_all_source_configs()
     return templates.TemplateResponse(
-        "base.html",
-        {
-            "request": request,
+        request=request,
+        name="base.html",
+        context={
             "active_category": cat_clean,
             "all_sources": all_sources,
             "query": "",
@@ -75,18 +76,34 @@ async def search_media(
     search_q = SearchQuery(raw_query=q, normalized_query=norm_query, category=cat_enum)
     all_sources = get_all_source_configs()
 
-    # 1. Check in-memory cache
+    # 1. Check in-memory cache and persistent database
     if not refresh:
         cached_items = GLOBAL_CACHE.get(cat_enum, norm_query)
         if cached_items is not None:
             return templates.TemplateResponse(
-                "results.html",
-                {
-                    "request": request,
+                request=request,
+                name="results.html",
+                context={
                     "active_category": cat_clean,
                     "all_sources": all_sources,
                     "query": q,
                     "items": cached_items,
+                    "is_cached": True,
+                    "warnings": [],
+                },
+            )
+
+        db_items = db.search(cat_enum, norm_query)
+        if db_items:
+            GLOBAL_CACHE.set(cat_enum, norm_query, db_items)
+            return templates.TemplateResponse(
+                request=request,
+                name="results.html",
+                context={
+                    "active_category": cat_clean,
+                    "all_sources": all_sources,
+                    "query": q,
+                    "items": db_items,
                     "is_cached": True,
                     "warnings": [],
                 },
@@ -97,9 +114,9 @@ async def search_media(
     if not plugins:
         warnings = [f"هیچ منبع فعالی برای دسته «{cat_clean}» در دسترس نیست. منابع در حال به‌روزرسانی هستند."]
         return templates.TemplateResponse(
-            "results.html",
-            {
-                "request": request,
+            request=request,
+            name="results.html",
+            context={
                 "active_category": cat_clean,
                 "all_sources": all_sources,
                 "query": q,
@@ -147,13 +164,18 @@ async def search_media(
         except asyncio.TimeoutError:
             warnings.append("زمان جستجوی سراسری به پایان رسید. برخی نتایج ممکن است ناقص باشند.")
 
-    # 4. Cache and return results
+    # 4. Cache, persist to SQLite, and return results
     GLOBAL_CACHE.set(cat_enum, norm_query, all_items)
+    if all_items:
+        try:
+            db.upsert_items(all_items)
+        except Exception:
+            pass
 
     return templates.TemplateResponse(
-        "results.html",
-        {
-            "request": request,
+        request=request,
+        name="results.html",
+        context={
             "active_category": cat_clean,
             "all_sources": all_sources,
             "query": q,
@@ -176,12 +198,18 @@ async def health_check() -> JSONResponse:
     for s in all_sources:
         reg_sources[s.category.value].append(s.id)
 
+    try:
+        db_stats = db.stats()
+    except Exception:
+        db_stats = {}
+
     return JSONResponse(
         {
             "status": "healthy",
             "version": "0.1.0",
             "cache_entries": GLOBAL_CACHE.size,
             "registered_sources": reg_sources,
+            "database_stats": db_stats,
         }
     )
 

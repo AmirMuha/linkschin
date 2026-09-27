@@ -11,10 +11,12 @@ sys.path.insert(0, str(ROOT))
 
 import tests.test_models as tm
 import tests.test_cache as tc
+import tests.test_db as tdb
 import tests.test_games_scrapers as tg
 import tests.test_music_scrapers as tmu
 import tests.test_sources_config as ts
 import tests.test_streaming as tst
+import tests.test_worker as tw
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -47,14 +49,23 @@ def main():
     dlha_item = (FIXTURES_DIR / "downloadha_item.html").read_text(encoding="utf-8")
     pop_search = (FIXTURES_DIR / "popmusic_search.html").read_text(encoding="utf-8")
     pop_item = (FIXTURES_DIR / "popmusic_item.html").read_text(encoding="utf-8")
+    nex1_search = (FIXTURES_DIR / "nex1music_search.html").read_text(encoding="utf-8")
+    nex1_item = (FIXTURES_DIR / "nex1music_item.html").read_text(encoding="utf-8")
 
     modules = [
         (tm, {}),
         (tc, {}),
+        (tdb, {}),
         (tg, {"downloadha_search_html": dlha_search, "downloadha_item_html": dlha_item}),
-        (tmu, {"popmusic_search_html": pop_search, "popmusic_item_html": pop_item}),
+        (tmu, {
+            "popmusic_search_html": pop_search,
+            "popmusic_item_html": pop_item,
+            "nex1music_search_html": nex1_search,
+            "nex1music_item_html": nex1_item,
+        }),
         (ts, {}),
         (tst, {}),
+        (tw, {}),
     ]
 
     total = 0

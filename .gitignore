@@ -29,3 +29,7 @@ htmlcov/
 !.env.example
 node_modules/
 .turbo/
+*.db
+*.db-wal
+*.db-shm
+apps/api/data/

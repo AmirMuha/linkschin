@@ -1,0 +1,165 @@
+"""Unit tests for the persistent SQLite search index."""
+
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+
+import db
+from models import (
+    Category,
+    GamePartLink,
+    GameRelease,
+    MediaItem,
+    MovieDownloadVariant,
+    MusicDownloadVariant,
+    MusicTrack,
+)
+
+
+def _db_file() -> Path:
+    return Path(tempfile.mkdtemp(prefix="mf-db-")) / "index.db"
+
+
+def _movie_item() -> MediaItem:
+    return MediaItem(
+        id="mov-1", title="Interstellar 2014", category=Category.MOVIES,
+        source_id="filmplus", page_url="https://example.com/interstellar",
+        release_year=2014, poster_url="https://example.com/p.jpg",
+        description="A movie about space.",
+        movie_variants=[MovieDownloadVariant(
+            id="v1", quality="1080p", codec="x265", audio_track="dub",
+            download_url="https://example.com/i1080.mkv", file_size_mb=1400.0,
+        )],
+    )
+
+
+def _persian_movie() -> MediaItem:
+    return MediaItem(
+        id="mov-2", title="بازی جادویی دوبله", category=Category.MOVIES,
+        source_id="filmplus", page_url="https://example.com/jadui",
+    )
+
+
+def _game_item() -> MediaItem:
+    return MediaItem(
+        id="game-1", title="GTA V San Andreas", category=Category.GAMES,
+        source_id="downloadha", page_url="https://example.com/gta",
+        game_releases=[GameRelease(
+            id="gta-repack", source_name="downloadha", release_group="FitGirl",
+            total_size="60 GB", archive_password="mf",
+            parts=[
+                GamePartLink(part_number=2, part_label="part2", download_url="https://example.com/p2", file_size="30GB"),
+                GamePartLink(part_number=1, part_label="part1", download_url="https://example.com/p1", file_size="30GB"),
+            ],
+        )],
+    )
+
+
+def _music_item() -> MediaItem:
+    return MediaItem(
+        id="mus-1", title="Shadmehr", category=Category.MUSIC,
+        source_id="popmusic", page_url="https://example.com/shadmehr",
+        music_tracks=[MusicTrack(
+            id="t1", title="Shadmehr", artist="Shadmehr", source_name="popmusic",
+            downloads=[MusicDownloadVariant(bitrate="320", download_url="https://example.com/s320.mp3", file_size="9MB")],
+        )],
+    )
+
+
+def test_upsert_items_is_idempotent():
+    """Re-upserting the same item updates it in place instead of duplicating rows."""
+    path = _db_file()
+    item = _movie_item()
+    assert db.upsert_items([item], path) == 1
+    assert db.upsert_items([item], path) == 1
+
+    result = db.stats(path)
+    assert result["total"] == 1
+    assert result["by_category"] == {"movies": 1}
+    assert result["by_source"] == {"filmplus": 1}
+    assert result["last_seen"] is not None
+
+    # Child rows are replaced, not accumulated.
+    db.upsert_items([item, _game_item(), _music_item()], path)
+    found = db.search(Category.MOVIES, "interstellar", db_path=path)
+    assert len(found) == 1
+    assert len(found[0].movie_variants) == 1
+    assert db.stats(path)["total"] == 3
+
+
+def test_fts_trigram_search_persian():
+    """Persian queries match via the trigram tokenizer, across all categories."""
+    path = _db_file()
+    db.upsert_items([_persian_movie(), _game_item(), _music_item()], path)
+
+    # Multi-token Persian query: every token must appear.
+    hits = db.search(Category.MOVIES, "بازی جادویی", db_path=path)
+    assert [h.id for h in hits] == ["mov-2"]
+    # Partial (sub-word) fragment still matches thanks to trigrams.
+    assert [h.id for h in db.search(Category.MOVIES, "جادوی", db_path=path)] == ["mov-2"]
+    # A token absent from the item excludes it.
+    assert db.search(Category.MOVIES, "جادویی ناموجود", db_path=path) == []
+    # Category isolation.
+    assert [h.id for h in db.search(Category.GAMES, "gta", db_path=path)] == ["game-1"]
+    assert db.search(Category.MUSIC, "gta", db_path=path) == []
+    # Game parts round-trip and stay sorted.
+    game = db.search(Category.GAMES, "gta", db_path=path)[0]
+    assert [p.part_number for p in game.game_releases[0].parts] == [1, 2]
+    assert game.game_releases[0].archive_password == "mf"
+    # Music rehydrates with its artist and downloads.
+    song = db.search(Category.MUSIC, "shadmehr", db_path=path)[0]
+    assert song.music_tracks[0].artist == "Shadmehr"
+    assert song.music_tracks[0].downloads[0].bitrate == "320"
+
+
+def test_short_query_falls_back_to_like():
+    """Queries under 3 chars cannot be trigrammed, so they use a LIKE scan."""
+    path = _db_file()
+    db.upsert_items([_persian_movie()], path)
+
+    hits = db.search(Category.MOVIES, "جاد", db_path=path)
+    assert [h.id for h in hits] == ["mov-2"]
+    # LIKE wildcards in user input are literal, not wildcards.
+    assert db.search(Category.MOVIES, "%", db_path=path) == []
+    assert db.search(Category.MOVIES, "_", db_path=path) == []
+    assert db.search(Category.MOVIES, "   ", db_path=path) == []
+
+
+def test_hostile_query_input_is_safe():
+    """Injection-like input is neutralized by quoting and never raises."""
+    path = _db_file()
+    db.upsert_items([_movie_item(), _game_item(), _music_item()], path)
+
+    hostile = [
+        "' OR 1=1 --", "a-b", '""', '"', "*", "NEAR(a b)", "title_norm : x",
+        "a AND b", "a OR b", "(", ")", "\\", "a%b", "a_b", "a;b", "ا OR 1=1",
+        "1=1", "*'*", "'; DROP TABLE media_items; --",
+    ]
+    for q in hostile:
+        for cat in (Category.MOVIES, Category.GAMES, Category.MUSIC):
+            hits = db.search(cat, q, db_path=path)
+            assert isinstance(hits, list), q
+            # Nothing may match everything, and the table must survive.
+            assert len(hits) < 3, f"{q!r} matched every row"
+    assert db.stats(path)["total"] == 3
+
+
+def test_cascade_delete_removes_child_rows():
+    """Deleting an item removes its variants, parts, and FTS entry."""
+    path = _db_file()
+    db.upsert_items([_game_item(), _movie_item()], path)
+
+    conn = db.connect(path)
+    try:
+        conn.execute("DELETE FROM media_items WHERE id='game-1'")
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM game_parts").fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM search_fts WHERE item_id='game-1'").fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM download_variants WHERE item_id='mov-1'").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+    assert db.search(Category.GAMES, "gta", db_path=path) == []

@@ -8,6 +8,7 @@ from typing import Dict, List
 from models import Category, SourceConfig
 from sources.base import SourcePlugin
 from sources.games.downloadha import DownloadhaPlugin
+from sources.music.nex1music import Nex1MusicPlugin
 from sources.music.popmusic import PopMusicPlugin
 
 
@@ -94,8 +95,8 @@ DEFAULT_CONFIGS: list[SourceConfig] = [
         id="nex1music",
         name="Nex1Music",
         category=Category.MUSIC,
-        base_urls=["https://nex1music.ir"],
-        enabled=False,
+        base_urls=["https://nex1music.com"],
+        enabled=True,
     ),
     SourceConfig(
         id="radiojavan",
@@ -134,5 +135,7 @@ def get_sources_for_category(category: Category, include_disabled: bool = False)
             plugins.append(DownloadhaPlugin(config=cfg))
         elif cfg.id == "popmusic":
             plugins.append(PopMusicPlugin(config=cfg))
+        elif cfg.id == "nex1music":
+            plugins.append(Nex1MusicPlugin(config=cfg))
 
     return plugins

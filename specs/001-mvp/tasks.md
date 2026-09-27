@@ -81,9 +81,9 @@ description: "Task list for Iranian Multi-Media Direct Link Aggregator (MVP) imp
 **Independent Test**: Run `python apps/api/cli_check.py --category music --source popmusic --query "محسن"` and verify MP3 stream and download URLs.
 
 - [X] T025 [P] [US3] Create sample HTML search fixtures for music in `apps/api/tests/fixtures/popmusic_search.html` and `apps/api/tests/fixtures/popmusic_item.html`
-- [ ] T026 [P] [US3] (BLOCKED-UPSTREAM) Implement Nex1Music scraper plugin in `apps/api/sources/music/nex1music.py` (SPA / Client-rendered, non-SSR)
+- [X] T026 [P] [US3] Implement Nex1Music scraper plugin in `apps/api/sources/music/nex1music.py` (Server-rendered HTML, 320k/128k direct MP3s)
 - [X] T027 [P] [US3] Implement Pop-Music scraper plugin in `apps/api/sources/music/popmusic.py`
-- [ ] T028 [P] [US3] (BLOCKED-UPSTREAM) Implement RadioJavan scraper plugin in `apps/api/sources/music/radiojavan.py` (Cloudflare Bot Challenge)
+- [ ] T028 [P] [US3] (BLOCKED-UPSTREAM) Implement RadioJavan scraper plugin in `apps/api/sources/music/radiojavan.py` (Cloudflare Bot Challenge - Solvable asynchronously via FlareSolverr background worker)
 - [ ] T029 [P] [US3] (BLOCKED-UPSTREAM) Implement UpMusic scraper plugin in `apps/api/sources/music/upmusic.py` (Domain mismatch / parked)
 - [X] T030 [US3] Implement music card template in `apps/api/web/templates/_music_card.html` with inline HTML5 audio player and 128k/320k download buttons
 - [X] T031 [US3] Integrate music search and card rendering in `apps/api/web/app.py`
@@ -128,5 +128,5 @@ description: "Task list for Iranian Multi-Media Direct Link Aggregator (MVP) imp
 
 ## Status Summary
 
-- **Completed Tasks**: 31 / 42 (100% of engineering features, base infrastructure, web UI, Games and Music scrapers, streaming validation, configuration, and testing)
-- **Blocked Upstream**: 11 / 42 (T010–T014, T017, T019, T021, T026, T028, T029 — blocked due to upstream domain expiration [NXDOMAIN], parked landers, Cloudflare bot protection, or reCAPTCHA). These sources can be individually re-enabled via environment variables (`MOVIE_FETCHER_ENABLE_<ID>=true` and `MOVIE_FETCHER_URL_<ID>=<url>`) as new working mirrors become available.
+- **Completed Tasks**: 32 / 42 (Engineering features, base infrastructure, web UI, Games and Music [Downloadha, PopMusic, Nex1Music] scrapers, stream URL validation, persistent SQLite search index with FTS5, background crawler worker with FlareSolverr solver, configuration, and testing)
+- **Blocked Upstream**: 10 / 42 (T010–T014, T017, T019, T021, T028, T029 — blocked due to upstream domain expiration [NXDOMAIN], parked landers, Cloudflare bot challenge, or reCAPTCHA). These sources can be individually re-enabled via environment variables (`MOVIE_FETCHER_ENABLE_<ID>=true` and `MOVIE_FETCHER_URL_<ID>=<url>`) as new working mirrors become available.

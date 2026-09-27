@@ -35,3 +35,15 @@ def popmusic_search_html(fixtures_dir: Path) -> str:
 def popmusic_item_html(fixtures_dir: Path) -> str:
     path = fixtures_dir / "popmusic_item.html"
     return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def nex1music_search_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "nex1music_search.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def nex1music_item_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "nex1music_item.html"
+    return path.read_text(encoding="utf-8")
