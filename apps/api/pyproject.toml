@@ -25,7 +25,16 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.5",
     "respx>=0.21.1",
+    "poethepoet>=0.25.0",
 ]
+
+[tool.poe.tasks]
+dev = "uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
+start = "uvicorn main:app --host 127.0.0.1 --port 8000"
+test = "pytest tests"
+test-offline = "python tests/run_all.py"
+lint = "python -m compileall -q main.py models.py cache.py http_client.py cli_check.py sources web"
+check = "python cli_check.py --category games --source downloadha --query gta"
 
 [tool.setuptools.packages.find]
 where = ["."]

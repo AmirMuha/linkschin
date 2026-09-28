@@ -13,6 +13,7 @@ import tests.test_models as tm
 import tests.test_cache as tc
 import tests.test_db as tdb
 import tests.test_games_scrapers as tg
+import tests.test_movies_scrapers as tmov
 import tests.test_music_scrapers as tmu
 import tests.test_sources_config as ts
 import tests.test_streaming as tst
@@ -47,6 +48,12 @@ def main():
     # Load fixtures
     dlha_search = (FIXTURES_DIR / "downloadha_search.html").read_text(encoding="utf-8")
     dlha_item = (FIXTURES_DIR / "downloadha_item.html").read_text(encoding="utf-8")
+    yasdl_search = (FIXTURES_DIR / "yasdl_search.html").read_text(encoding="utf-8")
+    yasdl_item = (FIXTURES_DIR / "yasdl_item.html").read_text(encoding="utf-8")
+    uptvs_search = (FIXTURES_DIR / "uptvs_search.html").read_text(encoding="utf-8")
+    uptvs_item = (FIXTURES_DIR / "uptvs_item.html").read_text(encoding="utf-8")
+    doostihaa_search = (FIXTURES_DIR / "doostihaa_search.html").read_text(encoding="utf-8")
+    doostihaa_item = (FIXTURES_DIR / "doostihaa_item.html").read_text(encoding="utf-8")
     pop_search = (FIXTURES_DIR / "popmusic_search.html").read_text(encoding="utf-8")
     pop_item = (FIXTURES_DIR / "popmusic_item.html").read_text(encoding="utf-8")
     nex1_search = (FIXTURES_DIR / "nex1music_search.html").read_text(encoding="utf-8")
@@ -56,7 +63,18 @@ def main():
         (tm, {}),
         (tc, {}),
         (tdb, {}),
-        (tg, {"downloadha_search_html": dlha_search, "downloadha_item_html": dlha_item}),
+        (tg, {
+            "downloadha_search_html": dlha_search,
+            "downloadha_item_html": dlha_item,
+            "yasdl_search_html": yasdl_search,
+            "yasdl_item_html": yasdl_item,
+        }),
+        (tmov, {
+            "uptvs_search_html": uptvs_search,
+            "uptvs_item_html": uptvs_item,
+            "doostihaa_search_html": doostihaa_search,
+            "doostihaa_item_html": doostihaa_item,
+        }),
         (tmu, {
             "popmusic_search_html": pop_search,
             "popmusic_item_html": pop_item,
