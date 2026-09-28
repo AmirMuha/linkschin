@@ -8,6 +8,9 @@ from typing import Dict, List
 from models import Category, SourceConfig
 from sources.base import SourcePlugin
 from sources.games.downloadha import DownloadhaPlugin
+from sources.games.yasdl import YasDLPlugin
+from sources.movies.doostihaa import DoostihaaPlugin
+from sources.movies.uptvs import UpTVsPlugin
 from sources.music.nex1music import Nex1MusicPlugin
 from sources.music.popmusic import PopMusicPlugin
 
@@ -35,6 +38,20 @@ def apply_env_overrides(config: SourceConfig) -> SourceConfig:
 DEFAULT_CONFIGS: list[SourceConfig] = [
     # Live verified plugins
     SourceConfig(
+        id="uptvs",
+        name="UpTVs",
+        category=Category.MOVIES,
+        base_urls=["https://www.uptvs.com"],
+        enabled=True,
+    ),
+    SourceConfig(
+        id="doostihaa",
+        name="Doostihaa",
+        category=Category.MOVIES,
+        base_urls=["https://www.doostihaa.com"],
+        enabled=True,
+    ),
+    SourceConfig(
         id="downloadha",
         name="Downloadha",
         category=Category.GAMES,
@@ -42,10 +59,24 @@ DEFAULT_CONFIGS: list[SourceConfig] = [
         enabled=True,
     ),
     SourceConfig(
+        id="yasdl",
+        name="YasDL",
+        category=Category.GAMES,
+        base_urls=["https://www.yasdl.com"],
+        enabled=True,
+    ),
+    SourceConfig(
         id="popmusic",
         name="Pop-Music",
         category=Category.MUSIC,
         base_urls=["https://pop-music.ir"],
+        enabled=True,
+    ),
+    SourceConfig(
+        id="nex1music",
+        name="Nex1Music",
+        category=Category.MUSIC,
+        base_urls=["https://nex1music.com"],
         enabled=True,
     ),
     # Dead / Parked / Bot-walled sources preserved in config as disabled entries
@@ -78,25 +109,11 @@ DEFAULT_CONFIGS: list[SourceConfig] = [
         enabled=False,
     ),
     SourceConfig(
-        id="yasdl",
-        name="YasDL",
-        category=Category.GAMES,
-        base_urls=["https://www.yasdl.com"],
-        enabled=False,
-    ),
-    SourceConfig(
         id="game2dl",
         name="Game2DL",
         category=Category.GAMES,
         base_urls=["https://game2dl.com"],
         enabled=False,
-    ),
-    SourceConfig(
-        id="nex1music",
-        name="Nex1Music",
-        category=Category.MUSIC,
-        base_urls=["https://nex1music.com"],
-        enabled=True,
     ),
     SourceConfig(
         id="radiojavan",
@@ -133,6 +150,12 @@ def get_sources_for_category(category: Category, include_disabled: bool = False)
 
         if cfg.id == "downloadha":
             plugins.append(DownloadhaPlugin(config=cfg))
+        elif cfg.id == "yasdl":
+            plugins.append(YasDLPlugin(config=cfg))
+        elif cfg.id == "uptvs":
+            plugins.append(UpTVsPlugin(config=cfg))
+        elif cfg.id == "doostihaa":
+            plugins.append(DoostihaaPlugin(config=cfg))
         elif cfg.id == "popmusic":
             plugins.append(PopMusicPlugin(config=cfg))
         elif cfg.id == "nex1music":

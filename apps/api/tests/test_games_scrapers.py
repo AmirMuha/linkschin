@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from models import Category
 from sources.games.downloadha import DownloadhaPlugin
+from sources.games.yasdl import YasDLPlugin
 
 
 def test_downloadha_search_parsing(downloadha_search_html: str):
@@ -88,3 +89,62 @@ def test_downloadha_item_no_password():
     assert len(item.game_releases) == 1
     rel = item.game_releases[0]
     assert rel.archive_password == ""
+
+
+def test_yasdl_search_parsing(yasdl_search_html: str):
+    """Verify item extraction from real YasDL search page fixture."""
+    plugin = YasDLPlugin()
+    items = plugin.parse_search_results(yasdl_search_html)
+
+    assert len(items) == 10
+    first = items[0]
+    assert "American Truck Simulator" in first.title
+    assert first.page_url.startswith("https://www.yasdl.com/")
+    assert first.category == Category.GAMES
+    assert first.source_id == "yasdl"
+
+
+def test_yasdl_item_link_extraction(yasdl_item_html: str):
+    """Verify split RAR parts and password extraction from YasDL post fixture."""
+    plugin = YasDLPlugin()
+    items = plugin.parse_search_results(yasdl_item_html)
+    target = items[0] if items else plugin.parse_search_results("<h2 class='col post-title'><a href='https://www.yasdl.com/105441/' title='American Truck Simulator'>ATS</a></h2>")[0]
+
+    plugin.parse_item_page(yasdl_item_html, target)
+
+    assert len(target.game_releases) == 1
+    rel = target.game_releases[0]
+    assert rel.release_group == "ElAmigos"
+    assert rel.archive_password == "www.yasdl.com"
+    assert "14.7" in rel.total_size
+    assert len(rel.parts) == 6
+
+    # Verify parts strictly ascending 1..6 with no gaps
+    part_numbers = [p.part_number for p in rel.parts]
+    assert part_numbers == [1, 2, 3, 4, 5, 6]
+    assert rel.has_missing_parts is False
+    assert rel.missing_part_numbers == []
+
+    # Verify direct download URLs
+    for part in rel.parts:
+        assert part.download_url.startswith("https://")
+        assert ".rar" in part.download_url
+
+
+def test_yasdl_gap_detection_on_missing_parts():
+    """Verify missing parts are flagged when an upstream site has missing segments."""
+    plugin = YasDLPlugin()
+    mock_html = """
+    <div class='download-box'>
+        <a href='https://dl.yasdl.com/game.part1.rar'>دانلود پارت 1</a>
+        <a href='https://dl.yasdl.com/game.part3.rar'>دانلود پارت 3</a>
+        <p>رمز فایل: www.yasdl.com</p>
+    </div>
+    """
+    item = plugin.parse_search_results("<h2 class='col post-title'><a href='https://www.yasdl.com/test/' title='Test Game'>Test Game</a></h2>")[0]
+    plugin.parse_item_page(mock_html, item)
+
+    assert len(item.game_releases) == 1
+    rel = item.game_releases[0]
+    assert rel.has_missing_parts is True
+    assert rel.missing_part_numbers == [2]

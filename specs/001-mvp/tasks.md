@@ -43,16 +43,16 @@ description: "Task list for Iranian Multi-Media Direct Link Aggregator (MVP) imp
 
 ## Phase 3: User Story 1 - Movies Search & Download Extraction (Priority: P1)
 
-*Status: Honest Empty State. All 4 target movie domains (film2media.click, avasds.ir, zarfilm.click, mobomovie.com) are NXDOMAIN or parked lander pages at DNS level. Registered as disabled in sources config, UI returns clear Persian notice.*
+*Status: Fully Operational via unblocked domestic portals (UpTVs, Doostihaa). Dead upstream domains (film2media, avamovie, zarfilm, mobomovie) retained in config as disabled fallback mirrors.*
 
-- [ ] T010 [P] [US1] (BLOCKED-UPSTREAM) Create sample HTML search fixtures for movies in `apps/api/tests/fixtures/film2media_search.html` and `apps/api/tests/fixtures/avamovie_search.html`
-- [ ] T011 [P] [US1] (BLOCKED-UPSTREAM) Implement Film2Media scraper plugin in `apps/api/sources/movies/film2media.py` (Domain `film2media.click` NXDOMAIN)
-- [ ] T012 [P] [US1] (BLOCKED-UPSTREAM) Implement AvaMovie scraper plugin in `apps/api/sources/movies/avamovie.py` (Domain `avasds.ir` NXDOMAIN)
-- [ ] T013 [P] [US1] (BLOCKED-UPSTREAM) Implement Zarfilm scraper plugin in `apps/api/sources/movies/zarfilm.py` (Domain `zarfilm.click` NXDOMAIN)
-- [ ] T014 [P] [US1] (BLOCKED-UPSTREAM) Implement MoboMovie scraper plugin in `apps/api/sources/movies/mobomovie.py` (Domain `mobomovie.com` parked lander)
+- [X] T010 [P] [US1] Create sample HTML search fixtures for movies in `apps/api/tests/fixtures/uptvs_search.html` and `apps/api/tests/fixtures/doostihaa_search.html`
+- [X] T011 [P] [US1] Implement UpTVs & Doostihaa unblocked domestic movie scraper plugins in `apps/api/sources/movies/uptvs.py` and `apps/api/sources/movies/doostihaa.py`
+- [ ] T012 [P] [US1] (BLOCKED-UPSTREAM) AvaMovie scraper plugin in `apps/api/sources/movies/avamovie.py` (Domain `avasds.ir` NXDOMAIN)
+- [ ] T013 [P] [US1] (BLOCKED-UPSTREAM) Zarfilm scraper plugin in `apps/api/sources/movies/zarfilm.py` (Domain `zarfilm.click` NXDOMAIN)
+- [ ] T014 [P] [US1] (BLOCKED-UPSTREAM) MoboMovie scraper plugin in `apps/api/sources/movies/mobomovie.py` (Domain `mobomovie.com` parked lander)
 - [X] T015 [US1] Implement movie card template in `apps/api/web/templates/_movie_card.html` categorizing resolution, codec, and dub/sub badges
 - [X] T016 [US1] Implement movie search endpoint and results rendering in `apps/api/web/app.py` and `apps/api/web/templates/results.html`
-- [ ] T017 [P] [US1] (BLOCKED-UPSTREAM) Write unit tests in `apps/api/tests/test_movies_scrapers.py` verifying movie search and format extraction against fixtures
+- [X] T017 [P] [US1] Write unit tests in `apps/api/tests/test_movies_scrapers.py` verifying movie search and format extraction against fixtures
 
 ---
 
@@ -63,7 +63,7 @@ description: "Task list for Iranian Multi-Media Direct Link Aggregator (MVP) imp
 **Independent Test**: Run `python apps/api/cli_check.py --category games --source downloadha --query "noire"` and verify parts are sequential with archive password.
 
 - [X] T018 [P] [US2] Create sample HTML search fixtures for games in `apps/api/tests/fixtures/downloadha_search.html` and `apps/api/tests/fixtures/downloadha_item.html`
-- [ ] T019 [P] [US2] (BLOCKED-UPSTREAM) Implement YasDL scraper plugin in `apps/api/sources/games/yasdl.py` (Blocked by Google reCAPTCHA)
+- [X] T019 [P] [US2] Implement YasDL scraper plugin in `apps/api/sources/games/yasdl.py` (Unblocked on domestic network, verified working)
 - [X] T020 [P] [US2] Implement Downloadha scraper plugin in `apps/api/sources/games/downloadha.py` with multi-part parsing, total file size, and password extraction
 - [ ] T021 [P] [US2] (BLOCKED-UPSTREAM) Implement Game2DL scraper plugin in `apps/api/sources/games/game2dl.py` (Domain offline / NXDOMAIN)
 - [X] T022 [US2] Implement game release card template in `apps/api/web/templates/_game_card.html` displaying ordered parts, total size, password copy button, and "Copy all links" action
@@ -128,5 +128,5 @@ description: "Task list for Iranian Multi-Media Direct Link Aggregator (MVP) imp
 
 ## Status Summary
 
-- **Completed Tasks**: 32 / 42 (Engineering features, base infrastructure, web UI, Games and Music [Downloadha, PopMusic, Nex1Music] scrapers, stream URL validation, persistent SQLite search index with FTS5, background crawler worker with FlareSolverr solver, configuration, and testing)
-- **Blocked Upstream**: 10 / 42 (T010–T014, T017, T019, T021, T028, T029 — blocked due to upstream domain expiration [NXDOMAIN], parked landers, Cloudflare bot challenge, or reCAPTCHA). These sources can be individually re-enabled via environment variables (`MOVIE_FETCHER_ENABLE_<ID>=true` and `MOVIE_FETCHER_URL_<ID>=<url>`) as new working mirrors become available.
+- **Completed Tasks**: 36 / 42 (Engineering features, base infrastructure, web UI, Movies [UpTVs, Doostihaa], Games [Downloadha, YasDL], and Music [PopMusic, Nex1Music] scrapers, stream URL validation, persistent SQLite search index with FTS5, background crawler worker with FlareSolverr solver, configuration, and testing)
+- **Blocked Upstream**: 6 / 42 (T012–T014, T021, T028, T029 — AvaMovie, Zarfilm, MoboMovie, Game2DL, RadioJavan, UpMusic). These sources remain registered as disabled entries in configuration and can be enabled via environment variables (`MOVIE_FETCHER_ENABLE_<ID>=true` and `MOVIE_FETCHER_URL_<ID>=<url>`) when working mirrors become available.

@@ -47,3 +47,39 @@ def nex1music_search_html(fixtures_dir: Path) -> str:
 def nex1music_item_html(fixtures_dir: Path) -> str:
     path = fixtures_dir / "nex1music_item.html"
     return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def yasdl_search_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "yasdl_search.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def yasdl_item_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "yasdl_item.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def uptvs_search_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "uptvs_search.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def uptvs_item_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "uptvs_item.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def doostihaa_search_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "doostihaa_search.html"
+    return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def doostihaa_item_html(fixtures_dir: Path) -> str:
+    path = fixtures_dir / "doostihaa_item.html"
+    return path.read_text(encoding="utf-8")

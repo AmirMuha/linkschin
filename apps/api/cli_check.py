@@ -66,6 +66,11 @@ async def run_check(category_str: str, source_id: str | None, query_str: str) ->
                             print(f"      [Audio Stream]: {track.stream_url}")
                             for dl in track.downloads:
                                 print(f"      [Download {dl.bitrate}]: {dl.download_url}")
+                    if enriched.movie_variants:
+                        if enriched.stream_url:
+                            print(f"      [Direct Video Stream]: {enriched.stream_url}")
+                        for v in enriched.movie_variants[:4]:
+                            print(f"      [Download {v.quality} {v.codec}]: {v.download_url} ({v.audio_track})")
 
     return 0
 
