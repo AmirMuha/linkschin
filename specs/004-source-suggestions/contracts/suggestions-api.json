@@ -1,0 +1,190 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Source Suggestions API",
+    "version": "1.0.0",
+    "description": "API endpoints for user source suggestions and maintainer triage"
+  },
+  "paths": {
+    "/api/sources/suggest": {
+      "post": {
+        "summary": "Submit a source suggestion",
+        "description": "Submits a website URL to suggest adding it as an indexed scraper source. Protected by 10/day IP rate limit. Existing domains automatically increment request_count.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["url", "category"],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Target website URL (http or https required)"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": ["movies", "games", "music"],
+                    "description": "Primary media category"
+                  },
+                  "source_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Optional human-readable source name"
+                  },
+                  "sample_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Optional direct post or download link from the source"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Optional user context or instructions"
+                  },
+                  "requires_auth": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether the source requires VIP membership or registration"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suggestion accepted or upvoted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message", "domain", "request_count", "is_existing"],
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "پیشنهاد شما با موفقیت ثبت شد" },
+                    "domain": { "type": "string", "example": "example.com" },
+                    "request_count": { "type": "integer", "example": 1 },
+                    "is_existing": { "type": "boolean", "example": false }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (invalid URL or already active source)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Daily rate limit exceeded for client IP",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string", "example": "سقف مجاز پیشنهاد روزانه شما تکمیل شده است" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/suggestions": {
+      "get": {
+        "summary": "List source suggestions (Admin only)",
+        "description": "Retrieves source suggestions sorted by request count and recency. Requires X-Admin-Token header.",
+        "parameters": [
+          {
+            "name": "X-Admin-Token",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Admin authorization token"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["all", "pending", "reviewed", "implemented", "rejected"], "default": "pending" },
+            "description": "Filter by suggestion status"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["movies", "games", "music"] },
+            "description": "Filter by media category"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "maximum": 200 },
+            "description": "Max results to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of suggestions returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["suggestions", "total"],
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "domain": { "type": "string" },
+                          "url": { "type": "string" },
+                          "category": { "type": "string" },
+                          "source_name": { "type": "string" },
+                          "sample_url": { "type": "string" },
+                          "notes": { "type": "string" },
+                          "requires_auth": { "type": "boolean" },
+                          "request_count": { "type": "integer" },
+                          "status": { "type": "string" },
+                          "first_submitted_at": { "type": "number" },
+                          "last_submitted_at": { "type": "number" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid admin token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "detail": { "type": "string", "example": "Invalid or missing admin token" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
