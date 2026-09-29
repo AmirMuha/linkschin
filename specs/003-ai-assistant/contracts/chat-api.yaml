@@ -1,0 +1,164 @@
+openapi: 3.1.0
+info:
+  title: AI Conversational Search Assistant API
+  version: 0.1.0
+  description: API for interactive conversational search, tool-based catalog lookup, web fallback, and direct media link retrieval.
+paths:
+  /api/chat:
+    post:
+      summary: Send a message to the AI assistant
+      description: |
+        Processes user natural language input. Interacts with the local catalog search engine
+        and conditionally falls back to external web search if zero results are found.
+        Supports both JSON responses and Server-Sent Events (SSE) streaming.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Successful conversation turn or event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE stream with event types:
+                  - event: status (data: {"stage": "searching_catalog", "message": "Searching catalog..."})
+                  - event: delta (data: {"text": "chunk"})
+                  - event: media_card (data: MediaItem JSON)
+                  - event: done (data: {"session_id": "uuid"})
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Invalid request payload
+        '500':
+          description: Internal assistant or upstream error
+
+  /api/chat/session/{session_id}:
+    get:
+      summary: Retrieve session message history
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChatMessage'
+    delete:
+      summary: Clear/reset session conversation history
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "cleared"
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        session_id:
+          type: string
+          description: Ephemeral session identifier from client storage
+          example: "sess_9f8d1c2b"
+        message:
+          type: string
+          description: Natural language input in Persian or English
+          example: "فیلم اوپنهایمر با دوبله فارسی رو برام بیار"
+        stream:
+          type: boolean
+          default: true
+          description: If true, returns text/event-stream; if false, application/json
+
+    ChatMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        timestamp:
+          type: number
+
+    ChatResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        message:
+          type: string
+        media_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              stage:
+                type: string
+              message:
+                type: string
+
+    MediaItem:
+      type: object
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+          enum: [movies, games, music]
+        source_id:
+          type: string
+        title:
+          type: string
+        page_url:
+          type: string
+        poster_url:
+          type: string
+        release_year:
+          type: integer
+        variants:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              url:
+                type: string
+              size_text:
+                type: string
+              audio_track:
+                type: string
