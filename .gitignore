@@ -29,6 +29,8 @@ htmlcov/
 !.env.example
 node_modules/
 .turbo/
+.next/
+.worktrees/
 *.db
 *.db-wal
 *.db-shm

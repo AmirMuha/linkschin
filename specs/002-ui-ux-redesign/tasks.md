@@ -23,11 +23,11 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 **Purpose**: Project initialization and monorepo workspace configuration
 
-- [ ] T001 Initialize `apps/web` Next.js 15 (App Router, React 19, TypeScript) package structure in `apps/web/package.json`
-- [ ] T002 [P] Configure Tailwind CSS, PostCSS, and dark-theme color tokens in `apps/web/tailwind.config.ts` and `apps/web/src/app/globals.css`
-- [ ] T003 [P] Setup TypeScript configuration and path aliases (`@/*`) in `apps/web/tsconfig.json`
-- [ ] T004 [P] Define shared TypeScript interfaces mirroring domain models (`MediaItem`, `MovieDownloadVariant`, `GameRelease`, `GamePartLink`, `MusicTrack`, `MusicDownloadVariant`, `SearchApiResponse`, `SourceStatus`) in `apps/web/src/types/media.ts`
-- [ ] T005 [P] Update root Turborepo pipeline configuration for `build`, `dev`, `lint`, and `check` tasks in `turbo.json`
+- [x] T001 Initialize `apps/web` Next.js 15 (App Router, React 19, TypeScript) package structure in `apps/web/package.json`
+- [x] T002 [P] Configure Tailwind CSS, PostCSS, and dark-theme color tokens in `apps/web/tailwind.config.ts` and `apps/web/src/app/globals.css`
+- [x] T003 [P] Setup TypeScript configuration and path aliases (`@/*`) in `apps/web/tsconfig.json`
+- [x] T004 [P] Define shared TypeScript interfaces mirroring domain models (`MediaItem`, `MovieDownloadVariant`, `GameRelease`, `GamePartLink`, `MusicTrack`, `MusicDownloadVariant`, `SearchApiResponse`, `SourceStatus`) in `apps/web/src/types/media.ts`
+- [x] T005 [P] Update root Turborepo pipeline configuration for `build`, `dev`, `lint`, and `check` tasks in `turbo.json`
 
 ---
 
@@ -37,14 +37,14 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T006 Expose typed JSON search endpoint `GET /api/search?q={query}&category={category}&refresh={bool}` with FastAPI CORSMiddleware in `apps/api/web/app.py`
-- [ ] T007 [P] Implement resilient HTTP fetch client with AbortController and timeout support in `apps/web/src/lib/api.ts`
-- [ ] T008 [P] Implement Persian/Arabic Unicode normalization (NFKC, `ي` → `ی`, `ك` → `ک`) in `apps/web/src/lib/persian.ts`
-- [ ] T009 [P] Implement clipboard utility using `navigator.clipboard.writeText` with textarea fallback for non-secure contexts in `apps/web/src/lib/clipboard.ts`
-- [ ] T010 [P] Create Toast notification manager and context for clipboard actions in `apps/web/src/components/ui/ToastNotification.tsx`
-- [ ] T011 Create AppShell layout with root `dir="rtl"`, Vazirmatn Persian font loading, and dark canvas background (`bg-slate-950`) in `apps/web/src/app/layout.tsx`
-- [ ] T012 [P] Create non-blocking skeleton loader cards with pulse animation in `apps/web/src/components/ui/SkeletonGrid.tsx`
-- [ ] T013 [P] Create source status indicator bar displaying active scraper status and timeout warnings in `apps/web/src/components/SourceStatusBar.tsx`
+- [x] T006 Expose typed JSON search endpoint `GET /api/search?q={query}&category={category}&refresh={bool}` with FastAPI CORSMiddleware in `apps/api/web/app.py`
+- [x] T007 [P] Implement resilient HTTP fetch client with AbortController and timeout support in `apps/web/src/lib/api.ts`
+- [x] T008 [P] Implement Persian/Arabic Unicode normalization (NFKC, `ي` → `ی`, `ك` → `ک`) in `apps/web/src/lib/persian.ts`
+- [x] T009 [P] Implement clipboard utility using `navigator.clipboard.writeText` with textarea fallback for non-secure contexts in `apps/web/src/lib/clipboard.ts`
+- [x] T010 [P] Create Toast notification manager and context for clipboard actions in `apps/web/src/components/ui/ToastNotification.tsx`
+- [x] T011 Create AppShell layout with root `dir="rtl"`, Vazirmatn Persian font loading, and dark canvas background (`bg-slate-950`) in `apps/web/src/app/layout.tsx`
+- [x] T012 [P] Create non-blocking skeleton loader cards with pulse animation in `apps/web/src/components/ui/SkeletonGrid.tsx`
+- [x] T013 [P] Create source status indicator bar displaying active scraper status and timeout warnings in `apps/web/src/components/SourceStatusBar.tsx`
 
 **Checkpoint**: Foundation ready - backend JSON API operational and frontend shell ready for user story implementation.
 
@@ -58,12 +58,12 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 ### Implementation for User Story 1
 
-- [ ] T014 [P] [US1] Create category navigation and search bar with clear button, submit trigger, and `/` or `Ctrl+K` focus shortcut in `apps/web/src/components/SearchBar.tsx`
-- [ ] T015 [P] [US1] Create in-view filter bar for resolution (`4K`, `1080p`, `720p`, `480p`), audio track (`دوبله فارسی`, `زیرنویس چسبیده`), and source filtering in `apps/web/src/components/InViewFilterBar.tsx`
-- [ ] T016 [P] [US1] Create movie download variant matrix component grouping links by resolution, codec, audio track, and size with copy-link and direct download triggers in `apps/web/src/components/cards/MovieDownloadMatrix.tsx`
-- [ ] T017 [P] [US1] Create accessible video stream preview modal with native HTML5 `<video>` for items with valid `stream_url` in `apps/web/src/components/player/VideoPlayerModal.tsx`
-- [ ] T018 [US1] Create MovieCard component integrating poster artwork, localized Persian/English titles, year badge, synopsis, stream preview trigger, and download matrix in `apps/web/src/components/cards/MovieCard.tsx`
-- [ ] T019 [US1] Implement main search results grid and state wiring for Movies in `apps/web/src/app/page.tsx`
+- [x] T014 [P] [US1] Create category navigation and search bar with clear button, submit trigger, and `/` or `Ctrl+K` focus shortcut in `apps/web/src/components/SearchBar.tsx`
+- [x] T015 [P] [US1] Create in-view filter bar for resolution (`4K`, `1080p`, `720p`, `480p`), audio track (`دوبله فارسی`, `زیرنویس چسبیده`), and source filtering in `apps/web/src/components/InViewFilterBar.tsx`
+- [x] T016 [P] [US1] Create movie download variant matrix component grouping links by resolution, codec, audio track, and size with copy-link and direct download triggers in `apps/web/src/components/cards/MovieDownloadMatrix.tsx`
+- [x] T017 [P] [US1] Create accessible video stream preview modal with native HTML5 `<video>` for items with valid `stream_url` in `apps/web/src/components/player/VideoPlayerModal.tsx`
+- [x] T018 [US1] Create MovieCard component integrating poster artwork, localized Persian/English titles, year badge, synopsis, stream preview trigger, and download matrix in `apps/web/src/components/cards/MovieCard.tsx`
+- [x] T019 [US1] Implement main search results grid and state wiring for Movies in `apps/web/src/app/page.tsx`
 - [ ] T020 [US1] Validate Scenario 1 (Movie Discovery & Quality Filter) and Scenario 5 (Direct CDN Invariant) from `specs/002-ui-ux-redesign/quickstart.md`
 
 **Checkpoint**: User Story 1 is fully functional and testable independently as the standalone MVP.
@@ -78,11 +78,11 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 ### Implementation for User Story 2
 
-- [ ] T021 [P] [US2] Implement sequential archive part validation ensuring `part_number` continuity and populating `has_missing_parts` and `missing_part_numbers` in `apps/web/src/lib/archive.ts`
-- [ ] T022 [P] [US2] Create high-visibility archive password pill with 1-click copy button and toast confirmation in `apps/web/src/components/cards/PasswordPill.tsx`
-- [ ] T023 [P] [US2] Create GamePartList component displaying sequential parts, individual sizes, single part copy buttons, missing parts warning alert, and "Copy All Links" action in `apps/web/src/components/cards/GamePartList.tsx`
-- [ ] T024 [US2] Create GameCard component integrating cover art, release group, version, total size, password pill, and part list in `apps/web/src/components/cards/GameCard.tsx`
-- [ ] T025 [US2] Wire Games category tab and result card rendering into `apps/web/src/app/page.tsx`
+- [x] T021 [P] [US2] Implement sequential archive part validation ensuring `part_number` continuity and populating `has_missing_parts` and `missing_part_numbers` in `apps/web/src/lib/archive.ts`
+- [x] T022 [P] [US2] Create high-visibility archive password pill with 1-click copy button and toast confirmation in `apps/web/src/components/cards/PasswordPill.tsx`
+- [x] T023 [P] [US2] Create GamePartList component displaying sequential parts, individual sizes, single part copy buttons, missing parts warning alert, and "Copy All Links" action in `apps/web/src/components/cards/GamePartList.tsx`
+- [x] T024 [US2] Create GameCard component integrating cover art, release group, version, total size, password pill, and part list in `apps/web/src/components/cards/GameCard.tsx`
+- [x] T025 [US2] Wire Games category tab and result card rendering into `apps/web/src/app/page.tsx`
 - [ ] T026 [US2] Validate Scenario 2 (Game Multi-Part Archive & Batch Link Copy) from `specs/002-ui-ux-redesign/quickstart.md`
 
 **Checkpoint**: User Stories 1 AND 2 are both fully functional and testable independently.
@@ -97,11 +97,11 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 ### Implementation for User Story 3
 
-- [ ] T027 [P] [US3] Implement global AudioPlayerContext managing a single HTML5 `Audio` instance, playback state, scrubber time, duration, and volume persisted in `localStorage` in `apps/web/src/context/AudioPlayerContext.tsx`
-- [ ] T028 [P] [US3] Create sticky GlobalAudioPlayer bar with play/pause, time scrubber, volume slider, track title, artist, and close trigger in `apps/web/src/components/player/GlobalAudioPlayer.tsx`
-- [ ] T029 [P] [US3] Create MusicDownloadRow component displaying distinct 320kbps and 128kbps download badges with file sizes in `apps/web/src/components/cards/MusicDownloadRow.tsx`
-- [ ] T030 [US3] Create MusicCard component integrating cover art, artist, title, inline play/pause trigger, and bitrate download options in `apps/web/src/components/cards/MusicCard.tsx`
-- [ ] T031 [US3] Wire Music category tab and GlobalAudioPlayer mounting into `apps/web/src/app/page.tsx`
+- [x] T027 [P] [US3] Implement global AudioPlayerContext managing a single HTML5 `Audio` instance, playback state, scrubber time, duration, and volume persisted in `localStorage` in `apps/web/src/context/AudioPlayerContext.tsx`
+- [x] T028 [P] [US3] Create sticky GlobalAudioPlayer bar with play/pause, time scrubber, volume slider, track title, artist, and close trigger in `apps/web/src/components/player/GlobalAudioPlayer.tsx`
+- [x] T029 [P] [US3] Create MusicDownloadRow component displaying distinct 320kbps and 128kbps download badges with file sizes in `apps/web/src/components/cards/MusicDownloadRow.tsx`
+- [x] T030 [US3] Create MusicCard component integrating cover art, artist, title, inline play/pause trigger, and bitrate download options in `apps/web/src/components/cards/MusicCard.tsx`
+- [x] T031 [US3] Wire Music category tab and GlobalAudioPlayer mounting into `apps/web/src/app/page.tsx`
 - [ ] T032 [US3] Validate Scenario 3 (Audio Track Audition & Single-Instance Playback) from `specs/002-ui-ux-redesign/quickstart.md`
 
 **Checkpoint**: User Stories 1, 2, and 3 are all operational and testable.
@@ -116,9 +116,9 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 ### Implementation for User Story 4
 
-- [ ] T033 [P] [US4] Create TechnicalText component enforcing strict `dir="ltr"` and `unicode-bidi: isolate` with monospace styling for filenames, release hashes, codecs, and URLs in `apps/web/src/components/ui/TechnicalText.tsx`
-- [ ] T034 [P] [US4] Implement global keyboard shortcuts hook (`/` and `Ctrl+K` / `Cmd+K` for search focus, `Escape` for blur/close) in `apps/web/src/hooks/useKeyboardShortcuts.ts`
-- [ ] T035 [US4] Audit CSS touch targets (minimum 44x44px on mobile) and high-contrast visible focus rings across inputs, buttons, and badges in `apps/web/src/app/globals.css`
+- [x] T033 [P] [US4] Create TechnicalText component enforcing strict `dir="ltr"` and `unicode-bidi: isolate` with monospace styling for filenames, release hashes, codecs, and URLs in `apps/web/src/components/ui/TechnicalText.tsx`
+- [x] T034 [P] [US4] Implement global keyboard shortcuts hook (`/` and `Ctrl+K` / `Cmd+K` for search focus, `Escape` for blur/close) in `apps/web/src/hooks/useKeyboardShortcuts.ts`
+- [x] T035 [US4] Audit CSS touch targets (minimum 44x44px on mobile) and high-contrast visible focus rings across inputs, buttons, and badges in `apps/web/src/app/globals.css`
 - [ ] T036 [US4] Validate Scenario 4 (Responsive Bidirectional Layout & Keyboard Shortcuts) from `specs/002-ui-ux-redesign/quickstart.md`
 
 **Checkpoint**: All user stories complete with full accessibility and bidirectional layout compliance.
@@ -129,10 +129,10 @@ description: "Task list for modern web interface and UI/UX redesign implementati
 
 **Purpose**: Enhancements that span multiple user stories, caching controls, and final verification
 
-- [ ] T037 [P] Implement "تازه‌سازی" (Force Refresh) button in search bar passing `refresh=true` to bypass cache in `apps/web/src/components/SearchBar.tsx`
-- [ ] T038 [P] Implement recent search history stored in `localStorage` with quick-select chips in `apps/web/src/lib/history.ts`
-- [ ] T039 Run backend pytest suite with offline fixtures ensuring zero regression in `apps/api/tests/`
-- [ ] T040 Run frontend TypeScript check (`pnpm --filter @movie-fetcher/web check` or `tsc --noEmit`) and Turborepo build (`pnpm build`)
+- [x] T037 [P] Implement "تازه‌سازی" (Force Refresh) button in search bar passing `refresh=true` to bypass cache in `apps/web/src/components/SearchBar.tsx`
+- [x] T038 [P] Implement recent search history stored in `localStorage` with quick-select chips in `apps/web/src/lib/history.ts`
+- [x] T039 Run backend pytest suite with offline fixtures ensuring zero regression in `apps/api/tests/`
+- [ ] T040 Run frontend TypeScript check (`pnpm --filter @repo/web check` or `tsc --noEmit`) and Turborepo build (`pnpm build`)
 - [ ] T041 Perform complete end-to-end walkthrough using `specs/002-ui-ux-redesign/quickstart.md` across all 5 verification scenarios
 
 ---

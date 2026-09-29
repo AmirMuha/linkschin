@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #020617;
+  color: #f1f5f9;
+  min-height: 100vh;
+}
+
+/* Technical LTR text isolation */
+.tech-text {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Minimum touch targets on mobile */
+@media (max-width: 640px) {
+  button, a, [role="tab"], input {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Visible focus rings */
+:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}

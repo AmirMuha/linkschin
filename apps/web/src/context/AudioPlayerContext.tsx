@@ -1,0 +1,164 @@
+'use client'
+
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react'
+import type { MusicTrack } from '@/types/media'
+
+interface AudioPlayerContextType {
+  currentTrack: MusicTrack | null
+  isPlaying: boolean
+  currentTime: number
+  duration: number
+  volume: number
+  play: (track: MusicTrack) => void
+  togglePlay: () => void
+  seek: (seconds: number) => void
+  setVolume: (vol: number) => void
+  close: () => void
+}
+
+const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined)
+
+const VOLUME_STORAGE_KEY = 'player_volume'
+
+export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
+  const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [volume, setVolumeState] = useState(0.8)
+
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Initialize Audio element and restore volume
+  useEffect(() => {
+    const audio = new Audio()
+    audioRef.current = audio
+
+    let initialVol = 0.8
+    try {
+      const saved = localStorage.getItem(VOLUME_STORAGE_KEY)
+      if (saved) {
+        const parsed = parseFloat(saved)
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          initialVol = parsed
+        }
+      }
+    } catch {
+      // Ignore
+    }
+    audio.volume = initialVol
+    setVolumeState(initialVol)
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0)
+    const handleEnded = () => setIsPlaying(false)
+    const handlePlay = () => setIsPlaying(true)
+    const handlePause = () => setIsPlaying(false)
+    const handleError = () => {
+      setIsPlaying(false)
+    }
+
+    audio.addEventListener('timeupdate', handleTimeUpdate)
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+    audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('error', handleError)
+
+    return () => {
+      audio.pause()
+      audio.removeEventListener('timeupdate', handleTimeUpdate)
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('error', handleError)
+    }
+  }, [])
+
+  const play = useCallback((track: MusicTrack) => {
+    const audio = audioRef.current
+    if (!audio || !track.stream_url) return
+
+    // If same track, just resume
+    if (currentTrack?.id === track.id) {
+      audio.play().catch(() => {})
+      return
+    }
+
+    audio.pause()
+    audio.src = track.stream_url
+    audio.load()
+    setCurrentTrack(track)
+    audio.play().catch(() => {})
+  }, [currentTrack])
+
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio || !currentTrack) return
+
+    if (isPlaying) {
+      audio.pause()
+    } else {
+      audio.play().catch(() => {})
+    }
+  }, [isPlaying, currentTrack])
+
+  const seek = useCallback((seconds: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = seconds
+    setCurrentTime(seconds)
+  }, [])
+
+  const setVolume = useCallback((vol: number) => {
+    const clamped = Math.max(0, Math.min(1, vol))
+    setVolumeState(clamped)
+    if (audioRef.current) {
+      audioRef.current.volume = clamped
+    }
+    try {
+      localStorage.setItem(VOLUME_STORAGE_KEY, clamped.toString())
+    } catch {
+      // Ignore
+    }
+  }, [])
+
+  const close = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+    }
+    setCurrentTrack(null)
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+  }, [])
+
+  return (
+    <AudioPlayerContext.Provider
+      value={{
+        currentTrack,
+        isPlaying,
+        currentTime,
+        duration,
+        volume,
+        play,
+        togglePlay,
+        seek,
+        setVolume,
+        close,
+      }}
+    >
+      {children}
+    </AudioPlayerContext.Provider>
+  )
+}
+
+export function useAudioPlayer(): AudioPlayerContextType {
+  const context = useContext(AudioPlayerContext)
+  if (!context) {
+    throw new Error('useAudioPlayer must be used within an AudioPlayerProvider')
+  }
+  return context
+}
