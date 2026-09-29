@@ -1,0 +1,14 @@
+{
+  "name": "@repo/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:live": "playwright test --project=live",
+    "test:ui": "playwright test --ui",
+    "coverage": "node check-coverage.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

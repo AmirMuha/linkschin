@@ -12,6 +12,9 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "@repo/e2e#test": {
+      "cache": false
+    },
     "lint": {
       "outputs": []
     },
