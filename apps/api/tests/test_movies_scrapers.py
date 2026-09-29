@@ -87,3 +87,19 @@ def test_doostihaa_item_link_extraction(doostihaa_item_html: str):
     assert target.stream_url is not None
     assert target.stream_url.startswith("https://")
     assert ".mp4" in target.stream_url
+
+def test_search_parsers_survive_base_url_override(uptvs_search_html: str, doostihaa_search_html: str):
+    """Parsing must not depend on the literal upstream host.
+
+    The e2e hermetic harness rewrites fixture hosts to its local stub, so a parser
+    hardcoding 'www.uptvs.com' would silently return zero items there.
+    """
+    cases = [
+        (UpTVsPlugin(), uptvs_search_html, "https://www.uptvs.com"),
+        (DoostihaaPlugin(), doostihaa_search_html, "https://www.doostihaa.com"),
+    ]
+    for plugin, html, host in cases:
+        baseline = plugin.parse_search_results(html)
+        assert baseline, f"{plugin.config.id} baseline parse yielded nothing"
+        overridden = plugin.parse_search_results(html.replace(host, "http://127.0.0.1:8899"))
+        assert len(overridden) == len(baseline), f"{plugin.config.id} lost items under base-url override"

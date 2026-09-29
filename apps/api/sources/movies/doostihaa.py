@@ -78,7 +78,7 @@ class DoostihaaPlugin:
                 art_html,
                 re.DOTALL | re.IGNORECASE,
             ) or re.search(
-                r'<a[^>]+href=[\"\'](https?://www\.doostihaa\.com/post/[^\"\']+)[\"\'][^>]*>(.*?)</a>',
+                r'<a[^>]+href=[\"\'](https?://[^\"\'\s]+/post/[^\"\']+)[\"\'][^>]*>(.*?)</a>',
                 art_html,
                 re.DOTALL | re.IGNORECASE,
             )

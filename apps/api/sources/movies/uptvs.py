@@ -66,7 +66,7 @@ class UpTVsPlugin:
         """Extract media items from search results HTML."""
         items: list[MediaItem] = []
         pattern = re.compile(
-            r'<a[^>]+href=[\"\'](https://www\.uptvs\.com/contents/[^\"\']+)[\"\'][^>]*title=[\"\']([^\"\']+)[\"\']',
+            r'<a[^>]+href=[\"\'](https?://[^\"\'\s]+/contents/[^\"\']+)[\"\'][^>]*title=[\"\']([^\"\']+)[\"\']',
             re.IGNORECASE,
         )
 
