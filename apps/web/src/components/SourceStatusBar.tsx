@@ -27,6 +27,16 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
   const activeWarnings = warnings.filter((_, idx) => !dismissedWarnings[idx])
   const enabledCount = sources.filter((s) => s.enabled).length
 
+  // Auto-dismiss warnings; a new warning set restarts the timers from scratch.
+  useEffect(() => {
+    if (warnings.length === 0) return
+    setDismissedWarnings({})
+    const timers = warnings.map((_, idx) =>
+      setTimeout(() => setDismissedWarnings((prev) => ({ ...prev, [idx]: true })), 6000)
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [warnings])
+
   // Clickaway and Escape key listener
   useEffect(() => {
     if (!showSourcesMenu) return
@@ -64,17 +74,17 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
             return (
               <div
                 key={idx}
-                className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs font-medium shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-2"
+                className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl bg-rose-950/90 border border-rose-500/40 text-rose-100 text-xs font-medium shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-2"
                 role="alert"
               >
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
                   <span>{warning}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setDismissedWarnings((prev) => ({ ...prev, [idx]: true }))}
-                  className="p-1 rounded-md hover:bg-amber-500/20 text-amber-400 transition-colors"
+                  className="p-1 rounded-md hover:bg-rose-500/20 text-rose-400 transition-colors"
                   aria-label="بستن هشدار"
                 >
                   <X className="w-3 h-3" />
