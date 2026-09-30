@@ -43,6 +43,11 @@ python tests/run_all.py
    fixture carries a real VIP link — see research.md Implementation notes #4).
 4. The SQLite round-trip holds: new fields survive `db.upsert_items` → `db.search`
    (`test_db.py`), and `_migrate()` upgrades pre-007 databases without error.
+   Measured (2026-09-30) against a copy of the populated `apps/api/data/index.db`:
+   **65 rows preserved, `media_items` 16 → 19 columns**, no data loss. This matters
+   because `_collect_items` serves repeat searches from SQLite *before* any scraper
+   runs — without the migration every cached card would read back as
+   `unspecified` / `free` / `—`.
 
 ---
 
