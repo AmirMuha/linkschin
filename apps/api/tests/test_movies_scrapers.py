@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from models import Category
-from sources.movies.doostihaa import DoostihaaPlugin
+from models import Category, CensorshipStatus, MovieDownloadVariant, SourceAccessTier
+from sources.movies.doostihaa import DoostihaaPlugin, derive_censorship_status
 from sources.movies.uptvs import UpTVsPlugin
 
 
@@ -103,3 +103,66 @@ def test_search_parsers_survive_base_url_override(uptvs_search_html: str, doosti
         assert baseline, f"{plugin.config.id} baseline parse yielded nothing"
         overridden = plugin.parse_search_results(html.replace(host, "http://127.0.0.1:8899"))
         assert len(overridden) == len(baseline), f"{plugin.config.id} lost items under base-url override"
+
+def test_uptvs_scrapes_imdb_from_cards(uptvs_search_html: str):
+    """Each UpTVs card carries 'N /10' after its ficon-imdb marker."""
+    items = UpTVsPlugin().parse_search_results(uptvs_search_html)
+    rated = [i for i in items if i.imdb_rating is not None]
+    assert rated, "no UpTVs item extracted an IMDb score"
+    assert items[0].imdb_rating == 7.9
+    for i in rated:
+        assert 0.0 <= i.imdb_rating <= 10.0
+
+def test_uptvs_never_invents_a_censorship_claim(uptvs_item_html: str):
+    """No censorship marker in the fixture means unspecified, never 'uncensored'."""
+    plugin = UpTVsPlugin()
+    target = plugin.parse_search_results(uptvs_item_html)[0]
+    plugin.parse_item_page(uptvs_item_html, target)
+    assert target.censorship_status is CensorshipStatus.UNSPECIFIED
+    assert all(v.is_censored is None for v in target.movie_variants)
+
+def test_doostihaa_scrapes_imdb_from_encoded_body(doostihaa_search_html: str):
+    """IMDb lives in HTML-entity-encoded body text, so it needs html.unescape first."""
+    items = DoostihaaPlugin().parse_search_results(doostihaa_search_html)
+    assert items[0].imdb_rating == 7.9
+    assert sum(1 for i in items if i.imdb_rating is not None) == len(items)
+
+def test_doostihaa_reads_page_level_censorship_tag(doostihaa_item_html: str):
+    """The item page tags the release 'نسخه سانسور شده', so it is CENSORED, not unspecified."""
+    plugin = DoostihaaPlugin()
+    target = plugin.parse_search_results(doostihaa_item_html)[0]
+    plugin.parse_item_page(doostihaa_item_html, target)
+    assert target.censorship_status is CensorshipStatus.CENSORED
+    assert all(v.is_censored is True for v in target.movie_variants)
+
+def test_movie_items_carry_their_source_tier(uptvs_search_html: str, doostihaa_search_html: str):
+    """Tier comes from registry config, not from page markup."""
+    uptvs = UpTVsPlugin().parse_search_results(uptvs_search_html)[0]
+    doosti = DoostihaaPlugin().parse_search_results(doostihaa_search_html)[0]
+    assert uptvs.source_access_tier is SourceAccessTier.FREE
+    assert doosti.source_access_tier is SourceAccessTier.FREEMIUM
+
+def test_derive_censorship_status_rolls_up_variant_flags():
+    """Mixed flags mean a mixed release; no flags mean unknown, never assumed."""
+    def v(flag):
+        return MovieDownloadVariant(id=str(flag), quality="720p", codec="x264",
+                                    audio_track="dub", download_url="https://c/a.mp4",
+                                    is_censored=flag)
+    assert derive_censorship_status([]) is CensorshipStatus.UNSPECIFIED
+    assert derive_censorship_status([v(None)]) is CensorshipStatus.UNSPECIFIED
+    assert derive_censorship_status([v(True), v(True)]) is CensorshipStatus.CENSORED
+    assert derive_censorship_status([v(False), v(False)]) is CensorshipStatus.UNCENSORED
+    assert derive_censorship_status([v(True), v(False)]) is CensorshipStatus.MIXED
+
+def test_imdb_jsonld_aggregate_rating_is_never_used(uptvs_item_html: str, doostihaa_item_html: str):
+    """JSON-LD aggregateRating is a site-user score (0-100 / 1-5), not an IMDb rating."""
+    assert UpTVsPlugin._parse_imdb(uptvs_item_html) is None
+    assert DoostihaaPlugin._parse_imdb(doostihaa_item_html) is None
+
+def test_imdb_rejects_out_of_range_scores():
+    """A parsed score outside 0-10 resolves to None instead of rendering a bogus badge."""
+    assert DoostihaaPlugin._parse_imdb("امتیاز: 83") is None
+    assert DoostihaaPlugin._parse_imdb("امتیاز: 6.5") == 6.5
+    assert UpTVsPlugin._parse_imdb('<i class="ficon-imdb"></i> 55 /10') is None
+    assert UpTVsPlugin._parse_imdb('<i class="ficon-imdb"></i> 7.9 /10') == 7.9
+    assert UpTVsPlugin._parse_imdb("no marker here") is None

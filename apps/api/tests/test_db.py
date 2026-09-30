@@ -8,12 +8,14 @@ from pathlib import Path
 import db
 from models import (
     Category,
+    CensorshipStatus,
     GamePartLink,
     GameRelease,
     MediaItem,
     MovieDownloadVariant,
     MusicDownloadVariant,
     MusicTrack,
+    SourceAccessTier,
 )
 
 
@@ -163,3 +165,54 @@ def test_cascade_delete_removes_child_rows():
         conn.close()
 
     assert db.search(Category.GAMES, "gta", db_path=path) == []
+
+def test_enrichment_fields_survive_a_db_round_trip():
+    """Search results are served from SQLite on a repeat query, so the spec-007 fields
+    must persist — otherwise every cached card reads back unspecified/free/unrated."""
+    path = _db_file()
+    item = _movie_item()
+    item.imdb_rating = 8.4
+    item.censorship_status = CensorshipStatus.UNCENSORED
+    item.source_access_tier = SourceAccessTier.FREEMIUM
+    item.movie_variants[0].is_censored = False
+    item.movie_variants[0].is_premium = True
+    db.upsert_items([item], db_path=path)
+
+    found = db.search(Category.MOVIES, "Interstellar", db_path=path)
+    assert len(found) == 1
+    back = found[0]
+    assert back.imdb_rating == 8.4
+    assert back.censorship_status is CensorshipStatus.UNCENSORED
+    assert back.source_access_tier is SourceAccessTier.FREEMIUM
+    variant = back.movie_variants[0]
+    assert variant.is_censored is False
+    assert variant.is_premium is True
+
+def test_connect_migrates_a_pre_007_database():
+    """An index.db written before the new columns must gain them, not raise."""
+    path = _db_file()
+    legacy = db.SCHEMA
+    for column in ("imdb_rating      REAL,", "censorship_status TEXT,",
+                   "source_access_tier TEXT,", "is_censored INT,", "is_premium  INT,"):
+        legacy = legacy.replace(column, "")
+    import sqlite3
+    seed = sqlite3.connect(path)
+    seed.executescript(legacy)
+    seed.execute(
+        "INSERT INTO media_items (id,category,source_id,title,title_norm,artist,page_url,"
+        "first_seen,last_seen) VALUES ('old','movies','uptvs','قدیمی','قدیمی','','https://x.com',0,0)"
+    )
+    seed.execute("INSERT INTO search_fts (title_norm,artist,page_url,item_id) "
+                 "VALUES ('قدیمی','','https://x.com','old')")
+    seed.commit()
+    seed.close()
+
+    conn = db.connect(path)
+    columns = {r["name"] for r in conn.execute("PRAGMA table_info(media_items)")}
+    assert {"imdb_rating", "censorship_status", "source_access_tier"} <= columns
+    conn.close()
+
+    back = db.search(Category.MOVIES, "قدیمی", db_path=path)[0]
+    assert back.imdb_rating is None
+    assert back.censorship_status is CensorshipStatus.UNSPECIFIED
+    assert back.source_access_tier is SourceAccessTier.FREE
