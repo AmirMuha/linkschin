@@ -9,6 +9,13 @@ from typing import Any
 
 from models import Category, MediaItem
 
+# Persian (۰-۹) and Arabic-Indic (٠-٩) digits -> ASCII. NFKC folds neither set,
+# so a search for "۱۲۳" and "١٢٣" would otherwise reach the sources as two
+# different queries (FR-006). Defined here rather than reusing
+# sources.base.PERSIAN_DIGITS, which maps only the Persian set and would pull
+# the whole scraper layer into this module for one table.
+PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
 
 def normalize_persian_text(text: str) -> str:
     """
@@ -16,6 +23,7 @@ def normalize_persian_text(text: str) -> str:
     - Arabic Yeh (ي) -> Persian Yeh (ی)
     - Arabic Kaf (ك) -> Persian Keheh (ک)
     - Arabic Heh with Yeh (ة / ۀ) -> Persian Heh (ه)
+    - Persian and Arabic-Indic digits -> ASCII
     - Zero-width non-joiner (ZWNJ) -> space
     - Collapse redundant whitespace and trim
     """
@@ -37,6 +45,8 @@ def normalize_persian_text(text: str) -> str:
     }
     for src, dst in substitutions.items():
         normalized = normalized.replace(src, dst)
+
+    normalized = normalized.translate(PERSIAN_DIGITS)
 
     # Clean punctuation and normalize spacing
     normalized = re.sub(r"[\s\-_.:,;!?()\[\]{}\"\']+", " ", normalized)

@@ -60,13 +60,15 @@
     <div class="badge-list">
       <span>منابع فعال:</span>
       {% for src in all_sources %}
-        {% if src.category.value == active_category %}
-          {# `status`/`inactive_reason` are optional (G4): an older server omits
-             them, and a missing value renders as Undefined → falsy. `kind` may
-             arrive as a SourceKind enum or as a plain string. #}
+        {% if src.category == active_category %}
+          {# `all_sources` holds display rows from _source_display_rows(), the
+             same derivation /api/sources uses — so `status` and
+             `inactive_reason` are always present. `category` is a plain string
+             and `kind` is already "full"/"reference", not an enum, so neither
+             needs unwrapping here. #}
           {% set src_status = src.status | default('') %}
           {% set src_reason = src.inactive_reason | default('') %}
-          {% set src_kind = (src.kind.value if src.kind.value is defined else src.kind) | default('full', true) %}
+          {% set src_kind = src.kind | default('full', true) %}
           <span class="badge {% if src.enabled %}active{% else %}disabled{% endif %}"
                 {% if src_reason %}title="{{ src_reason }}"{% endif %}>
             {{ src.name }}

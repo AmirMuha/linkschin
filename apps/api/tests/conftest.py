@@ -83,3 +83,63 @@ def doostihaa_search_html(fixtures_dir: Path) -> str:
 def doostihaa_item_html(fixtures_dir: Path) -> str:
     path = fixtures_dir / "doostihaa_item.html"
     return path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musicdel_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musicdel_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musicdel_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musicdel_item.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musicsfa_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musicsfa_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musicsfa_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musicsfa_item.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def upsong_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "upsong_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def upsong_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "upsong_item.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def upmusics_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "upmusics_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def upmusics_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "upmusics_item.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musictarin_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musictarin_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def musictarin_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "musictarin_item.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def onerj_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "onerj_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def onerj_item_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "onerj_item.html").read_text(encoding="utf-8")
