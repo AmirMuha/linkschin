@@ -37,3 +37,4 @@ node_modules/
 apps/api/data/
 
 .pipeline/
+*.tsbuildinfo
