@@ -7,6 +7,12 @@ import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
 import { SourceStatusBar } from '@/components/SourceStatusBar'
 import { InViewFilterBar, type FilterState } from '@/components/InViewFilterBar'
+import { itemMatchesCensorship, itemMatchesTier } from '@/lib/filters'
+import {
+  buildSearchParams,
+  parseCensorshipParam,
+  parseTierParam,
+} from '@/lib/urlFilters'
 import { SkeletonGrid } from '@/components/ui/SkeletonGrid'
 import { MovieCard } from '@/components/cards/MovieCard'
 import { GameCard } from '@/components/cards/GameCard'
@@ -15,7 +21,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { Sparkles, AlertCircle, Compass } from 'lucide-react'
+import { Sparkles, AlertCircle, Compass, Filter } from 'lucide-react'
 
 export default function Home() {
   const [category, setCategory] = useState<Category>('movies')
@@ -32,6 +38,8 @@ export default function Home() {
     qualities: [],
     audioTracks: [],
     sources: [],
+    accessTier: 'all',
+    censorship: 'all',
   })
 
   // Video modal state
@@ -93,7 +101,7 @@ export default function Home() {
       setHasSearched(true)
 
       // Reset filters on new search
-      setFilters({ qualities: [], audioTracks: [], sources: [] })
+      setFilters({ qualities: [], audioTracks: [], sources: [], accessTier: 'all', censorship: 'all' })
 
       try {
         const response = await searchMedia(
@@ -128,7 +136,7 @@ export default function Home() {
     setWarnings([])
     setHasSearched(false)
     setErrorMessage(null)
-    setFilters({ qualities: [], audioTracks: [], sources: [] })
+    setFilters({ qualities: [], audioTracks: [], sources: [], accessTier: 'all', censorship: 'all' })
 
     // If query already entered, immediately execute search in new category
     if (query.trim()) {
@@ -191,9 +199,35 @@ export default function Home() {
         if (!hasAudio) return false
       }
 
+      // Source access tier + censorship (spec 007). Freemium items stay visible under
+      // either tier; only their download rows are pruned inside MovieDownloadMatrix.
+      if (!itemMatchesTier(item, filters.accessTier)) return false
+      if (!itemMatchesCensorship(item, filters.censorship)) return false
+
       return true
     })
   }, [items, filters])
+
+  // Seed tier/censorship from the URL once on mount so a shared or refreshed link
+  // restores the same filtered view (FR-012).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tier = parseTierParam(params.get('tier'))
+    const censorship = parseCensorshipParam(params.get('censorship'))
+    if (tier === 'all' && censorship === 'all') return
+    setFilters((prev) => ({ ...prev, accessTier: tier, censorship }))
+  }, [])
+
+  // Mirror filter changes back to the URL without navigating (FR-011, FR-012).
+  useEffect(() => {
+    const params = buildSearchParams(
+      filters.accessTier,
+      filters.censorship,
+      new URLSearchParams(window.location.search)
+    )
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
+    window.history.replaceState(null, '', next)
+  }, [filters.accessTier, filters.censorship])
 
   function handleOpenVideo(url: string, title: string) {
     setVideoModal({
@@ -258,6 +292,7 @@ export default function Home() {
                 availableSources={availableFilterOptions.sources}
                 filters={filters}
                 onFilterChange={setFilters}
+                showMovieFilters={category === 'movies'}
               />
             </div>
           )}
@@ -301,6 +336,36 @@ export default function Home() {
             </div>
           )}
 
+          {!isLoading && !errorMessage && hasSearched && items.length > 0 && filteredItems.length === 0 && (
+            <div
+              role="status"
+              className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8"
+            >
+              <Filter className="w-12 h-12 text-zinc-600" />
+              <h3 className="font-bold text-base text-zinc-200">
+                نتیجه‌ای با این فیلترها نیست
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                هیچ موردی با فیلترهای انتخاب‌شده مطابقت ندارد. فیلترها را حذف یا گسترده‌تر کنید.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters({
+                    qualities: [],
+                    audioTracks: [],
+                    sources: [],
+                    accessTier: 'all',
+                    censorship: 'all',
+                  })
+                }
+                className="mt-2 px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-xs font-semibold transition-colors"
+              >
+                حذف فیلترها
+              </button>
+            </div>
+          )}
+
           {!isLoading && !errorMessage && filteredItems.length > 0 && (
             <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
               {filteredItems.map((item) => {
@@ -310,6 +375,8 @@ export default function Home() {
                       key={item.id}
                       item={item}
                       onPlayStream={handleOpenVideo}
+                      activeTierFilter={filters.accessTier}
+                      activeCensorshipFilter={filters.censorship}
                     />
                   )
                 }

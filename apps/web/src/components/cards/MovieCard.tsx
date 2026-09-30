@@ -2,16 +2,50 @@
 
 import React, { useState } from 'react'
 import type { MediaItem } from '@/types/media'
-import { Film, PlayCircle, Calendar, ExternalLink } from 'lucide-react'
+import { Film, PlayCircle, Calendar, ExternalLink, Star } from 'lucide-react'
 import { MovieDownloadMatrix } from './MovieDownloadMatrix'
 import { TechnicalText } from '@/components/ui/TechnicalText'
+import type { CensorshipStatus, SourceAccessTier } from '@/types/media'
+import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
+
+const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: string }> = {
+  uncensored: {
+    label: 'نسخه کامل',
+    className: 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60',
+  },
+  censored: {
+    label: 'بازبینی شده',
+    className: 'bg-amber-950/80 text-amber-300 border-amber-800/60',
+  },
+  mixed: {
+    label: 'شامل هر دو نسخه',
+    className: 'bg-cyan-950/80 text-cyan-300 border-cyan-800/60',
+  },
+  unspecified: {
+    label: 'نامشخص',
+    className: 'bg-zinc-900/80 text-zinc-400 border-zinc-700/60',
+  },
+}
+
+const TIER_BADGE: Record<SourceAccessTier, { label: string; className: string }> = {
+  free: { label: 'رایگان', className: 'bg-zinc-950/80 text-zinc-300 border-zinc-800/80' },
+  premium: { label: 'VIP', className: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  freemium: { label: 'ترکیبی', className: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+}
 
 interface MovieCardProps {
   item: MediaItem
   onPlayStream?: (streamUrl: string, title: string) => void
+  activeTierFilter?: TierFilter
+  activeCensorshipFilter?: CensorshipFilter
 }
 
-export function MovieCard({ item, onPlayStream }: MovieCardProps) {
+export function MovieCard({
+  item,
+  onPlayStream,
+  activeTierFilter = 'all',
+  activeCensorshipFilter = 'all',
+}: MovieCardProps) {
   const [imageError, setImageError] = useState(false)
 
   return (
@@ -59,6 +93,26 @@ export function MovieCard({ item, onPlayStream }: MovieCardProps) {
             <TechnicalText>{item.release_year}</TechnicalText>
           </div>
         )}
+
+        {/* IMDb Rating — always rendered so the badge never shifts layout when unrated */}
+        <div className="absolute bottom-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 font-mono text-2xs text-amber-300 backdrop-blur-md">
+          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+          <span>{item.imdb_rating?.toFixed(1) ?? '—'}</span>
+        </div>
+
+        {/* Source access tier */}
+        <div
+          className={`absolute bottom-2.5 end-2.5 px-2 py-0.5 rounded-full border text-2xs font-medium backdrop-blur-md ${TIER_BADGE[item.source_access_tier].className}`}
+        >
+          {TIER_BADGE[item.source_access_tier].label}
+        </div>
+
+        {/* Censorship status */}
+        <div
+          className={`absolute bottom-11 start-2.5 px-2 py-0.5 rounded-full border text-2xs font-medium backdrop-blur-md ${CENSORSHIP_BADGE[item.censorship_status].className}`}
+        >
+          {CENSORSHIP_BADGE[item.censorship_status].label}
+        </div>
       </div>
 
       {/* Title & Metadata */}
@@ -97,7 +151,11 @@ export function MovieCard({ item, onPlayStream }: MovieCardProps) {
 
       {/* Download Variants Matrix */}
       <div className="mt-auto border-t border-zinc-800/80 pt-2">
-        <MovieDownloadMatrix variants={item.movie_variants} />
+        <MovieDownloadMatrix
+          variants={item.movie_variants}
+          activeTierFilter={activeTierFilter}
+          activeCensorshipFilter={activeCensorshipFilter}
+        />
       </div>
     </article>
   )
