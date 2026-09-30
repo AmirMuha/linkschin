@@ -13,6 +13,7 @@ interface AudioPlayerContextType {
    *  value is the source of truth and a bare `volume > 0 ? 0 : 0.8` loses it. */
   volumeBeforeMute: number
   isMuted: boolean
+  isRepeating: boolean
   playbackRate: number
   play: (track: MusicTrack) => void
   togglePlay: () => void
@@ -20,6 +21,7 @@ interface AudioPlayerContextType {
   skip: (delta: number) => void
   setVolume: (vol: number) => void
   toggleMute: () => void
+  toggleRepeat: () => void
   cyclePlaybackRate: () => void
   close: () => void
 }
@@ -39,6 +41,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [volume, setVolumeState] = useState(0.8)
   const [volumeBeforeMute, setVolumeBeforeMute] = useState(0.8)
   const [playbackRate, setPlaybackRate] = useState(1)
+  const [isRepeating, setIsRepeating] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -158,6 +161,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     })
   }, [volumeBeforeMute])
 
+  const toggleRepeat = useCallback(() => {
+    setIsRepeating((prev) => {
+      const next = !prev
+      if (audioRef.current) {
+        audioRef.current.loop = next
+      }
+      return next
+    })
+  }, [])
+
   const cyclePlaybackRate = useCallback(() => {
     setPlaybackRate((current) => {
       const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(current as (typeof PLAYBACK_RATES)[number]) + 1) % PLAYBACK_RATES.length]
@@ -202,6 +215,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         volume,
         volumeBeforeMute,
         isMuted: volume === 0,
+        isRepeating,
         playbackRate,
         play,
         togglePlay,
@@ -209,6 +223,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         skip,
         setVolume,
         toggleMute,
+        toggleRepeat,
         cyclePlaybackRate,
         close,
       }}

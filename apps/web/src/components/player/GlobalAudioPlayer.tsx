@@ -13,6 +13,7 @@ import {
   SkipBack,
   SkipForward,
   Gauge,
+  Repeat,
 } from 'lucide-react'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 
@@ -66,11 +67,13 @@ export function GlobalAudioPlayer() {
     duration,
     volume,
     isMuted,
+    isRepeating,
     playbackRate,
     togglePlay,
     seek,
     skip,
     toggleMute,
+    toggleRepeat,
     cyclePlaybackRate,
     setVolume,
     close,
@@ -87,6 +90,7 @@ export function GlobalAudioPlayer() {
     <div
       role="region"
       aria-label="پخش‌کننده صوتی"
+      dir="ltr"
       className="fixed bottom-0 inset-x-0 z-40 bg-zinc-950/80 border-t border-zinc-800/80 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] backdrop-blur-2xl animate-in slide-in-from-bottom-4"
     >
       {/* Ambient glow tinted by the cover art. Decorative, so it is hidden from
@@ -186,6 +190,15 @@ export function GlobalAudioPlayer() {
               accent
             >
               <Gauge className="w-4 h-4" aria-hidden="true" />
+            </ControlButton>
+
+            <ControlButton
+              onClick={toggleRepeat}
+              label={isRepeating ? 'غیرفعال‌سازی تکرار' : 'تکرار آهنگ'}
+              pressed={isRepeating}
+              accent
+            >
+              <Repeat className="w-4 h-4" aria-hidden="true" />
             </ControlButton>
           </div>
 
