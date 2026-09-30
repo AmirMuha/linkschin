@@ -45,6 +45,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Re-scrape a stored row once it is this old, so renamed posts and rotated download
+# links surface without waiting for a user to hit refresh.
+DB_STALE_TTL_SECONDS = 6 * 3600
+
 
 async def _collect_items(
     cat_enum: Category,
@@ -52,24 +56,45 @@ async def _collect_items(
     raw_query: str,
     refresh: bool = False,
 ) -> tuple[list[MediaItem], list[str], bool]:
-    """Fetch items from cache, persistent DB, or concurrent scraper plugins."""
+    """Fetch items from cache, persistent DB, or concurrent scraper plugins.
+
+    A portal is not partitioned by category: Downloadha answers a games query from its
+    soundtrack section too, so a plugin's output can carry an item labelled for another
+    tab. The cache and the DB both filter by the stored category, so without this the
+    fresh-scrape path was the one route that put a music post in the games tab. Filtering
+    here covers every caller and every item source in one place.
+    """
     cat_clean = cat_enum.value
+    # Anything older than this is re-scraped on the next request, because portals
+    # rename posts and rotate download links (a cached uptvs title pointed at a
+    # different film's file than the page it was taken from).
+    stale_db_items: list[MediaItem] = []
 
     # 1. Check in-memory cache and persistent database
     if not refresh:
         cached_items = GLOBAL_CACHE.get(cat_enum, norm_query)
-        if cached_items is not None:
+        # `if cached_items:` not `is not None` - a cached [] means an earlier scrape
+        # found nothing, and treating it as authoritative would shadow the DB below
+        # for the whole TTL, blanking out a query the index can still answer.
+        if cached_items:
             return cached_items, [], True
 
         db_items = db.search(cat_enum, norm_query)
         if db_items:
-            GLOBAL_CACHE.set(cat_enum, norm_query, db_items)
-            return db_items, [], True
+            if db.search(cat_enum, norm_query, max_age_seconds=DB_STALE_TTL_SECONDS):
+                GLOBAL_CACHE.set(cat_enum, norm_query, db_items)
+                return db_items, [], True
+            # Stale: fall through and re-scrape, but keep these as a floor so a failed
+            # or slow refresh can never reduce a result set to nothing.
+            stale_db_items = db_items
 
     # 2. Get active scraper plugins
     plugins = get_sources_for_category(cat_enum, include_disabled=False)
     if not plugins:
         warning = f"هیچ منبع فعالی برای دسته «{cat_clean}» در دسترس نیست. منابع در حال به‌روزرسانی هستند."
+        if stale_db_items:
+            GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items)
+            return stale_db_items, [warning], False
         return [], [warning], False
 
     # 3. Concurrent search with timeout budget (7s per source, 10s global deadline)
@@ -109,14 +134,26 @@ async def _collect_items(
             warnings.append("زمان جستجوی سراسری به پایان رسید. برخی نتایج ممکن است ناقص باشند.")
 
     # 4. Cache, persist to SQLite, and return
-    GLOBAL_CACHE.set(cat_enum, norm_query, all_items)
+    # Only a non-empty result is cached: a timed-out scrape must not overwrite a
+    # good answer with nothing.
     if all_items:
+        all_items = [i for i in all_items if i.category == cat_enum]
+        if not all_items:
+            return [], warnings, False
+        GLOBAL_CACHE.set(cat_enum, norm_query, all_items)
         try:
             db.upsert_items(all_items)
         except Exception:
             pass
+        return all_items, warnings, False
 
-    return all_items, warnings, False
+    # Nothing fresh: serve the stale index rather than claim the query has no results.
+    if stale_db_items:
+        GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items)
+        warnings.append("نتایج ذخیره‌شده ممکن است به‌روز نباشند؛ منابع در دسترس نبودند.")
+        return stale_db_items, warnings, False
+
+    return [], warnings, False
 
 
 @app.get("/", response_class=HTMLResponse)

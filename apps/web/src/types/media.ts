@@ -1,5 +1,12 @@
 export type Category = 'movies' | 'games' | 'music'
 
+/**
+ * 'direct'    - the URL serves the file itself.
+ * 'needs_login' - the host answers with an interstitial/login page instead of the
+ *                 file, so it must not be presented as a plain download.
+ */
+export type LinkAccess = 'direct' | 'needs_login'
+
 export interface MovieDownloadVariant {
   id: string
   quality: string
@@ -8,6 +15,7 @@ export interface MovieDownloadVariant {
   download_url: string
   file_size_mb: number | null
   source_name: string
+  access?: LinkAccess
 }
 
 export interface GamePartLink {
@@ -15,6 +23,7 @@ export interface GamePartLink {
   part_label: string
   download_url: string
   file_size: string | null
+  access?: LinkAccess
 }
 
 export interface GameRelease {
@@ -33,6 +42,7 @@ export interface MusicDownloadVariant {
   bitrate: string
   download_url: string
   file_size: string | null
+  access?: LinkAccess
 }
 
 export interface MusicTrack {

@@ -67,6 +67,32 @@ def _music_item() -> MediaItem:
     )
 
 
+def _dual_archive_game() -> MediaItem:
+    """One post shipping two archives that both number their parts from 1."""
+    return MediaItem(
+        id="game-2", title="Ready or Not PS5", category=Category.GAMES,
+        source_id="downloadha", page_url="https://example.com/ready-or-not",
+        game_releases=[
+            GameRelease(
+                id="game-2_release_0", source_name="downloadha",
+                total_size="26 GB", archive_password="mf",
+                parts=[
+                    GamePartLink(part_number=1, part_label="Part 1", download_url="https://example.com/exfat.part1.rar"),
+                    GamePartLink(part_number=2, part_label="Part 2", download_url="https://example.com/exfat.part2.rar"),
+                ],
+            ),
+            GameRelease(
+                id="game-2_release_1", source_name="downloadha",
+                archive_password="mf",
+                parts=[
+                    GamePartLink(part_number=1, part_label="Part 1", download_url="https://example.com/pkg.part1.rar"),
+                    GamePartLink(part_number=2, part_label="Part 2", download_url="https://example.com/pkg.part2.rar"),
+                ],
+            ),
+        ],
+    )
+
+
 def test_upsert_items_is_idempotent():
     """Re-upserting the same item updates it in place instead of duplicating rows."""
     path = _db_file()
@@ -145,6 +171,72 @@ def test_hostile_query_input_is_safe():
     assert db.stats(path)["total"] == 3
 
 
+def test_multiple_archives_round_trip_as_separate_releases():
+    """Two archives from one post must not collapse into one merged part list."""
+    path = _db_file()
+    db.upsert_items([_dual_archive_game()], path)
+
+    found = db.search(Category.GAMES, "ready", db_path=path)
+    assert len(found) == 1
+    releases = found[0].game_releases
+    assert len(releases) == 2, "each archive family is its own release"
+
+    for rel in releases:
+        assert [p.part_number for p in rel.parts] == [1, 2]
+        assert rel.has_missing_parts is False
+        assert len({p.part_number for p in rel.parts}) == len(rel.parts)
+
+    urls = {p.download_url for rel in releases for p in rel.parts}
+    assert len(urls) == 4, "no part may be lost or merged"
+    # Per-release metadata must not bleed across archives.
+    assert [rel.total_size for rel in releases] == ["26 GB", ""]
+
+
+def test_access_flag_round_trips():
+    """A link behind a login wall keeps its flag through the index."""
+    path = _db_file()
+    item = _movie_item()
+    item.movie_variants[0].access = "needs_login"
+    game = _dual_archive_game()
+    game.game_releases[0].parts[0].access = "needs_login"
+    db.upsert_items([item, game], path)
+
+    movie = db.search(Category.MOVIES, "interstellar", db_path=path)[0]
+    assert movie.movie_variants[0].access == "needs_login"
+
+    game_found = db.search(Category.GAMES, "ready", db_path=path)[0]
+    flagged = [p.access for rel in game_found.game_releases for p in rel.parts]
+    assert flagged.count("needs_login") == 1
+    assert flagged.count("direct") == 3
+
+
+def test_access_flag_migration_is_idempotent_on_existing_db():
+    """Opening a pre-migration database twice must not raise or duplicate columns."""
+    path = _db_file()
+    legacy = path.parent / "legacy.db"
+    conn = db.connect(legacy)
+    try:
+        # Simulate the old schema: no access columns at all.
+        conn.executescript(
+            "DROP TABLE IF EXISTS game_releases;"
+        )
+        conn.execute("ALTER TABLE download_variants DROP COLUMN access")
+        conn.execute("ALTER TABLE game_parts DROP COLUMN access")
+        conn.commit()
+    finally:
+        conn.close()
+
+    for _ in range(2):
+        conn = db.connect(legacy)
+        try:
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(download_variants)")}
+            assert "access" in cols
+            parts_cols = {r["name"] for r in conn.execute("PRAGMA table_info(game_parts)")}
+            assert "access" in parts_cols
+        finally:
+            conn.close()
+
+
 def test_cascade_delete_removes_child_rows():
     """Deleting an item removes its variants, parts, and FTS entry."""
     path = _db_file()
@@ -163,3 +255,70 @@ def test_cascade_delete_removes_child_rows():
         conn.close()
 
     assert db.search(Category.GAMES, "gta", db_path=path) == []
+
+
+def test_migration_drops_misfiled_game_rows_once():
+    """Rows the games scrapers filed as games but filed outside the game sections.
+
+    Fixing parse_search_results is not enough: a row already written stays in the
+    index forever, because the fixed scraper never re-emits it to overwrite and
+    db.search filters on the stored category. The cleanup runs once, guarded by a
+    marker, and must not touch rows that were filed correctly.
+    """
+    path = _db_file()
+    misfiled = MediaItem(
+        id="game-ost", title="دانلود موسیقی متن بازی GTA Arena", category=Category.GAMES,
+        source_id="downloadha", page_url="https://www.downloadha.com/others/gta-ost/",
+        game_releases=[GameRelease(
+            id="ost-rel", source_name="downloadha",
+            parts=[GamePartLink(part_number=1, part_label="p1", download_url="https://dl/ost.rar")],
+        )],
+    )
+    keep = MediaItem(
+        id="game-ok", title="دانلود بازی Elden Ring", category=Category.GAMES,
+        source_id="downloadha", page_url="https://www.downloadha.com/game/elden-ring/",
+    )
+    keep_mobile = MediaItem(
+        id="game-apk", title="دانلود بازی PUBG Mobile", category=Category.GAMES,
+        source_id="downloadha", page_url="https://www.downloadha.com/mobile/pubg/",
+    )
+    # YasDL permalinks are flat, so a /game/ predicate would wipe every yasdl row.
+    keep_yasdl = MediaItem(
+        id="yas-1", title="دانلود بازی American Truck Simulator", category=Category.GAMES,
+        source_id="yasdl", page_url="https://www.yasdl.com/105441/x",
+    )
+
+    # Seed the rows, then clear the marker: that is the state a pre-fix install is in.
+    # Clearing it last matters, because upsert_items itself opens the database and would
+    # otherwise run the migration against an empty table and re-burn the marker.
+    db.upsert_items([misfiled, keep, keep_mobile, keep_yasdl], path)
+    conn = db.connect(path)
+    try:
+        conn.execute("DELETE FROM schema_meta WHERE key=?", (db._MISFILED_GAME_ROWS,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    db.connect(path).close()  # the migration runs on connect
+
+    conn = db.connect(path)
+    try:
+        ids = {r["id"] for r in conn.execute("SELECT id FROM media_items")}
+        assert "game-ost" not in ids, "the misfiled soundtrack must be gone"
+        assert {"game-ok", "game-apk", "yas-1"} <= ids
+        # Child rows and the FTS entry follow the delete via cascade and trigger.
+        assert conn.execute("SELECT COUNT(*) FROM game_parts WHERE item_id='game-ost'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM search_fts WHERE item_id='game-ost'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM schema_meta WHERE key=?",
+                            (db._MISFILED_GAME_ROWS,)).fetchone()[0] == 1
+    finally:
+        conn.close()
+
+    # Second connect is a no-op, so a row reinserted by hand afterwards survives.
+    db.upsert_items([misfiled], path)
+    db.connect(path).close()
+    conn = db.connect(path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM media_items WHERE id='game-ost'").fetchone()[0] == 1
+    finally:
+        conn.close()

@@ -60,6 +60,20 @@ CREATE TABLE IF NOT EXISTS game_parts (
     file_size   TEXT,
     url         TEXT NOT NULL
 );
+-- One post can ship several archives (an exFAT set and a PKG set), each numbered
+-- from 1. Their per-release metadata needs somewhere to live, otherwise _rehydrate
+-- would collapse every part into a single release.
+CREATE TABLE IF NOT EXISTS game_releases (
+    id               TEXT NOT NULL,
+    item_id          TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
+    source_name      TEXT,
+    release_group    TEXT,
+    version          TEXT,
+    total_size       TEXT,
+    archive_password TEXT,
+    sort_order       INT NOT NULL DEFAULT 0,
+    UNIQUE(item_id, id)
+);
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
     title_norm, artist, page_url, item_id UNINDEXED, tokenize='trigram'
 );
@@ -68,12 +82,61 @@ CREATE TABLE IF NOT EXISTS crawl_state (
     last_page  INT NOT NULL DEFAULT 0,
     last_crawl REAL
 );
+-- One-shot data migrations record that they have run here, so they stay idempotent
+-- across restarts without re-scanning the whole table every time the DB is opened.
+CREATE TABLE IF NOT EXISTS schema_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_items_category ON media_items(category);
+CREATE INDEX IF NOT EXISTS idx_parts_release ON game_parts(item_id, release_id);
+CREATE INDEX IF NOT EXISTS idx_releases_item ON game_releases(item_id);
 -- FTS has no foreign keys, so keep the index in sync with deletes.
 CREATE TRIGGER IF NOT EXISTS trg_fts_delete AFTER DELETE ON media_items BEGIN
     DELETE FROM search_fts WHERE item_id = old.id;
 END;
 """
+
+# `CREATE TABLE IF NOT EXISTS` never adds columns to an existing table, so new ones
+# ship as idempotent migrations checked against PRAGMA table_info.
+_ADDED_COLUMNS = {
+    "download_variants": (("access", "TEXT DEFAULT 'direct'"),),
+    "game_parts": (("access", "TEXT DEFAULT 'direct'"),),
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, columns in _ADDED_COLUMNS.items():
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in columns:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+    _drop_misfiled_game_rows(conn)
+
+
+# Rows the games scrapers filed before parse_search_results learned to tell a game post
+# from a soundtrack. Fixed at the source, but a stale row is never re-emitted to
+# overwrite, and db.search filters on the stored category -- so they would keep serving
+# music in the games tab forever. Scoped to Downloadha alone: its URL carries the section
+# (`/game/`, `/mobile/`), while YasDL permalinks are flat and would match nothing here.
+# The marker insert and the DELETE share one transaction, so a fresh deploy can never
+# burn the marker and skip the delete. FTS follows via trg_fts_delete; child rows via
+# ON DELETE CASCADE.
+_MISFILED_GAME_ROWS = "drop_misfiled_game_rows_v1"
+
+
+def _drop_misfiled_game_rows(conn: sqlite3.Connection) -> None:
+    if conn.execute("SELECT 1 FROM schema_meta WHERE key=?", (_MISFILED_GAME_ROWS,)).fetchone():
+        return
+    with conn:
+        conn.execute(
+            """DELETE FROM media_items
+               WHERE source_id='downloadha' AND category='games'
+                 AND page_url NOT LIKE '%/game/%'
+                 AND NOT (page_url LIKE '%/mobile/%' AND title LIKE '%بازی%')"""
+        )
+        conn.execute("INSERT INTO schema_meta(key, value) VALUES (?, ?)",
+                     (_MISFILED_GAME_ROWS, "1"))
 
 
 def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
@@ -87,6 +150,8 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
+    conn.commit()
     return conn
 
 
@@ -104,16 +169,23 @@ def _variant_rows(item: MediaItem) -> list[tuple]:
         # ponytail: size_bytes holds file_size_mb as-is; rename the column if MB->bytes ever matters.
         rows.append((item.id, "movie", v.quality, v.codec, v.audio_track,
                      int(v.file_size_mb) if v.file_size_mb is not None else None,
-                     None, v.download_url))
+                     None, v.download_url, v.access))
     for t in item.music_tracks:
         for d in t.downloads:
-            rows.append((item.id, "music", d.bitrate, None, None, None, d.file_size, d.download_url))
+            rows.append((item.id, "music", d.bitrate, None, None, None, d.file_size,
+                         d.download_url, d.access))
     return rows
 
 
 def _part_rows(item: MediaItem) -> list[tuple]:
-    return [(item.id, r.id, p.part_number, p.part_label, p.file_size, p.download_url)
+    return [(item.id, r.id, p.part_number, p.part_label, p.file_size, p.download_url, p.access)
             for r in item.game_releases for p in r.parts]
+
+
+def _release_rows(item: MediaItem) -> list[tuple]:
+    return [(r.id, item.id, r.source_name, r.release_group, r.version, r.total_size,
+             r.archive_password, order)
+            for order, r in enumerate(item.game_releases)]
 
 
 def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> int:
@@ -158,13 +230,23 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                 conn.execute("DELETE FROM download_variants WHERE item_id=?", (item.id,))
                 conn.executemany(
                     "INSERT INTO download_variants (item_id, kind, label, codec, audio_track,"
-                    " size_bytes, size_text, url) VALUES (?,?,?,?,?,?,?,?)",
+                    " size_bytes, size_text, url, access) VALUES (?,?,?,?,?,?,?,?,?)",
                     _variant_rows(item),
+                )
+                conn.execute("DELETE FROM game_releases WHERE item_id=?", (item.id,))
+                conn.executemany(
+                    "INSERT INTO game_releases (id, item_id, source_name, release_group, version,"
+                    " total_size, archive_password, sort_order) VALUES (?,?,?,?,?,?,?,?)"
+                    " ON CONFLICT(item_id, id) DO UPDATE SET"
+                    "   source_name=excluded.source_name, release_group=excluded.release_group,"
+                    "   version=excluded.version, total_size=excluded.total_size,"
+                    "   archive_password=excluded.archive_password, sort_order=excluded.sort_order",
+                    _release_rows(item),
                 )
                 conn.execute("DELETE FROM game_parts WHERE item_id=?", (item.id,))
                 conn.executemany(
-                    "INSERT INTO game_parts (item_id, release_id, part_number, part_label, file_size, url)"
-                    " VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO game_parts (item_id, release_id, part_number, part_label, file_size, url, access)"
+                    " VALUES (?,?,?,?,?,?,?)",
                     _part_rows(item),
                 )
                 conn.execute("DELETE FROM search_fts WHERE item_id=?", (item.id,))
@@ -179,12 +261,15 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
 
 def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
     """Rebuild a typed MediaItem from its row plus child rows."""
-    # ponytail: 2 extra queries per result; batch-load child rows if result sets grow past ~100.
+    # ponytail: 3 extra queries per result; batch-load child rows if result sets grow past ~100.
     variants = conn.execute(
         "SELECT * FROM download_variants WHERE item_id=? ORDER BY id", (row["id"],)
     ).fetchall()
     parts = conn.execute(
-        "SELECT * FROM game_parts WHERE item_id=? ORDER BY part_number", (row["id"],)
+        "SELECT * FROM game_parts WHERE item_id=? ORDER BY release_id, part_number", (row["id"],)
+    ).fetchall()
+    release_rows = conn.execute(
+        "SELECT * FROM game_releases WHERE item_id=? ORDER BY sort_order, id", (row["id"],)
     ).fetchall()
 
     movies = [
@@ -192,6 +277,7 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
             id=f"{row['id']}:{v['id']}", quality=v["label"] or "", codec=v["codec"] or "",
             audio_track=v["audio_track"] or "", download_url=v["url"],
             file_size_mb=float(v["size_bytes"]) if v["size_bytes"] is not None else None,
+            access=v["access"] or "direct",
         )
         for v in variants if v["kind"] == "movie"
     ]
@@ -209,17 +295,39 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
             )
             tracks.append(track)
         track.downloads.append(
-            MusicDownloadVariant(bitrate=v["label"] or "", download_url=v["url"], file_size=v["size_text"])
+            MusicDownloadVariant(bitrate=v["label"] or "", download_url=v["url"],
+                                 file_size=v["size_text"], access=v["access"] or "direct")
         )
 
-    releases = []
-    if parts:
+    # Group parts by their release so two archives from one post stay separate
+    # sequences instead of merging into one list with duplicate part numbers.
+    releases: list[GameRelease] = []
+    if release_rows:
+        parts_by_release: dict[str, list[sqlite3.Row]] = {}
+        for p in parts:
+            parts_by_release.setdefault(p["release_id"] or release_rows[0]["id"], []).append(p)
+        for r in release_rows:
+            rel_parts = parts_by_release.get(r["id"])
+            if not rel_parts:
+                continue
+            releases.append(GameRelease(
+                id=r["id"], source_name=r["source_name"] or row["source_id"],
+                release_group=r["release_group"] or "",
+                version=r["version"] or "", total_size=r["total_size"] or "",
+                archive_password=r["archive_password"] or "",
+                parts=[GamePartLink(part_number=p["part_number"], part_label=p["part_label"] or "",
+                                    download_url=p["url"], file_size=p["file_size"],
+                                    access=p["access"] or "direct") for p in rel_parts],
+            ))
+    elif parts:
+        # Legacy rows written before game_releases existed: keep them readable.
         releases.append(GameRelease(
             id=parts[0]["release_id"] or row["id"], source_name=row["source_id"],
             release_group=row["release_group"] or "", total_size=row["total_size"] or "",
             archive_password=row["archive_password"] or "",
             parts=[GamePartLink(part_number=p["part_number"], part_label=p["part_label"] or "",
-                                download_url=p["url"], file_size=p["file_size"]) for p in parts],
+                                download_url=p["url"], file_size=p["file_size"],
+                                access=p["access"] or "direct") for p in parts],
         ))
 
     return MediaItem(
@@ -232,27 +340,40 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
 
 
 def search(category: Category | str, query: str, limit: int = 40,
-           db_path: Path | str | None = None) -> list[MediaItem]:
-    """Search the index: trigram FTS for 3+ char queries, LIKE scan for shorter ones."""
+           db_path: Path | str | None = None,
+           max_age_seconds: float | None = None) -> list[MediaItem]:
+    """Search the index: trigram FTS for 3+ char queries, LIKE scan for shorter ones.
+
+    `max_age_seconds` drops rows whose `last_seen` is older, letting the caller tell
+    "still current" from "indexed a long time ago and never re-checked".
+    """
     conn = connect(db_path)
     try:
         norm = normalize_persian_text(query)
         if not norm:
             return []
         cat = _cat(category)
+        freshness = ""
+        params: list = []
+        if max_age_seconds is not None:
+            freshness = " AND m.last_seen >= ?"
         if len(norm) >= 3:
             # Trigram tokenizer: each token must be its own quoted phrase, otherwise FTS parses
             # operators/NEAR/column filters straight out of raw user input.
             match = " ".join('"' + tok.replace('"', '""') + '"' for tok in norm.split())
             sql = ("SELECT m.* FROM search_fts f JOIN media_items m ON m.id = f.item_id"
-                   " WHERE search_fts MATCH ? AND m.category = ? ORDER BY m.last_seen DESC LIMIT ?")
-            params: tuple = (match, cat, limit)
+                   " WHERE search_fts MATCH ? AND m.category = ?" + freshness
+                   + " ORDER BY m.last_seen DESC LIMIT ?")
+            params = [match, cat]
         else:
             like = f"%{_escape_like(norm)}%"
             sql = ("SELECT m.* FROM media_items m WHERE m.category = ?"
                    " AND (m.title_norm LIKE ? ESCAPE '\\' OR m.artist LIKE ? ESCAPE '\\')"
-                   " ORDER BY m.last_seen DESC LIMIT ?")
-            params = (cat, like, like, limit)
+                   + freshness + " ORDER BY m.last_seen DESC LIMIT ?")
+            params = [cat, like, like]
+        if max_age_seconds is not None:
+            params.append(time.time() - max_age_seconds)
+        params.append(limit)
         try:
             rows = conn.execute(sql, params).fetchall()
         except sqlite3.Error:

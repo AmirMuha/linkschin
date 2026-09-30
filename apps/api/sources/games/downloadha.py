@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from http_client import AsyncHttpClient
 from models import (
@@ -12,20 +12,36 @@ from models import (
     GamePartLink,
     GameRelease,
     MediaItem,
+    MusicDownloadVariant,
+    MusicTrack,
     SearchQuery,
     SourceConfig,
 )
 from sources.base import (
+    SELF_EXTRACTING_LINK_RE,
+    archive_family,
+    classify_post,
     clean_absolute_url,
     extract_archive_password,
     is_ad_or_shortener_url,
+    is_game_post,
     is_parked_page,
+    iter_links,
     parse_part_number,
+    unescape_html,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://www.downloadha.com"
+
+
+_BITRATE_RE = re.compile(r"\b(320|256|192|128|96|64)\s*kbps?\b", re.IGNORECASE)
+
+
+def parse_bitrate(*parts: str) -> str:
+    match = _BITRATE_RE.search(" ".join(parts))
+    return f"{match.group(1)}kbps" if match else ""
 
 
 class DownloadhaPlugin:
@@ -66,7 +82,13 @@ class DownloadhaPlugin:
             return []
 
     def parse_search_results(self, html: str) -> list[MediaItem]:
-        """Extract media items from search results HTML."""
+        """Extract media items from search results HTML, routing non-game posts.
+
+        Downloadha's search page is multi-section: `/game/`, `/mobile/`, `/others/`,
+        `/movies/` all answer the same query. Stamping `Category.GAMES` on every card
+        put a GTA OST in the games tab, so a card only counts as a game when its URL
+        section says so (see `is_game_post`).
+        """
         items: list[MediaItem] = []
         pattern = re.compile(
             r'<h[12][^>]*class=[\"\'][^\"\']*entry-title[^\"\']*[\"\'][^>]*>\s*'
@@ -77,25 +99,28 @@ class DownloadhaPlugin:
         for match in pattern.finditer(html):
             raw_url = match.group(1).strip()
             raw_title = match.group(2).strip()
-            clean_title = re.sub(r"<[^>]+>", "", raw_title).strip()
-            clean_title = clean_title.replace("&#8211;", "-").replace("&nbsp;", " ")
+            clean_title = unescape_html(re.sub(r"<[^>]+>", "", raw_title)).strip()
 
             post_url = clean_absolute_url(self.base_url, raw_url)
             if not post_url or is_ad_or_shortener_url(post_url):
                 continue
 
+            kind = classify_post(clean_title)
+            if kind is None:
+                continue
+            if kind == "game" and not is_game_post(clean_title, post_url):
+                continue
+
             path_slug = [p for p in urlparse(post_url).path.split("/") if p]
             slug = path_slug[-1] if path_slug else str(len(items) + 1)
-            item_id = f"dlha_{slug}"
 
-            item = MediaItem(
-                id=item_id,
+            items.append(MediaItem(
+                id=f"dlha_{slug}",
                 title=clean_title,
-                category=Category.GAMES,
+                category=Category.MUSIC if kind == "music" else Category.GAMES,
                 source_id=self.config.id,
                 page_url=post_url,
-            )
-            items.append(item)
+            ))
 
         return items
 
@@ -116,8 +141,42 @@ class DownloadhaPlugin:
             return item
 
     def parse_item_page(self, html: str, item: MediaItem) -> None:
-        """Parse parts, total size, and password from game post HTML."""
+        """Parse a post's files: archive parts for games, bitrates for soundtracks."""
         password = extract_archive_password(html)
+        if item.category == Category.MUSIC:
+            # A soundtrack post lists one file per bitrate, not volumes of one
+            # archive, so "copy all parts" must not present them as a split set.
+            downloads: list[MusicDownloadVariant] = []
+            seen: set[str] = set()
+            for link in iter_links(html, SELF_EXTRACTING_LINK_RE):
+                url = clean_absolute_url(self.base_url, link.url)
+                if not url or is_ad_or_shortener_url(url) or url in seen:
+                    continue
+                seen.add(url)
+                # The bitrate usually lives in the label or the percent-encoded
+                # filename ("OST%20128kbps.zip"), where a word boundary won't match.
+                downloads.append(MusicDownloadVariant(
+                    bitrate=parse_bitrate(link.label, unquote(url)) or "لینک مستقیم",
+                    download_url=url,
+                ))
+            if not downloads:
+                return
+            item.music_tracks = [MusicTrack(
+                id=f"{item.id}_track",
+                title=item.title,
+                artist="",
+                source_name=self.config.name,
+                cover_url=item.poster_url,
+                stream_url=downloads[0].download_url,
+                downloads=downloads,
+            )]
+            item.stream_url = downloads[0].download_url
+            return
+
+        # Find all direct archive download links, grouped by archive family: one post
+        # can ship an exFAT set and a PKG set that both number from 1, and merging
+        # them produces duplicate part numbers and a "copy all parts" list that no
+        # archiver can assemble.
         total_size = ""
         size_match = re.search(
             r"(?:حجم فایل|حجم)\s*[:：]?\s*([\d.,]+\s*(?:مگابایت|گیگابایت|ترابایت|MB|GB|TB))",
@@ -127,66 +186,61 @@ class DownloadhaPlugin:
         if size_match:
             total_size = size_match.group(1).strip()
 
-        # Find all direct archive download links
-        link_pattern = re.compile(
-            r'<a[^>]+href=[\"\']([^\"\']+\.(?:rar|zip|iso|exe))[\"\'][^>]*>(.*?)</a>',
-            re.IGNORECASE | re.DOTALL,
-        )
-
-        raw_parts: list[tuple[int | None, str, str]] = []
-        for match in link_pattern.finditer(html):
-            href = match.group(1).strip()
-            label = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            abs_url = clean_absolute_url(self.base_url, href)
-
+        families: dict[str, list[tuple[int | None, str]]] = {}
+        for link in iter_links(html, SELF_EXTRACTING_LINK_RE):
+            abs_url = clean_absolute_url(self.base_url, link.url)
             if not abs_url or is_ad_or_shortener_url(abs_url):
                 continue
 
-            part_num = parse_part_number(label)
+            part_num = parse_part_number(link.label)
             if part_num is None:
-                part_num = parse_part_number(href)
+                part_num = parse_part_number(abs_url)
 
-            raw_parts.append((part_num, label, abs_url))
+            families.setdefault(archive_family(abs_url), []).append((part_num, abs_url))
 
-        parts: list[GamePartLink] = []
-        if raw_parts:
-            # Check if any parts had explicit part numbers
-            has_explicit_parts = any(p[0] is not None for p in raw_parts)
+        release_group = ""
+        for grp in ["FitGirl", "ElAmigos", "DODI", "RUNE", "CODEX", "FLT", "SKIDROW", "CPY", "HI2U"]:
+            if grp.lower() in item.title.lower():
+                release_group = grp
+                break
+
+        releases: list[GameRelease] = []
+        for index, (family, entries) in enumerate(families.items()):
+            has_explicit_parts = any(p[0] is not None for p in entries)
+            parts: list[GamePartLink] = []
 
             if has_explicit_parts:
-                for p_num, p_lbl, p_url in raw_parts:
-                    if p_num is not None:
-                        parts.append(
-                            GamePartLink(
-                                part_number=p_num,
-                                part_label=f"Part {p_num}",
-                                download_url=p_url,
-                            )
-                        )
+                seen: set[int] = set()
+                for p_num, p_url in entries:
+                    if p_num is None or p_num in seen:
+                        continue
+                    seen.add(p_num)
+                    parts.append(GamePartLink(part_number=p_num, part_label=f"Part {p_num}", download_url=p_url))
             else:
-                # Single or unnumbered files -> sequential 1..N
-                for idx, (_, p_lbl, p_url) in enumerate(raw_parts, 1):
+                # Single or unnumbered files -> sequential 1..N within this family.
+                for idx, (_p_num, p_url) in enumerate(entries, 1):
                     parts.append(
                         GamePartLink(
                             part_number=idx,
-                            part_label=f"Part {idx}" if len(raw_parts) > 1 else "Full Game",
+                            part_label=f"Part {idx}" if len(entries) > 1 else "Full Game",
                             download_url=p_url,
                         )
                     )
 
-        if parts:
-            release_group = ""
-            for grp in ["FitGirl", "ElAmigos", "DODI", "RUNE", "CODEX", "FLT", "SKIDROW", "CPY", "HI2U"]:
-                if grp.lower() in item.title.lower():
-                    release_group = grp
-                    break
-
-            release = GameRelease(
-                id=f"{item.id}_release",
-                source_name=self.config.name,
-                release_group=release_group,
-                total_size=total_size,
-                archive_password=password,
-                parts=parts,
+            if not parts:
+                continue
+            # GameRelease.__post_init__ sorts and flags gaps, so each family stays
+            # strictly sequential and missing volumes are surfaced, not hidden.
+            releases.append(
+                GameRelease(
+                    id=f"{item.id}_release_{index}",
+                    source_name=self.config.name,
+                    release_group=release_group,
+                    total_size=total_size if len(families) == 1 else "",
+                    archive_password=password,
+                    parts=parts,
+                )
             )
-            item.game_releases = [release]
+
+        if releases:
+            item.game_releases = releases

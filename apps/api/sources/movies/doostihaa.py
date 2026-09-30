@@ -15,14 +15,26 @@ from models import (
     SourceConfig,
 )
 from sources.base import (
+    ACCESS_NEEDS_LOGIN,
+    MEDIA_LINK_RE,
     clean_absolute_url,
     is_ad_or_shortener_url,
+    is_host,
     is_parked_page,
+    iter_links,
+    parse_audio_track,
+    parse_codec,
+    parse_quality,
 )
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://www.doostihaa.com"
+
+# hub.irdanlod.ir serves a login-walled SPA for every media path (HTTP 200,
+# content-type text/html, body "این لینک در دسترس نیست"). Links there are not
+# direct downloads, so they are labelled rather than offered as a plain download.
+LOGIN_WALLED_HOST = "hub.irdanlod.ir"
 
 
 class DoostihaaPlugin:
@@ -147,50 +159,29 @@ class DoostihaaPlugin:
                 item.poster_url = poster_match.group(1).strip()
 
         # Extract direct download links
-        link_pattern = re.compile(
-            r'<a\s+[^>]*href=[\"\'](https?://[^\s\"\']+\.(?:mp4|mkv)(?:\?[^\s\"\']*)?)[\"\'][^>]*>(.*?)</a>',
-            re.IGNORECASE | re.DOTALL,
-        )
-
         variants: list[MovieDownloadVariant] = []
         seen_urls: set[str] = set()
 
-        for match in link_pattern.finditer(html):
-            raw_url = match.group(1).strip()
-            raw_label = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            clean_url = clean_absolute_url(self.base_url, raw_url)
+        for link in iter_links(html, MEDIA_LINK_RE):
+            clean_url = clean_absolute_url(self.base_url, link.url)
 
             if not clean_url or clean_url in seen_urls or is_ad_or_shortener_url(clean_url):
                 continue
 
-            # Parse quality
-            quality = "1080p"
-            quality_match = re.search(r"\b(2160p|4k|1080p|720p|480p)\b", raw_url + " " + raw_label, re.IGNORECASE)
-            if quality_match:
-                quality = quality_match.group(1).lower()
-
-            # Parse codec
-            codec = "x264"
-            codec_match = re.search(r"\b(x265|hevc|10bit|x264)\b", raw_url + " " + raw_label, re.IGNORECASE)
-            if codec_match:
-                codec = codec_match.group(1).lower()
-
-            # Parse audio / subtitle
-            audio = "زبان اصلی"
-            if any(term in (raw_url + " " + raw_label).lower() for term in ("dubbed", "دوبله")):
-                audio = "دوبله فارسی"
-            elif any(term in (raw_url + " " + raw_label).lower() for term in ("sub", "subbed", "زیرنویس")):
-                audio = "زیرنویس فارسی"
+            haystack = link.url + " " + link.label
 
             seen_urls.add(clean_url)
             variants.append(
                 MovieDownloadVariant(
-                    id=f"{item.id}_{quality}_{codec}_{len(variants)}",
-                    quality=quality,
-                    codec=codec,
-                    audio_track=audio,
+                    id=f"{item.id}_{len(variants)}",
+                    quality=parse_quality(haystack),
+                    codec=parse_codec(haystack),
+                    audio_track=parse_audio_track(haystack),
                     download_url=clean_url,
                     source_name=self.config.name,
+                    # hub.irdanlod.ir answers 200 with a login-walled HTML page for every
+                    # path. Flag it instead of presenting it as a direct .mkv download.
+                    access=ACCESS_NEEDS_LOGIN if is_host(clean_url, LOGIN_WALLED_HOST) else "direct",
                 )
             )
 

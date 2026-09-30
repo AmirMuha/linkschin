@@ -13,7 +13,10 @@ interface GameCardProps {
 
 export function GameCard({ item }: GameCardProps) {
   const [imageError, setImageError] = useState(false)
+  // A post can ship several archives (an exFAT set and a PKG set), each numbered
+  // from 1. Only the first is summarised in the header; all of them are listed.
   const primaryRelease = item.game_releases?.[0]
+  const otherReleases = item.game_releases?.slice(1) ?? []
 
   return (
     <article
@@ -111,12 +114,29 @@ export function GameCard({ item }: GameCardProps) {
 
       {/* Parts List */}
       {primaryRelease && (
-        <div className="mt-auto border-t border-zinc-800/80 pt-2">
+        <div className="mt-auto border-t border-zinc-800/80 pt-2 flex flex-col gap-4">
           <GamePartList
             parts={primaryRelease.parts}
             hasMissingParts={primaryRelease.has_missing_parts}
             missingPartNumbers={primaryRelease.missing_part_numbers}
+            releaseId={primaryRelease.id}
           />
+
+          {otherReleases.map((release, index) => (
+            <div key={release.id} className="border-t border-zinc-800/60 pt-3">
+              <div className="text-2xs text-zinc-500 mb-2">
+                آرشیو {index + 2}
+                {release.release_group && ` · ${release.release_group}`}
+                {release.total_size && ` · ${release.total_size}`}
+              </div>
+              <GamePartList
+                parts={release.parts}
+                hasMissingParts={release.has_missing_parts}
+                missingPartNumbers={release.missing_part_numbers}
+                releaseId={release.id}
+              />
+            </div>
+          ))}
         </div>
       )}
     </article>

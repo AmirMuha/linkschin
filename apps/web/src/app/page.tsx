@@ -129,13 +129,9 @@ export default function Home() {
     setHasSearched(false)
     setErrorMessage(null)
     setFilters({ qualities: [], audioTracks: [], sources: [] })
-
-    // If query already entered, immediately execute search in new category
-    if (query.trim()) {
-      setTimeout(() => {
-        handleSearch(query.trim())
-      }, 0)
-    }
+    // Each tab is a fresh query: the old term is about a different category, and
+    // re-running it fired a search from the pre-switch handleSearch closure.
+    setQuery('')
   }
 
   // Derive available filter options from current items
@@ -289,15 +285,26 @@ export default function Home() {
             </div>
           )}
 
-          {!isLoading && !errorMessage && hasSearched && items.length === 0 && (
+          {!isLoading && !errorMessage && hasSearched && filteredItems.length === 0 && (
             <div className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8">
               <Compass className="w-12 h-12 text-zinc-600" />
               <h3 className="font-bold text-base text-zinc-200">
-                موردی یافت نشد
+                {items.length === 0 ? 'موردی یافت نشد' : 'نتیجه‌ای با این فیلترها نیست'}
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                عنوانی با مشخصات «{query}» در پایگاه‌ها پیدا نشد. املای کلمه را بررسی کرده یا نام انگلیسی/فارسی آن را جستجو کنید.
+                {items.length === 0
+                  ? `عنوانی با مشخصات «${query}» در پایگاه‌ها پیدا نشد. املای کلمه را بررسی کرده یا نام انگلیسی/فارسی آن را جستجو کنید.`
+                  : 'فیلترهای انتخاب‌شده هیچ‌کدام از نتایج را پوشش نمی‌دهند. فیلترها را کم یا حذف کنید.'}
               </p>
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilters({ qualities: [], audioTracks: [], sources: [] })}
+                  className="mt-2 px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
+                >
+                  حذف تمام فیلترها
+                </button>
+              )}
             </div>
           )}
 

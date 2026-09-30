@@ -15,9 +15,14 @@ from models import (
     SourceConfig,
 )
 from sources.base import (
+    MEDIA_LINK_RE,
     clean_absolute_url,
     is_ad_or_shortener_url,
     is_parked_page,
+    iter_links,
+    parse_audio_track,
+    parse_codec,
+    parse_quality,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,40 +149,23 @@ class UpTVsPlugin:
             item.poster_url = poster_match.group(1).strip()
 
         # Extract direct download links
-        link_pattern = re.compile(
-            r'<a\s+[^>]*href=[\"\'](https?://[^\s\"\']+\.(?:mp4|mkv)(?:\?[^\s\"\']*)?)[\"\'][^>]*>(.*?)</a>',
-            re.IGNORECASE | re.DOTALL,
-        )
-
         variants: list[MovieDownloadVariant] = []
         seen_urls: set[str] = set()
 
-        for match in link_pattern.finditer(html):
-            raw_url = match.group(1).strip()
-            raw_label = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            clean_url = clean_absolute_url(self.base_url, raw_url)
+        for link in iter_links(html, MEDIA_LINK_RE):
+            clean_url = clean_absolute_url(self.base_url, link.url)
 
             if not clean_url or clean_url in seen_urls or is_ad_or_shortener_url(clean_url):
                 continue
 
             # Parse quality
-            quality = "1080p"
-            quality_match = re.search(r"\b(2160p|4k|1080p|720p|480p)\b", raw_url + " " + raw_label, re.IGNORECASE)
-            if quality_match:
-                quality = quality_match.group(1).lower()
+            quality = parse_quality(link.url + " " + link.label)
 
             # Parse codec
-            codec = "x264"
-            codec_match = re.search(r"\b(x265|hevc|10bit|x264)\b", raw_url + " " + raw_label, re.IGNORECASE)
-            if codec_match:
-                codec = codec_match.group(1).lower()
+            codec = parse_codec(link.url + " " + link.label)
 
             # Parse audio / subtitle
-            audio = "زبان اصلی"
-            if any(term in (raw_url + " " + raw_label).lower() for term in ("dubbed", "دوبله")):
-                audio = "دوبله فارسی"
-            elif any(term in (raw_url + " " + raw_label).lower() for term in ("sub", "زیرنویس")):
-                audio = "زیرنویس فارسی"
+            audio = parse_audio_track(link.url + " " + link.label)
 
             seen_urls.add(clean_url)
             variants.append(

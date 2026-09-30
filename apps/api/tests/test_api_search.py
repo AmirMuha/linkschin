@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cache import GLOBAL_CACHE
+import db
 from models import Category, MediaItem, MovieDownloadVariant
 from web.app import app
 
@@ -82,6 +83,37 @@ def test_api_search_cached_response():
     assert len(item_dict["movie_variants"]) == 1
     assert item_dict["movie_variants"][0]["quality"] == "1080p"
     assert item_dict["movie_variants"][0]["download_url"] == "https://cdn.example.com/movie.mkv"
+
+
+def test_api_search_empty_cache_entry_does_not_shadow_db(tmp_path, monkeypatch):
+    """A scrape that timed out must not blank out a query for the whole TTL.
+
+    GLOBAL_CACHE.set() used to run even with zero items, and a cache hit of []
+    was treated as authoritative, so db.search() was never reached.
+    """
+    monkeypatch.setenv("MOVIE_FETCHER_DB", str(tmp_path / "index.db"))
+    cat = Category.MOVIES
+    query = "مرد عنکبوتی"
+    GLOBAL_CACHE.set(cat, query, [])
+
+    # Non-empty DB row for the same query.
+    stored = MediaItem(
+        id="movies-empty-cache-db-row",
+        title="انیمیشن مرد عنکبوتی هویت",
+        category=cat,
+        source_id="uptvs",
+        page_url="https://www.uptvs.com/contents/1.html",
+    )
+    db.upsert_items([stored])
+
+    try:
+        response = client.get(f"/api/search?q={query}&category=movies")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 1, "cached [] must fall through to the DB row"
+        assert data["items"][0]["id"] == stored.id
+    finally:
+        GLOBAL_CACHE.clear()
 
 
 def test_cors_headers_present():

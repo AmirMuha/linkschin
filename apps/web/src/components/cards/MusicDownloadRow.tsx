@@ -6,6 +6,7 @@ import { Download, Copy, Check } from 'lucide-react'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
+import { AccessBadge } from '@/components/ui/AccessBadge'
 
 interface MusicDownloadRowProps {
   downloads: MusicDownloadVariant[]
@@ -50,6 +51,8 @@ export function MusicDownloadRow({ downloads }: MusicDownloadRowProps) {
                     ({dl.file_size})
                   </TechnicalText>
                 )}
+
+                <AccessBadge access={dl.access} />
               </div>
 
               <div className="flex items-center gap-0.5">

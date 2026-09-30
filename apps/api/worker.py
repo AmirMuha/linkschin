@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import db  # noqa: E402
 from http_client import DEFAULT_HEADERS, AsyncHttpClient  # noqa: E402
-from models import Category, MediaItem  # noqa: E402
+from models import Category, MediaItem, MusicDownloadVariant, MusicTrack  # noqa: E402
 from sources.music.nex1music import Nex1MusicPlugin  # noqa: E402
 
 logger = logging.getLogger("worker")
@@ -102,6 +102,10 @@ def parse_related_tracks(html: str, page_url: str, source_id: str = "nex1music")
         artist, track, music_url = artist.strip(), track.strip(), music_url.strip()
         if not (artist and track and music_url):
             continue
+        # data-music holds a raw href with spaces and brackets. Stored as-is it is
+        # unusable: browsers and HTTP clients both reject it, so the player silently
+        # never starts. Percent-encode the path, leave the query alone.
+        music_url = _encode_media_url(music_url)
         # Stable across processes: hash() is salted per run, which would duplicate rows.
         digest = hashlib.sha1(music_url.encode("utf-8")).hexdigest()[:16]
         try:
@@ -113,14 +117,63 @@ def parse_related_tracks(html: str, page_url: str, source_id: str = "nex1music")
                 # (source_id, page_url) is the natural key, so every track on a post
                 # needs a distinct page_url or they collapse into (and delete) each other.
                 page_url=f"{page_url}#t-{digest}",
-                stream_url=music_url,
             )
         except ValueError as e:
             logger.debug("Skipping related track %d on %s: %s", index, page_url, e)
             continue
         item.original_title = track
+        # Without a MusicTrack the web client finds no track, disables play and renders
+        # no download links, even though the stream URL is right there.
+        item.music_tracks = [
+            MusicTrack(
+                id=f"{item.id}_track",
+                title=track,
+                artist=artist,
+                source_name=source_id,
+                stream_url=music_url,
+                downloads=[MusicDownloadVariant(bitrate=_bitrate_of(music_url), download_url=music_url)],
+            )
+        ]
+        item.stream_url = music_url
         items.append(item)
     return items
+
+
+def _encode_media_url(url: str) -> str:
+    """Percent-encode a raw media href, preserving path separators and query syntax."""
+    parts = urllib.parse.urlsplit(url.strip())
+    return urllib.parse.urlunsplit((
+        parts.scheme,
+        parts.netloc,
+        urllib.parse.quote(parts.path, safe="/%:@!$&'()*+,;=~-._"),
+        parts.query,
+        parts.fragment,
+    ))
+
+
+def _bitrate_of(url: str) -> str:
+    match = re.search(r"\[(\d{3})\]", url)
+    return f"{match.group(1)}kbps" if match else ""
+
+
+def match_post_card(cards: list[MediaItem], post_url: str) -> MediaItem | None:
+    """Find the card that represents `post_url` itself among a post page's cards.
+
+    A post page also renders related tracks, so the crawler's previous equality check
+    on page_url found nothing and the post's own card was persisted unenriched - which
+    is why indexed music items carried no downloads at all.
+    """
+    target = post_url.rstrip("/")
+    for card in cards:
+        if card.page_url.rstrip("/") == target:
+            return card
+    # Permalink/slug drift: match on the trailing slug segment.
+    slug = target.rsplit("/", 1)[-1]
+    if slug:
+        for card in cards:
+            if card.page_url.rstrip("/").rsplit("/", 1)[-1] == slug:
+                return card
+    return None
 
 
 def _page_url(source_id: str, page: int) -> str:
@@ -217,14 +270,13 @@ async def _crawl_source(
                 discovered.extend(parse_related_tracks(post_html, post_url, source_id))
 
                 # The post page is itself a full card list; enrich the one matching it.
-                for card in plugin.parse_search_results(post_html):
-                    if card.page_url.rstrip("/") == post_url.rstrip("/"):
-                        try:
-                            plugin.parse_item_page(post_html, card)
-                        except Exception as e:
-                            logger.debug("parse_item_page failed on %s: %s", post_url, e)
-                        discovered.append(card)
-                        break
+                card = match_post_card(plugin.parse_search_results(post_html), post_url)
+                if card is not None:
+                    try:
+                        plugin.parse_item_page(post_html, card)
+                    except Exception as e:
+                        logger.debug("parse_item_page failed on %s: %s", post_url, e)
+                    discovered.append(card)
 
                 if len(discovered) >= BATCH_SIZE:
                     written += db.upsert_items(discovered, db_path)

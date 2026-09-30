@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from models import Category
+from sources.base import is_host, parse_codec, parse_quality
 from sources.movies.doostihaa import DoostihaaPlugin
 from sources.movies.uptvs import UpTVsPlugin
 
@@ -92,6 +93,60 @@ def test_doostihaa_item_link_extraction(doostihaa_item_html: str):
     assert target.stream_url is not None
     assert target.stream_url.startswith("https://")
     assert ".mp4" in target.stream_url
+
+
+def test_doostihaa_flags_login_walled_links(doostihaa_item_html: str):
+    """hub.irdanlod.ir answers 200 with an HTML login page, not the file.
+
+    Those links must be labelled, not offered as a plain download. Matching is on
+    the host, because a URL starts with its scheme - a prefix test silently never
+    matches and every row ends up flagged 'direct'.
+    """
+    plugin = DoostihaaPlugin()
+    item = plugin.parse_search_results(
+        "<article><a href='https://www.doostihaa.com/post/spider.html'>Spider</a></article>"
+    )[0]
+    plugin.parse_item_page(doostihaa_item_html, item)
+
+    assert item.movie_variants, "fixture must yield variants"
+    walled = [v for v in item.movie_variants if "hub.irdanlod.ir" in v.download_url]
+    assert walled, "fixture must contain hub.irdanlod.ir links"
+    assert all(v.access == "needs_login" for v in walled), \
+        f"got {sorted({v.access for v in walled})}"
+
+
+def test_is_host_matches_on_host_not_prefix():
+    """Regression: `url.startswith(domain)` is never true for an absolute URL."""
+    assert is_host("https://hub.irdanlod.ir/a/b.mkv", "hub.irdanlod.ir") is True
+    assert is_host("https://HUB.IRDANLOD.IR/a.mkv", "hub.irdanlod.ir") is True
+    assert is_host("https://cdn.hub.irdanlod.ir/a.mkv", "hub.irdanlod.ir") is True
+    assert is_host("https://cdn.uptvs.com/a.mp4", "hub.irdanlod.ir") is False
+    assert is_host("https://hub.irdanlod.ir.evil.com/a.mkv", "hub.irdanlod.ir") is False
+    assert is_host("", "hub.irdanlod.ir") is False
+
+
+def test_movies_do_not_fabricate_quality_or_codec():
+    """A filename with no resolution must yield "", not a guessed 1080p/x264."""
+    plugin = DoostihaaPlugin()
+    item = plugin.parse_search_results(
+        "<article><a href='https://www.doostihaa.com/post/x.html'>X</a></article>"
+    )[0]
+    plugin.parse_item_page(
+        '<a href="https://cdn.example.com/movie.farsi.mkv">لینک</a>', item
+    )
+    v = item.movie_variants[0]
+    assert v.quality == "", "resolution was never stated by the source"
+    assert v.codec == "", "codec was never stated by the source"
+
+
+def test_parse_quality_reads_positional_cdn_names():
+    """`3080511-0-720.mp4` is a 720p stream; the old pattern called it 1080p."""
+    assert parse_quality("https://uptv.upera.tv/3080511-0-720.mp4") == "720p"
+    assert parse_quality("https://uptv.upera.tv/3080511-0-1080.mp4") == "1080p"
+    assert parse_quality("Batman_2026_720p_UPTV.co.mp4") == "720p"
+    assert parse_quality("spiderman moghavemat_UPTV.co.mp4") == ""
+    assert parse_codec("movie.x265.mkv") == "x265"
+    assert parse_codec("spiderman moghavemat_UPTV.co.mp4") == ""
 
 def test_search_parsers_survive_base_url_override(uptvs_search_html: str, doostihaa_search_html: str):
     """Parsing must not depend on the literal upstream host.

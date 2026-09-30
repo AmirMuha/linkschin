@@ -16,10 +16,13 @@ from models import (
     SourceConfig,
 )
 from sources.base import (
+    ARCHIVE_LINK_RE,
+    classify_post,
     clean_absolute_url,
     extract_archive_password,
     is_ad_or_shortener_url,
     is_parked_page,
+    iter_links,
     parse_part_number,
 )
 
@@ -66,7 +69,12 @@ class YasDLPlugin:
             return []
 
     def parse_search_results(self, html: str) -> list[MediaItem]:
-        """Extract media items from search results HTML."""
+        """Extract media items from search results HTML.
+
+        YasDL permalinks are flat (`/105441/<slug>`) with no section segment, so unlike
+        Downloadha the URL cannot prove a post is a game and the title is the only
+        signal. Soundtracks and software are dropped rather than filed under `games`.
+        """
         items: list[MediaItem] = []
         # YasDL posts are typically <h2 class="col post-title"><a href="..." title="...">...</a></h2>
         pattern = re.compile(
@@ -83,6 +91,8 @@ class YasDLPlugin:
             clean_title = clean_title.replace("&#8211;", "-").replace("&amp;", "&")
 
             if not raw_url or is_ad_or_shortener_url(raw_url):
+                continue
+            if classify_post(clean_title) != "game":
                 continue
 
             item_id = f"yasdl_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:40]}"
@@ -140,18 +150,11 @@ class YasDLPlugin:
             release_group = group_match.group(1)
 
         # 4. Extract archive part links
-        link_pattern = re.compile(
-            r'<a\s+[^>]*href=[\"\']([^\"\']+\.(?:rar|zip|7z|bin|iso)(?:\?[^\"\']*)?)[\"\'][^>]*>(.*?)</a>',
-            re.IGNORECASE | re.DOTALL,
-        )
-
         parts: list[GamePartLink] = []
         seen_urls: set[str] = set()
 
-        for match in link_pattern.finditer(html):
-            raw_url = match.group(1).strip()
-            raw_label = re.sub(r"<[^>]+>", "", match.group(2)).strip()
-            clean_url = clean_absolute_url(self.base_url, raw_url)
+        for link in iter_links(html, ARCHIVE_LINK_RE):
+            clean_url = clean_absolute_url(self.base_url, link.url)
 
             if not clean_url or clean_url in seen_urls:
                 continue
@@ -162,16 +165,16 @@ class YasDLPlugin:
             if any(tool in clean_url.lower() for tool in ("isdone", "directx", "vcredist")):
                 continue
 
-            part_num = parse_part_number(raw_label)
+            part_num = parse_part_number(link.label)
             if part_num is None:
                 part_num = parse_part_number(clean_url)
 
             # Single part archives
             if part_num is None:
                 part_num = 1
-                label = raw_label or "دانلود بازی با لینک مستقیم"
+                label = link.label or "دانلود بازی با لینک مستقیم"
             else:
-                label = raw_label or f"پارت {part_num}"
+                label = link.label or f"پارت {part_num}"
 
             seen_urls.add(clean_url)
             parts.append(

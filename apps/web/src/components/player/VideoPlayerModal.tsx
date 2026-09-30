@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useRef, useEffect } from 'react'
-import { X } from 'lucide-react'
+import React, { useRef, useEffect, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 
 interface VideoPlayerModalProps {
   isOpen: boolean
@@ -18,6 +18,9 @@ export function VideoPlayerModal({
 }: VideoPlayerModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+  // A multi-hundred-MB stream can sit at readyState 0 for many seconds with nothing
+  // on screen; without this the modal reads as broken rather than loading.
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -35,6 +38,11 @@ export function VideoPlayerModal({
         videoRef.current.pause()
       }
     }
+  }, [isOpen, streamUrl])
+
+  // Each new source restarts the wait.
+  useEffect(() => {
+    if (isOpen && streamUrl) setStatus('loading')
   }, [isOpen, streamUrl])
 
   function handleClose() {
@@ -72,10 +80,34 @@ export function VideoPlayerModal({
           src={streamUrl}
           controls
           autoPlay
+          onCanPlay={() => setStatus('ready')}
+          onWaiting={() => setStatus('loading')}
+          onPlaying={() => setStatus('ready')}
+          onError={() => setStatus('error')}
           className="w-full h-full object-contain"
         >
           مرورگر شما از پخش مستقیم این ویدیو پشتیبانی نمی‌کند.
         </video>
+
+        {status === 'loading' && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 text-zinc-300"
+          >
+            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+            <span className="text-xs">در حال دریافت ویدیو…</span>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-6 text-center">
+            <p className="text-sm font-semibold text-rose-300">پخش این ویدیو ممکن نشد.</p>
+            <p className="text-xs text-zinc-400">
+              ممکن است لینک منقضی شده باشد. دکمهٔ تازه‌سازی نتایج را بزنید.
+            </p>
+          </div>
+        )}
       </div>
     </dialog>
   )

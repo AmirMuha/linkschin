@@ -61,6 +61,9 @@ class MovieDownloadVariant:
     download_url: str
     file_size_mb: float | None = None
     source_name: str = ""
+    # "direct" (default) or "needs_login" when the host answers with an
+    # interstitial page instead of the file.
+    access: str = "direct"
 
     def __post_init__(self):
         validate_media_url(self.download_url)
@@ -73,6 +76,7 @@ class GamePartLink:
     part_label: str
     download_url: str
     file_size: str | None = None
+    access: str = "direct"
 
     def __post_init__(self):
         validate_media_url(self.download_url)
@@ -122,6 +126,7 @@ class MusicDownloadVariant:
     bitrate: str
     download_url: str
     file_size: str | None = None
+    access: str = "direct"
 
     def __post_init__(self):
         validate_media_url(self.download_url)

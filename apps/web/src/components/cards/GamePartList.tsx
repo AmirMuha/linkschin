@@ -7,17 +7,21 @@ import { copyToClipboard } from '@/lib/clipboard'
 import { formatPartLinksForClipboard, sortParts } from '@/lib/archive'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
+import { AccessBadge } from '@/components/ui/AccessBadge'
 
 interface GamePartListProps {
   parts: GamePartLink[]
   hasMissingParts?: boolean
   missingPartNumbers?: number[]
+  /** Distinguishes identical part numbers belonging to different archives. */
+  releaseId?: string
 }
 
 export function GamePartList({
   parts,
   hasMissingParts = false,
   missingPartNumbers = [],
+  releaseId = '',
 }: GamePartListProps) {
   const { showToast } = useToast()
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
@@ -104,23 +108,29 @@ export function GamePartList({
 
           return (
             <div
-              key={part.part_number}
+              // part_number repeats across archives from the same post, so it is not
+              // unique on its own.
+              key={`${releaseId}:${part.part_number}:${part.download_url}`}
               className="flex items-center justify-between gap-3 p-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors text-xs"
             >
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-md bg-zinc-700/70 text-zinc-300 font-mono font-bold flex items-center justify-center text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-6 h-6 rounded-md bg-zinc-700/70 text-zinc-300 font-mono font-bold flex items-center justify-center text-xs shrink-0">
                   {part.part_number}
                 </span>
 
-                <TechnicalText className="text-zinc-200">
+                {/* Not TechnicalText: the label is mixed Persian/Latin prose, and
+                    forcing LTR on it scrambles the reading order. */}
+                <span className="text-zinc-200 truncate" title={part.part_label}>
                   {part.part_label}
-                </TechnicalText>
+                </span>
 
                 {part.file_size && (
-                  <TechnicalText className="text-zinc-400 text-2xs bg-zinc-900/60 px-1.5 py-0.5 rounded">
+                  <TechnicalText className="text-zinc-400 text-2xs bg-zinc-900/60 px-1.5 py-0.5 rounded shrink-0">
                     {part.file_size}
                   </TechnicalText>
                 )}
+
+                <AccessBadge access={part.access} />
               </div>
 
               <div className="flex items-center gap-1 shrink-0">

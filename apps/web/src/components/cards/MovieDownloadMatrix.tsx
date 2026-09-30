@@ -6,6 +6,7 @@ import { Download, Copy, Check } from 'lucide-react'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
+import { AccessBadge } from '@/components/ui/AccessBadge'
 
 interface MovieDownloadMatrixProps {
   variants: MovieDownloadVariant[]
@@ -51,11 +52,14 @@ export function MovieDownloadMatrix({ variants }: MovieDownloadMatrixProps) {
               key={v.id}
               className="flex items-center justify-between gap-3 p-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors text-xs"
             >
-              {/* Quality & Specs */}
+              {/* Quality & Specs. Empty strings mean the source never stated them,
+                  so nothing is rendered rather than a guessed value. */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold font-mono">
-                  {v.quality}
-                </span>
+                {v.quality && (
+                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold font-mono">
+                    {v.quality}
+                  </span>
+                )}
 
                 {v.codec && (
                   <TechnicalText className="text-zinc-400 text-2xs">
@@ -74,6 +78,8 @@ export function MovieDownloadMatrix({ variants }: MovieDownloadMatrixProps) {
                     {sizeStr}
                   </TechnicalText>
                 )}
+
+                <AccessBadge access={v.access} />
               </div>
 
               {/* Action buttons: Copy & Direct Download */}
