@@ -176,19 +176,19 @@ export function InViewFilterBar({
       </div>
 
       <div className="flex items-center flex-wrap gap-4 text-xs">
-        {chipGroups.map((group) => (
-          <div key={group.label} className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">{group.label}:</span>
-            {group.options.map((opt) => {
-              const active = group.isActive(opt.id)
+        {chipGroups.map((row) => (
+          <div key={row.label} className="flex items-center flex-wrap gap-1.5">
+            <span className="text-zinc-500 font-medium">{row.label}:</span>
+            {row.options.map((opt) => {
+              const active = row.isActive(opt.id)
               return (
                 <button
                   key={opt.id}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => group.toggle(opt.id)}
+                  onClick={() => row.toggle(opt.id)}
                   className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-                    active ? group.active : IDLE
+                    active ? row.active : IDLE
                   }`}
                 >
                   {opt.text}
