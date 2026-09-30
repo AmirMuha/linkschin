@@ -27,10 +27,10 @@ const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: str
   },
 }
 
-const TIER_BADGE: Record<SourceAccessTier, { label: string; className: string }> = {
-  free: { label: 'رایگان', className: 'bg-zinc-950/80 text-zinc-300 border-zinc-800/80' },
-  premium: { label: 'VIP', className: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
-  freemium: { label: 'ترکیبی', className: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+const TIER_BADGE: Record<SourceAccessTier, { label: string; title: string; className: string }> = {
+  free: { label: 'رایگان', title: 'دسترسی کاملاً رایگان', className: 'bg-zinc-950/80 text-zinc-300 border-zinc-800/80' },
+  premium: { label: 'VIP', title: 'فقط با خرید اشتراک سایت منبع', className: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+  freemium: { label: 'رایگان و VIP', title: 'شامل لینک‌های رایگان و پولی', className: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
 }
 
 interface MovieCardProps {
@@ -113,6 +113,7 @@ export function MovieCard({
         {/* Source access tier */}
         <div
           className={`absolute bottom-2.5 end-2.5 px-2 py-0.5 rounded-full border text-2xs font-medium backdrop-blur-md ${TIER_BADGE[item.source_access_tier].className}`}
+          title={TIER_BADGE[item.source_access_tier].title}
         >
           {TIER_BADGE[item.source_access_tier].label}
         </div>

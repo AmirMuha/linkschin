@@ -248,9 +248,9 @@ export function SourceStatusBar({
                                 )}
                                 <span
                                   className="text-2xs px-1.5 py-0.5 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800"
-                                  title={isReference ? 'ارجاعی — فقط لینک صفحه' : 'مستقیم — پخش و دانلود'}
+                                  title={isReference ? 'ارجاعی — فقط لینک صفحه' : (s.is_streaming ? 'استریم' : 'مستقیم — پخش و دانلود')}
                                 >
-                                  {isReference ? 'ارجاعی' : 'مستقیم'}
+                                  {isReference ? 'ارجاعی' : (s.is_streaming ? 'استریم' : 'مستقیم')}
                                 </span>
                                 {s.access_tier !== 'free' && (
                                   <span
@@ -259,6 +259,7 @@ export function SourceStatusBar({
                                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                         : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                                     }`}
+                                    title={s.access_tier === 'premium' ? 'فقط با خرید اشتراک سایت منبع' : 'شامل لینک‌های رایگان و پولی'}
                                   >
                                     {s.access_tier === 'premium' ? 'VIP' : 'رایگان و VIP'}
                                   </span>
