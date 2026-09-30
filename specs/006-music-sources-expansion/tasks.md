@@ -30,7 +30,7 @@ Backend tasks use `apps/api/...`; web client tasks use `apps/web/...`. All paths
 **Purpose**: Establish the no-regression baseline and prepare capture artefacts before any code changes.
 
 - [ ] T001 Run the existing offline suite and record the baseline in the commit message: `cd apps/api && poe test-offline` — every test must pass before any change, since SC-010 requires no regression and this is the only way to prove it later
-- [ ] T002 [P] Capture live search and item-page fixtures for each reachable full source into `apps/api/tests/fixtures/<source_id>_search.html` and `<source_id>_item.html`, following the naming of the existing `nex1music_search.html` / `nex1music_item.html` pair
+- [ ] T002 [P] Confirm the reachable domain for each of the 20 named sites and capture live search and item-page fixtures for every reachable **full** source into `apps/api/tests/fixtures/<source_id>_search.html` and `<source_id>_item.html`, following the naming of the existing `nex1music_search.html` / `nex1music_item.html` pair. Any site that cannot be reached or has no confirmable domain MUST be recorded in `INACTIVE_REASONS` with the specific cause rather than being skipped silently (FR-025)
 - [ ] T003 [P] Extend the `SourceStatus` interface in `apps/web/src/types/media.ts` with four optional fields — `kind?: string`, `status?: string`, `inactive_reason?: string | null`, `consecutive_failures?: number` — marked optional so an older server response still type-checks (contract G4)
 
 **Checkpoint**: Baseline recorded, fixtures captured, client types tolerant of the new fields.
@@ -49,8 +49,8 @@ Backend tasks use `apps/api/...`; web client tasks use `apps/web/...`. All paths
 - [ ] T007 Create `ReferenceSourcePlugin` base class in `apps/api/sources/music/reference.py` with a no-op `extract_links` that returns the item unchanged and has no code path that populates `stream_url` or `music_tracks` — this structural absence is what upholds Constitution Principle III for all 9 reference sources (FR-011, FR-012)
 - [ ] T008 Add an `exclude_ids: set[str] | None = None` parameter to `get_sources_for_category` in `apps/api/sources/__init__.py`, defaulting to empty so every existing caller is unaffected
 - [ ] T009 [P] Reconcile the two pre-existing registry entries in `apps/api/sources/__init__.py` rather than duplicating them (FR-024): merge `nex1music_ir` into the existing `nex1music` entry as an additional element of `base_urls` keeping `.com` first, and update the existing `radiojavan` entry in place with its confirmed domain and real status
-- [ ] T010 Add the 20 new `SourceConfig` entries to `DEFAULT_CONFIGS` in `apps/api/sources/__init__.py`, each setting `kind` explicitly — 11 `full` (`radiojavan`, `musicdel`, `nex1music_ir`, `musicfa`, `upsong`, `upmusics`, `musictarin`, `tehranmusic`, `melodify`, `takmusics`, `one_rj`) and 9 `reference` (`shenoto`, `farsichart`, `aparat`, `namasha`, `rubika`, `fam`, `soundcloud`, `spotify`, `youtube_music`)
-- [ ] T011 [P] Add a module-level `INACTIVE_REASONS: dict[str, str]` mapping in `apps/api/sources/__init__.py` giving every disabled source a specific reason naming the actual cause — changed domain, dead domain, requires account, licensed service, video platform, or gated access. A generic "unavailable" is non-conforming (contract G3)
+- [ ] T010 Add the new `SourceConfig` entries to `DEFAULT_CONFIGS` in `apps/api/sources/__init__.py`, each setting `kind` explicitly — 10 new `full` (`radiojavan`, `musicdel`, `musicfa`, `upsong`, `upmusics`, `musictarin`, `tehranmusic`, `melodify`, `takmusics`, `one_rj`) and 9 `reference` (`shenoto`, `farsichart`, `aparat`, `namasha`, `rubika`, `fam`, `soundcloud`, `spotify`, `youtube_music`). **Do NOT add a `nex1music_ir` entry** — the site's 11th full source is the existing `nex1music` entry reconciled by T009, so the registry holds 11 full music sources without a duplicate (FR-024)
+- [ ] T011 [P] Add a module-level `INACTIVE_REASONS: dict[str, str]` mapping in `apps/api/sources/__init__.py` giving every disabled source a specific reason naming the actual cause — changed domain, dead domain, requires account, licensed service, video platform, or gated access. A generic "unavailable" is non-conforming. **Every entry in `DEFAULT_CONFIGS` with `enabled=False` MUST have a key here**, including the pre-existing `film2media`, `avamovie`, `zarfilm`, `mobomovie`, and `game2dl` entries (contract G3, FR-017)
 - [ ] T012 Add `source_kind` to the serialized item output in `apps/api/web/app.py`, populated from the owning source's `SourceConfig.kind`, defaulting to `"full"` when the source is unknown
 - [ ] T013 Add `kind`, `status`, `inactive_reason`, and `consecutive_failures` to the `/api/sources` response in `apps/api/web/app.py`, deriving status per the data model — `inactive` when `enabled` is false, `degraded` when `consecutive_failures >= 3`, else `active`
 
@@ -69,6 +69,7 @@ Backend tasks use `apps/api/...`; web client tasks use `apps/web/...`. All paths
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
 - [ ] T014 [P] [US1] Ordering test in `apps/api/tests/test_source_kind.py`: build a mixed list of full and reference `MediaItem`s, run the ordering helper, assert every `full` item precedes every `reference` item AND that intra-group order is unchanged (FR-005a)
+- [ ] T014a [P] [US1] Breadth test in `apps/api/tests/test_api_search.py`: with respx mocking 6+ music sources, assert a single response contains items from at least 6 distinct `source_id` values (SC-001)
 - [ ] T015 [P] [US1] Normalization test in `apps/api/tests/test_api_search.py`: assert an Arabic-script query with Arabic-Indic digits (ي, ٣) returns the same result count as its Persian-script equivalent (ې, 3) (FR-006)
 - [ ] T016 [P] [US1] Resilience test in `apps/api/tests/test_api_search.py`: with respx mocking one source to raise and another to succeed, assert the response contains the succeeding source's items plus a `warnings` entry naming the failed one (FR-007, SC-005)
 
@@ -92,6 +93,7 @@ Backend tasks use `apps/api/...`; web client tasks use `apps/web/...`. All paths
 ### Tests for User Story 2 ⚠️
 
 - [ ] T021 [P] [US2] Parser tests for all 11 full sources in `apps/api/tests/test_music_scrapers.py`, each following the existing `test_nex1music_item_stream_and_downloads` shape: assert a non-null `stream_url`, at least one `MusicDownloadVariant` with a correct bitrate label, and that every emitted URL passes `is_ad_or_shortener_url` (FR-014)
+- [ ] T021a [P] [US2] In `apps/api/tests/test_music_scrapers.py`, assert that a full-source track page yielding **no** usable audio link leaves `stream_url is None` and `music_tracks == []` rather than emitting an empty or broken player (FR-015)
 - [ ] T022 [P] [US2] Add fixture accessor functions to `apps/api/tests/conftest.py` for each new fixture pair, following the existing `nex1music_search_html` pattern exactly — no new fixture infrastructure
 
 ### Implementation for User Story 2
@@ -108,7 +110,8 @@ Implement one plugin per source, each a standalone module under `apps/api/source
 - [ ] T030 [P] [US2] Create `TakMusicsPlugin` in `apps/api/sources/music/takmusics.py`
 - [ ] T031 [P] [US2] Create `OneRJPlugin` in `apps/api/sources/music/one_rj.py` — note it is a related property of Nex1Music but a separate registry entry so one failure does not disable both
 - [ ] T032 [P] [US2] Create `RadioJavanPlugin` in `apps/api/sources/music/radiojavan.py` — resolve its true status first; if it is subscription-gated, record it inactive with that reason and skip the plugin (FR-026)
-- [ ] T033 [US2] Register all 11 plugins in the factory in `apps/api/sources/__init__.py`, and mark each enabled or disabled according to the status confirmed during capture — a source that could not be verified is recorded disabled with a reason rather than shipped half-working (SC-007)
+- [ ] T033 [US2] Register all 11 full-source plugins in the factory in `apps/api/sources/__init__.py`, and mark each enabled or disabled according to the status confirmed during capture — a source that could not be reached is recorded disabled with a reason in `INACTIVE_REASONS` rather than shipped half-working (SC-007)
+- [ ] T033a [US2] In `apps/api/web/templates/_music_card.html`, render the existing "no direct link" message when a **full**-source item has no `stream_url`, and assert in tests that no `<audio>` element is emitted in that case — a full source with no link must report unavailable, not render a broken player (FR-015)
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
@@ -141,7 +144,7 @@ Implement one plugin per source, each a standalone module under `apps/api/source
 - [ ] T047 [P] [US3] Create `YoutubeMusicPlugin` in `apps/api/sources/music/youtube_music.py` as a `ReferenceSourcePlugin` subclass
 - [ ] T048 [P] [US3] Register all 9 reference plugins in the factory in `apps/api/sources/__init__.py` with `kind=SourceKind.REFERENCE`
 - [ ] T049 [US3] Render a link-out card in `apps/api/web/templates/_music_card.html` for items with no media: show the outbound link to `page_url` and MUST NOT emit an `<audio>` element or any download control. The element MUST be absent from the DOM — CSS hiding does not satisfy this (SC-003)
-- [ ] T050 [P] [US3] Reword the existing "no direct download link found" message in `apps/api/web/templates/_music_card.html` so a reference result reads as a deliberate link-out rather than a failure
+- [ ] T050 [P] [US3] Reword the "no direct download link found" message in `apps/api/web/templates/_music_card.html` so a **reference** result reads as a deliberate link-out ("listen on the source site") rather than a failure, while a **full**-source item with no link still reads as unavailable. Both branches must be distinguishable, so gate the wording on the item's kind rather than on media presence alone
 - [ ] T051 [P] [US3] Add a reference branch to `apps/web/src/components/cards/MusicCard.tsx` rendering the outbound link with no player and no download controls
 - [ ] T052 [P] [US3] Send the saved hidden set as repeated `sources` params in `apps/web/src/lib/api.ts`
 - [ ] T053 [US3] Add per-source hide toggles to `apps/web/src/components/InViewFilterBar.tsx`, persisting to `localStorage`, with a control to restore all defaults. A hidden source MUST remain listed with its status so the user can see and undo it; a system-determined `degraded` or `inactive` source MUST NOT be hideable (FR-031)
@@ -182,14 +185,14 @@ Implement one plugin per source, each a standalone module under `apps/api/source
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T060 [P] [US5] Confirm every registered music source has either a committed fixture and parser test, or a recorded inactive status with a reason — assert this in `apps/api/tests/test_sources_config.py` so the suite fails if a source ships with neither (FR-019, SC-004)
+- [ ] T060 [P] [US5] Assert in `apps/api/tests/test_sources_config.py` that every **enabled** music source has a committed fixture and a passing parser test. The inactive branch is reserved for a source that is genuinely unreachable — dead or changed domain, or gated by login/captcha — and requires an `INACTIVE_REASONS` entry naming the cause. A source that is merely unverified is **not** permitted to take that branch, so a registry where every full source is disabled still fails this test (FR-019, SC-004)
 - [ ] T061 [P] [US5] Parked-page and error-page tests in `apps/api/tests/test_music_scrapers.py`: assert each source yields zero results, not junk entries, when fed a domain-parking page, an advertisement, or an error page (FR-020)
 - [ ] T062 [P] [US5] Timeout test in `apps/api/tests/test_source_kind.py`: assert a source exceeding its 7s budget is abandoned without blocking the overall search (FR-008)
 
 ### Implementation for User Story 5
 
 - [ ] T063 [US5] Run the complete offline suite and confirm 100% of new sources pass with the network unavailable: `cd apps/api && poe test-offline` (SC-004)
-- [ ] T064 [US5] Re-run the pre-existing movies and games tests and confirm they pass unchanged from the T001 baseline (SC-010, FR-028)
+- [ ] T064 [US5] Re-run the pre-existing movies and games tests and confirm they pass unchanged from the T001 baseline, and assert the movies and games API response shape is unchanged apart from the additive `source_kind` field (SC-010, FR-028, FR-016)
 
 **Checkpoint**: All five user stories verified offline.
 
@@ -203,6 +206,7 @@ Implement one plugin per source, each a standalone module under `apps/api/source
 - [ ] T068 [P] Confirm in the browser devtools network panel that every media request goes directly to the upstream host and none passes through `localhost:8000` (FR-013, SC-008) — this is the definitive check for Constitution Principle III
 - [ ] T069 Run the remaining validation scenarios in `specs/006-music-sources-expansion/quickstart.md` (steps 3, 6, 7, 8, 9, 10) and record the results
 - [ ] T070 [P] Update `specs/006-music-sources-expansion/checklists/requirements.md` notes with the final verified status of each of the 20 sites, including any whose confirmed status differs from the spec's initial full/reference assumption (FR-021)
+- [ ] T071 Lyrics are **out of scope** per FR-027. Do not add a lyrics field to `MusicTrack`, `MediaItem`, or any API response, even for sources that publish lyrics — Music-fa and UpMusics among them
 
 ---
 

@@ -108,11 +108,11 @@ The sort is stable and the key is constant within a kind, so the pre-existing re
 
 ## Registry shape
 
-`DEFAULT_CONFIGS` grows from 12 entries to 32: the existing 12 (movies, games, and the 2 live music sources) plus 20 new music entries. Every new entry sets `kind` explicitly rather than relying on the default, so the full/reference split is readable at the point of declaration.
+`DEFAULT_CONFIGS` grows from 12 entries to 31: the existing 12 (movies, games, and the 2 live music sources) plus 19 new music entries. Nex1Music is counted among the 11 full sources but is **not** a new entry — it is the existing `nex1music` entry reconciled below, so 10 new full + 1 reconciled = 11 full. Every new entry sets `kind` explicitly rather than relying on the default, so the full/reference split is readable at the point of declaration.
 
 | Kind | Count | Source ids |
 |---|---|---|
-| `full` | 11 | `radiojavan`, `musicdel`, `nex1music_ir`, `musicfa`, `upsong`, `upmusics`, `musictarin`, `tehranmusic`, `melodify`, `takmusics`, `one_rj` |
+| `full` | 11 | `radiojavan`, `musicdel`, `nex1music` (reconciled, not new), `musicfa`, `upsong`, `upmusics`, `musictarin`, `tehranmusic`, `melodify`, `takmusics`, `one_rj` |
 | `reference` | 9 | `shenoto`, `farsichart`, `aparat`, `namasha`, `rubika`, `fam`, `soundcloud`, `spotify`, `youtube_music` |
 
 **Reconciliation (FR-024)**: two of these names already exist in the registry and must be updated rather than duplicated.

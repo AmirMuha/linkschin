@@ -35,3 +35,7 @@ node_modules/
 *.db-wal
 *.db-shm
 apps/api/data/
+
+# worktree symlinks (see .worktrees/)
+.venv
+node_modules
