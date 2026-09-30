@@ -39,3 +39,23 @@ export function variantsForCensorship(
   const wantCensored = censorship === 'censored'
   return variants.filter((v) => v.is_censored === wantCensored)
 }
+
+/** Music only. An item matches when ANY of its tracks is by one of the artists. */
+export function itemMatchesArtists(item: MediaItem, artists: string[]): boolean {
+  if (artists.length === 0) return true
+  return (item.music_tracks ?? []).some((t) => artists.includes(t.artist))
+}
+
+/** Music only. A track with no album never matches a selected album. */
+export function itemMatchesAlbums(item: MediaItem, albums: string[]): boolean {
+  if (albums.length === 0) return true
+  return (item.music_tracks ?? []).some((t) => t.album != null && albums.includes(t.album))
+}
+
+/** Music only. An item matches when any of its tracks offers a selected bitrate. */
+export function itemMatchesBitrates(item: MediaItem, bitrates: string[]): boolean {
+  if (bitrates.length === 0) return true
+  return (item.music_tracks ?? []).some((t) =>
+    (t.downloads ?? []).some((d) => bitrates.includes(d.bitrate))
+  )
+}

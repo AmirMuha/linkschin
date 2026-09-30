@@ -6,8 +6,14 @@ import { searchMedia, fetchSources } from '@/lib/api'
 import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
 import { SourceStatusBar } from '@/components/SourceStatusBar'
-import { InViewFilterBar, type FilterState } from '@/components/InViewFilterBar'
-import { itemMatchesCensorship, itemMatchesTier } from '@/lib/filters'
+import { InViewFilterBar, EMPTY_FILTERS, type FilterState } from '@/components/InViewFilterBar'
+import {
+  itemMatchesAlbums,
+  itemMatchesArtists,
+  itemMatchesBitrates,
+  itemMatchesCensorship,
+  itemMatchesTier,
+} from '@/lib/filters'
 import {
   buildSearchParams,
   parseCensorshipParam,
@@ -41,14 +47,7 @@ export default function Home() {
 
   // In-view filter state. `hiddenSources` is the per-user hidden set: it is
   // persisted to localStorage and re-sent on every search, never to the server.
-  const [filters, setFilters] = useState<FilterState>({
-    qualities: [],
-    audioTracks: [],
-    sources: [],
-    hiddenSources: [],
-    accessTier: 'all',
-    censorship: 'all',
-  })
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
 
   // Video modal state
   const [videoModal, setVideoModal] = useState<{
@@ -157,14 +156,7 @@ export default function Home() {
 
       // Reset in-view filters on new search. The hidden set is NOT reset — it is
       // a durable per-user preference, not a per-search filter.
-      setFilters((prev) => ({
-        qualities: [],
-        audioTracks: [],
-        sources: [],
-        hiddenSources: prev.hiddenSources,
-        accessTier: 'all',
-        censorship: 'all',
-      }))
+      setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
 
       try {
         const response = await searchMedia(
@@ -173,7 +165,7 @@ export default function Home() {
         )
         setItems(response.items || [])
         setWarnings(response.warnings || [])
-        addRecentSearch(q)
+        addRecentSearch(q, category)
 
         // Sync sources immediately after search, as backend health state may have changed
         fetchSources().then((data) => setSources(data)).catch(() => {})
@@ -202,14 +194,7 @@ export default function Home() {
     setWarnings([])
     setHasSearched(false)
     setErrorMessage(null)
-    setFilters((prev) => ({
-      qualities: [],
-      audioTracks: [],
-      sources: [],
-      hiddenSources: prev.hiddenSources,
-      accessTier: 'all',
-      censorship: 'all',
-    }))
+    setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
     // Each tab is a fresh query: the old term is about a different category, and
     // re-running it fired a search from the pre-switch handleSearch closure.
     setQuery('')
@@ -219,6 +204,9 @@ export default function Home() {
   const availableFilterOptions = useMemo(() => {
     const qualitiesSet = new Set<string>()
     const audioSet = new Set<string>()
+    const artistsSet = new Set<string>()
+    const albumsSet = new Set<string>()
+    const bitratesSet = new Set<string>()
     const sourcesMap = new Map<string, string>()
 
     for (const item of items) {
@@ -229,11 +217,21 @@ export default function Home() {
         if (variant.quality) qualitiesSet.add(variant.quality)
         if (variant.audio_track) audioSet.add(variant.audio_track)
       }
+      for (const track of item.music_tracks || []) {
+        if (track.artist) artistsSet.add(track.artist)
+        if (track.album) albumsSet.add(track.album)
+        for (const dl of track.downloads || []) {
+          if (dl.bitrate) bitratesSet.add(dl.bitrate)
+        }
+      }
     }
 
     return {
       qualities: Array.from(qualitiesSet).sort(),
       audioTracks: Array.from(audioSet).sort(),
+      artists: Array.from(artistsSet).sort((a, b) => a.localeCompare(b, 'fa')),
+      albums: Array.from(albumsSet).sort((a, b) => a.localeCompare(b, 'fa')),
+      bitrates: Array.from(bitratesSet).sort(),
       sources: Array.from(sourcesMap.entries()).map(([id, name]) => ({
         id,
         name,
@@ -274,6 +272,16 @@ export default function Home() {
         )
         if (!hasAudio) return false
       }
+
+      // Artist / album / bitrate filters (music)
+      if (!itemMatchesArtists(item, filters.artists)) return false
+      if (!itemMatchesAlbums(item, filters.albums)) return false
+      if (!itemMatchesBitrates(item, filters.bitrates)) return false
+
+      // Artist / album / bitrate filters (music)
+      if (!itemMatchesArtists(item, filters.artists)) return false
+      if (!itemMatchesAlbums(item, filters.albums)) return false
+      if (!itemMatchesBitrates(item, filters.bitrates)) return false
 
       // Source access tier + censorship (spec 007). Freemium items stay visible under
       // either tier; only their download rows are pruned inside MovieDownloadMatrix.
@@ -357,7 +365,7 @@ export default function Home() {
                   }))
                 }
                 onRestoreAllSources={() =>
-                  setFilters((prev) => ({ ...prev, hiddenSources: [] }))
+                  setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
                 }
               />
             </div>
@@ -397,12 +405,15 @@ export default function Home() {
           {items.length > 0 && !isLoading && (
             <div className="w-full max-w-5xl">
               <InViewFilterBar
+                category={category}
                 availableQualities={availableFilterOptions.qualities}
                 availableAudioTracks={availableFilterOptions.audioTracks}
+                availableArtists={availableFilterOptions.artists}
+                availableAlbums={availableFilterOptions.albums}
+                availableBitrates={availableFilterOptions.bitrates}
                 availableSources={availableFilterOptions.sources}
                 filters={filters}
                 onFilterChange={setFilters}
-                showMovieFilters={category === 'movies'}
               />
             </div>
           )}
@@ -454,14 +465,12 @@ export default function Home() {
               {items.length > 0 && filters.hiddenSources.length === 0 && (
                 <button
                   type="button"
-                  onClick={() => setFilters((prev) => ({
-                    qualities: [],
-                    audioTracks: [],
-                    sources: [],
-                    hiddenSources: prev.hiddenSources,
-                    accessTier: 'all',
-                    censorship: 'all',
-                  }))}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...EMPTY_FILTERS,
+                      hiddenSources: prev.hiddenSources,
+                    }))
+                  }
                   className="mt-2 px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
                 >
                   حذف تمام فیلترها
@@ -471,7 +480,7 @@ export default function Home() {
           )}
 
           {!isLoading && !errorMessage && filteredItems.length > 0 && (
-            <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-2">
+            <div className="masonry w-full columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 pt-2">
               {filteredItems.map((item) => {
                 if (item.category === 'movies') {
                   return (

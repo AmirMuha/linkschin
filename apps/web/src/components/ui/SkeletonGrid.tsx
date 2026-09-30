@@ -3,7 +3,7 @@ import React from 'react'
 export function SkeletonGrid({ count = 8 }: { count?: number }) {
   return (
     <div
-      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full"
+      className="masonry columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 w-full"
       role="status"
       aria-label="در حال بارگذاری نتایج"
     >

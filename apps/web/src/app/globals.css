@@ -20,6 +20,18 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+/* Masonry results layout - native CSS multi-column, so no JS measurement and no
+   dependency. `column-gap` handles the gutter between columns; the vertical
+   spacing between cards stacked in a column must come from a margin because
+   `row-gap` is ignored in a multi-column flow. */
+.masonry > * {
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
+}
+.masonry > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Minimum touch targets on mobile */
 @media (max-width: 640px) {
   button, a, [role="tab"], input {

@@ -2,11 +2,16 @@
 
 import React from 'react'
 import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
+import type { Category } from '@/types/media'
 import { Filter, X } from 'lucide-react'
 
 export interface FilterState {
   qualities: string[]
   audioTracks: string[]
+  /** Music only — a track matches when any of its own tags intersects. */
+  artists: string[]
+  albums: string[]
+  bitrates: string[]
   sources: string[]
   /** Persisted per-user hidden set; sent as repeated `sources=` params. */
   hiddenSources: string[]
@@ -14,13 +19,28 @@ export interface FilterState {
   censorship: CensorshipFilter
 }
 
+export const EMPTY_FILTERS: FilterState = {
+  qualities: [],
+  audioTracks: [],
+  artists: [],
+  albums: [],
+  bitrates: [],
+  sources: [],
+  hiddenSources: [],
+  accessTier: 'all',
+  censorship: 'all',
+}
+
 interface InViewFilterBarProps {
+  category: Category
   availableQualities: string[]
   availableAudioTracks: string[]
+  availableArtists: string[]
+  availableAlbums: string[]
+  availableBitrates: string[]
   availableSources: { id: string; name: string }[]
   filters: FilterState
   onFilterChange: (filters: FilterState) => void
-  showMovieFilters?: boolean
 }
 
 const TIER_CHIPS: { value: TierFilter; label: string; active: string }[] = [
@@ -38,60 +58,92 @@ const CENSORSHIP_CHIPS: { value: CensorshipFilter; label: string; active: string
 const IDLE = 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-zinc-200'
 
 export function InViewFilterBar({
+  category,
   availableQualities,
   availableAudioTracks,
+  availableArtists,
+  availableAlbums,
+  availableBitrates,
   availableSources,
   filters,
   onFilterChange,
-  showMovieFilters = true,
 }: InViewFilterBarProps) {
+  const isMovie = category === 'movies'
+
   const hasActiveFilters =
     filters.qualities.length > 0 ||
     filters.audioTracks.length > 0 ||
+    filters.artists.length > 0 ||
+    filters.albums.length > 0 ||
+    filters.bitrates.length > 0 ||
     filters.sources.length > 0 ||
     filters.accessTier !== 'all' ||
     filters.censorship !== 'all'
 
-  function toggleQuality(q: string) {
-    const exists = filters.qualities.includes(q)
-    const next = exists
-      ? filters.qualities.filter((item) => item !== q)
-      : [...filters.qualities, q]
-    onFilterChange({ ...filters, qualities: next })
-  }
-
-  function toggleAudio(a: string) {
-    const exists = filters.audioTracks.includes(a)
-    const next = exists
-      ? filters.audioTracks.filter((item) => item !== a)
-      : [...filters.audioTracks, a]
-    onFilterChange({ ...filters, audioTracks: next })
-  }
-
-  function toggleSource(s: string) {
-    const exists = filters.sources.includes(s)
-    const next = exists
-      ? filters.sources.filter((item) => item !== s)
-      : [...filters.sources, s]
-    onFilterChange({ ...filters, sources: next })
+  function toggleIn(key: 'qualities' | 'audioTracks' | 'artists' | 'albums' | 'bitrates' | 'sources', value: string) {
+    const current = filters[key]
+    onFilterChange({
+      ...filters,
+      [key]: current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value],
+    })
   }
 
   function handleReset() {
-    onFilterChange({
-      qualities: [],
-      audioTracks: [],
-      sources: [],
-      hiddenSources: [],
-      accessTier: 'all',
-      censorship: 'all',
+    onFilterChange({ ...EMPTY_FILTERS })
+  }
+
+  // One table for the multi-select chip groups. Category decides which rows are
+  // in play: quality/audio are movie-only, artist/album/bitrate are music-only,
+  // and source is always offered when there is more than one.
+  const chipGroups: {
+    label: string
+    options: { id: string; text: string }[]
+    active: string
+    toggle: (id: string) => void
+    isActive: (id: string) => boolean
+  }[] = []
+  const group = (
+    label: string,
+    options: string[],
+    active: string,
+    key: 'qualities' | 'audioTracks' | 'artists' | 'albums' | 'bitrates'
+  ) => {
+    if (options.length === 0) return
+    chipGroups.push({
+      label,
+      options: options.map((v) => ({ id: v, text: v })),
+      active,
+      toggle: (v) => toggleIn(key, v),
+      isActive: (v) => filters[key].includes(v),
+    })
+  }
+  if (isMovie) {
+    group('کیفیت', availableQualities, 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', 'qualities')
+    group('صدا / زیرنویس', availableAudioTracks, 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300', 'audioTracks')
+  }
+  if (category === 'music') {
+    group('خواننده', availableArtists, 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300', 'artists')
+    group('آلبوم', availableAlbums, 'bg-violet-500/20 border-violet-500/50 text-violet-300', 'albums')
+    group('بیت‌ریت', availableBitrates, 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300', 'bitrates')
+  }
+  if (availableSources.length > 1) {
+    chipGroups.push({
+      label: 'منبع',
+      options: availableSources.map((s) => ({ id: s.id, text: s.name })),
+      active: 'bg-violet-500/20 border-violet-500/50 text-violet-300',
+      toggle: (id) => toggleIn('sources', id),
+      isActive: (id) => filters.sources.includes(id),
     })
   }
 
   // Only render if there are options to filter by
   if (
-    !showMovieFilters &&
-    availableQualities.length === 0 &&
-    availableAudioTracks.length === 0 &&
+    !isMovie &&
+    availableArtists.length === 0 &&
+    availableAlbums.length === 0 &&
+    availableBitrates.length === 0 &&
     availableSources.length <= 1
   ) {
     return null
@@ -124,118 +176,67 @@ export function InViewFilterBar({
       </div>
 
       <div className="flex items-center flex-wrap gap-4 text-xs">
-        {/* Quality Chips */}
-        {availableQualities.length > 0 && (
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">کیفیت:</span>
-            {availableQualities.map((q) => {
-              const active = filters.qualities.includes(q)
+        {chipGroups.map((group) => (
+          <div key={group.label} className="flex items-center flex-wrap gap-1.5">
+            <span className="text-zinc-500 font-medium">{group.label}:</span>
+            {group.options.map((opt) => {
+              const active = group.isActive(opt.id)
               return (
                 <button
-                  key={q}
-                  type="button"
-                  onClick={() => toggleQuality(q)}
-                  className={`px-2.5 py-1 rounded-lg border font-mono font-medium transition-colors ${
-                    active
-                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
-                      : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {q}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Audio Track Chips */}
-        {availableAudioTracks.length > 0 && (
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">صدا / زیرنویس:</span>
-            {availableAudioTracks.map((a) => {
-              const active = filters.audioTracks.includes(a)
-              return (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => toggleAudio(a)}
-                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-                    active
-                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                      : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {a}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Source Chips */}
-        {availableSources.length > 1 && (
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">منبع:</span>
-            {availableSources.map((s) => {
-              const active = filters.sources.includes(s.id)
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleSource(s.id)}
-                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-                    active
-                      ? 'bg-violet-500/20 border-violet-500/50 text-violet-300'
-                      : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {s.name}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Access Tier Chips — movies only */}
-        {showMovieFilters && (
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">دسترسی:</span>
-            {TIER_CHIPS.map((chip) => {
-              const active = filters.accessTier === chip.value
-              return (
-                <button
-                  key={chip.value}
+                  key={opt.id}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => onFilterChange({ ...filters, accessTier: chip.value })}
-                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
+                  onClick={() => group.toggle(opt.id)}
+                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${
+                    active ? group.active : IDLE
+                  }`}
                 >
-                  {chip.label}
+                  {opt.text}
                 </button>
               )
             })}
           </div>
-        )}
+        ))}
 
-        {/* Censorship Chips — movies only */}
-        {showMovieFilters && (
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className="text-zinc-500 font-medium">سانسور:</span>
-            {CENSORSHIP_CHIPS.map((chip) => {
-              const active = filters.censorship === chip.value
-              return (
-                <button
-                  key={chip.value}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => onFilterChange({ ...filters, censorship: chip.value })}
-                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
-                >
-                  {chip.label}
-                </button>
-              )
-            })}
-          </div>
+        {/* Single-select chips — movies only */}
+        {isMovie && (
+          <>
+            <div className="flex items-center flex-wrap gap-1.5">
+              <span className="text-zinc-500 font-medium">دسترسی:</span>
+              {TIER_CHIPS.map((chip) => {
+                const active = filters.accessTier === chip.value
+                return (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onFilterChange({ ...filters, accessTier: chip.value })}
+                    className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="flex items-center flex-wrap gap-1.5">
+              <span className="text-zinc-500 font-medium">سانسور:</span>
+              {CENSORSHIP_CHIPS.map((chip) => {
+                const active = filters.censorship === chip.value
+                return (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onFilterChange({ ...filters, censorship: chip.value })}
+                    className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
+                  >
+                    {chip.label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -47,8 +47,8 @@ export function SearchBar({
   const [isFocused, setIsFocused] = useState(false)
 
   useEffect(() => {
-    setHistory(getRecentSearches())
-  }, [])
+    setHistory(getRecentSearches(category))
+  }, [category])
 
   function setScope(next: SourceScopeFilter) {
     if (next === scope) return
@@ -62,7 +62,7 @@ export function SearchBar({
     e.preventDefault()
     if (!query.trim()) return
     onSearch(query.trim())
-    setHistory(getRecentSearches())
+    setHistory(getRecentSearches(category))
   }
 
   function handleRefresh() {
@@ -73,11 +73,11 @@ export function SearchBar({
   function handleSelectHistory(item: string) {
     onQueryChange(item)
     onSearch(item)
-    setHistory(getRecentSearches())
+    setHistory(getRecentSearches(category))
   }
 
   function handleClearHistory() {
-    clearRecentSearches()
+    clearRecentSearches(category)
     setHistory([])
   }
 

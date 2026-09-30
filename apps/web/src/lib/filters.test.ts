@@ -5,8 +5,13 @@ import {
   variantsForTier,
   itemMatchesCensorship,
   variantsForCensorship,
+  itemMatchesArtists,
+  itemMatchesAlbums,
+  itemMatchesBitrates,
 } from './filters.ts'
-import type { CensorshipStatus, MediaItem, MovieDownloadVariant, SourceAccessTier } from '../types/media.ts'
+import type {
+  CensorshipStatus, MediaItem, MovieDownloadVariant, MusicTrack, SourceAccessTier,
+} from '../types/media.ts'
 
 function variant(over: Partial<MovieDownloadVariant> = {}): MovieDownloadVariant {
   return {
@@ -23,6 +28,18 @@ function item(tier: SourceAccessTier, status: CensorshipStatus, variants: MovieD
     imdb_rating: null, censorship_status: status, source_access_tier: tier,
     movie_variants: variants, game_releases: [], music_tracks: [],
   }
+}
+
+function track(over: Partial<MusicTrack> = {}): MusicTrack {
+  return {
+    id: 't1', title: 'Song', artist: 'Bonobo', source_name: 'S', album: 'Black Sands',
+    cover_url: null, stream_url: null,
+    downloads: [{ bitrate: '320', download_url: 'https://cdn/a.mp3', file_size: '8 MB' }], ...over,
+  }
+}
+
+function musicItem(tracks: MusicTrack[]): MediaItem {
+  return { ...item('free', 'unspecified'), category: 'music', music_tracks: tracks }
 }
 
 test('itemMatchesTier: free keeps free+freemium, drops premium', () => {
@@ -77,4 +94,34 @@ test('variantsForCensorship: null is_censored hides under either strict filter',
   assert.deepStrictEqual(variantsForCensorship(rows, 'uncensored').map((v) => v.id), ['u'])
   assert.deepStrictEqual(variantsForCensorship(rows, 'censored').map((v) => v.id), ['c'])
   assert.deepStrictEqual(variantsForCensorship(rows, 'all').map((v) => v.id), ['c', 'u', 'n'])
+})
+
+test('itemMatchesArtists: empty selection is a pass-through', () => {
+  assert.strictEqual(itemMatchesArtists(musicItem([track()]), []), true)
+})
+
+test('itemMatchesArtists: keeps items whose ANY track is by a selected artist', () => {
+  const mixed = musicItem([track({ artist: 'Bonobo' }), track({ id: 't2', artist: 'ODESZA' })])
+  assert.strictEqual(itemMatchesArtists(mixed, ['ODESZA']), true)
+  assert.strictEqual(itemMatchesArtists(mixed, ['Bonobo']), true)
+  assert.strictEqual(itemMatchesArtists(mixed, ['Bicep']), false)
+})
+
+test('itemMatchesAlbums: null album never matches a selected album', () => {
+  const noAlbum = musicItem([track({ album: null })])
+  assert.strictEqual(itemMatchesAlbums(noAlbum, []), true)
+  assert.strictEqual(itemMatchesAlbums(noAlbum, ['Black Sands']), false)
+  assert.strictEqual(itemMatchesAlbums(musicItem([track()]), ['Black Sands']), true)
+})
+
+test('itemMatchesBitrates: a track counts only if one of its downloads matches', () => {
+  const lossless = musicItem([track({
+    downloads: [
+      { bitrate: '320', download_url: 'https://cdn/a.mp3', file_size: '8 MB' },
+      { bitrate: 'FLAC', download_url: 'https://cdn/a.flac', file_size: '30 MB' },
+    ],
+  })])
+  assert.strictEqual(itemMatchesBitrates(lossless, ['FLAC']), true)
+  assert.strictEqual(itemMatchesBitrates(lossless, ['128']), false)
+  assert.strictEqual(itemMatchesBitrates(musicItem([track()]), []), true)
 })
