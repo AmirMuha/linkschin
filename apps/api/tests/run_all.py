@@ -15,6 +15,8 @@ import tests.test_db as tdb
 import tests.test_games_scrapers as tg
 import tests.test_movies_scrapers as tmov
 import tests.test_music_scrapers as tmu
+import tests.test_reference_sources as tref
+import tests.test_source_kind as tsk
 import tests.test_sources_config as ts
 import tests.test_streaming as tst
 import tests.test_worker as tw
@@ -25,14 +27,21 @@ FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 class MonkeyPatch:
     def __init__(self):
         self.old_env = {}
+        self.old_attrs = []
 
     def setenv(self, key, val):
         import os
         self.old_env[key] = os.environ.get(key)
         os.environ[key] = val
 
+    def setattr(self, target, name, value):
+        self.old_attrs.append((target, name, getattr(target, name)))
+        setattr(target, name, value)
+
     def undo(self):
         import os
+        for obj, name, old in self.old_attrs:
+            setattr(obj, name, old)
         for k, v in self.old_env.items():
             if v is None:
                 os.environ.pop(k, None)
@@ -45,52 +54,21 @@ def main():
     print("Running Iranian Media Aggregator Test Suite (Offline)")
     print("=" * 60)
 
-    # Load fixtures
-    dlha_search = (FIXTURES_DIR / "downloadha_search.html").read_text(encoding="utf-8")
-    dlha_item = (FIXTURES_DIR / "downloadha_item.html").read_text(encoding="utf-8")
-    yasdl_search = (FIXTURES_DIR / "yasdl_search.html").read_text(encoding="utf-8")
-    yasdl_item = (FIXTURES_DIR / "yasdl_item.html").read_text(encoding="utf-8")
-    uptvs_search = (FIXTURES_DIR / "uptvs_search.html").read_text(encoding="utf-8")
-    uptvs_item = (FIXTURES_DIR / "uptvs_item.html").read_text(encoding="utf-8")
-    doostihaa_search = (FIXTURES_DIR / "doostihaa_search.html").read_text(encoding="utf-8")
-    doostihaa_item = (FIXTURES_DIR / "doostihaa_item.html").read_text(encoding="utf-8")
-    pop_search = (FIXTURES_DIR / "popmusic_search.html").read_text(encoding="utf-8")
-    pop_item = (FIXTURES_DIR / "popmusic_item.html").read_text(encoding="utf-8")
-    nex1_search = (FIXTURES_DIR / "nex1music_search.html").read_text(encoding="utf-8")
-    nex1_item = (FIXTURES_DIR / "nex1music_item.html").read_text(encoding="utf-8")
+    # Load every fixture generically: <name>.html -> kwarg <name>.
+    # ponytail: glob instead of a hand-kept list; forgot-one is now impossible.
+    fix_map = {
+        f.stem: f.read_text(encoding="utf-8")
+        for f in sorted(FIXTURES_DIR.glob("*.html"))
+    }
 
-    modules = [
-        (tm, {}),
-        (tc, {}),
-        (tdb, {}),
-        (tg, {
-            "downloadha_search_html": dlha_search,
-            "downloadha_item_html": dlha_item,
-            "yasdl_search_html": yasdl_search,
-            "yasdl_item_html": yasdl_item,
-        }),
-        (tmov, {
-            "uptvs_search_html": uptvs_search,
-            "uptvs_item_html": uptvs_item,
-            "doostihaa_search_html": doostihaa_search,
-            "doostihaa_item_html": doostihaa_item,
-        }),
-        (tmu, {
-            "popmusic_search_html": pop_search,
-            "popmusic_item_html": pop_item,
-            "nex1music_search_html": nex1_search,
-            "nex1music_item_html": nex1_item,
-        }),
-        (ts, {}),
-        (tst, {}),
-        (tw, {}),
-    ]
+    modules = [tm, tc, tdb, tg, tmov, tmu, tref, tsk, ts, tst, tw]
 
     total = 0
     passed = 0
     failed = 0
+    skipped = 0
 
-    for mod, fix_map in modules:
+    for mod in modules:
         mod_name = mod.__name__.split(".")[-1]
         print(f"\n[{mod_name}]")
         for name, func in inspect.getmembers(mod, inspect.isfunction):
@@ -105,8 +83,23 @@ def main():
                 if p == "monkeypatch":
                     mp = MonkeyPatch()
                     kwargs[p] = mp
-                elif p in fix_map:
-                    kwargs[p] = fix_map[p]
+                elif p == "tmp_path":
+                    import tempfile
+                    kwargs[p] = Path(tempfile.mkdtemp())
+                elif p == "db_path":
+                    import tempfile
+                    kwargs[p] = str(Path(tempfile.mkdtemp()) / "t.db")
+                elif p.endswith("_html") and p[:-5] in fix_map:
+                    kwargs[p] = fix_map[p[:-5]]
+
+            # pytest-parametrized tests can't run in this zero-dep runner;
+            # pytest executes them (and the whole suite) normally.
+            missing = [p for p in sig.parameters
+                       if p not in kwargs and sig.parameters[p].default is inspect.Parameter.empty]
+            if missing:
+                skipped += 1
+                print(f"  ~ {name} (pytest-only: {', '.join(missing)})")
+                continue
 
             try:
                 if inspect.iscoroutinefunction(func):

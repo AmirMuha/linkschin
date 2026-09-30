@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!/apps/web/src/lib/
 lib64/
 parts/
 sdist/
@@ -33,7 +34,14 @@ node_modules/
 .turbo/
 .next/
 .worktrees/
+*.tsbuildinfo
 *.db
 *.db-wal
 *.db-shm
 apps/api/data/
+
+# worktree symlinks (see .worktrees/)
+.venv
+node_modules
+
+.pipeline/

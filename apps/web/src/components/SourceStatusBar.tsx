@@ -19,6 +19,23 @@ const CATEGORY_CONFIG: {
   { id: 'music', label: 'موسیقی', icon: Music },
 ]
 
+/**
+ * `status` is optional on the wire (sources contract G4), so fall back to
+ * deriving it from `enabled`. Kind and status are always returned as TEXT —
+ * colour is decoration, never the only signal.
+ */
+function describeSource(s: SourceStatus): {
+  status: 'active' | 'degraded' | 'inactive'
+  statusLabel: string
+  reason: string | null
+} {
+  const status: 'active' | 'degraded' | 'inactive' =
+    s.status ?? (s.enabled ? 'active' : 'inactive')
+  const statusLabel =
+    status === 'active' ? 'فعال' : status === 'degraded' ? 'افت کیفیت' : 'غیرفعال'
+  return { status, statusLabel, reason: s.inactive_reason ?? null }
+}
+
 export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps) {
   const [dismissedWarnings, setDismissedWarnings] = useState<Record<number, boolean>>({})
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
@@ -145,23 +162,55 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
 
                     {/* Source Rows */}
                     <div className="flex flex-col gap-0.5">
-                      {catSources.map((s) => (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
-                        >
-                          <span className="text-zinc-200 text-xs font-medium">{s.name}</span>
-                          <span
-                            className={`text-2xs px-1.5 py-0.5 rounded-md ${
-                              s.enabled
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
-                            }`}
+                      {catSources.map((s) => {
+                        const { status, statusLabel, reason } = describeSource(s)
+                        const isReference = s.kind === 'reference'
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
                           >
-                            {s.enabled ? 'فعال' : 'غیرفعال'}
-                          </span>
-                        </div>
-                      ))}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-zinc-200 text-xs font-medium truncate">
+                                {s.name}
+                              </span>
+                              <span className="flex items-center gap-1 shrink-0">
+                                <span
+                                  className="text-2xs px-1.5 py-0.5 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800"
+                                  title={isReference ? 'ارجاعی — فقط لینک صفحه' : 'کامل — پخش و دانلود'}
+                                >
+                                  {isReference ? 'ارجاعی' : 'کامل'}
+                                </span>
+                                <span
+                                  className={`text-2xs px-1.5 py-0.5 rounded-md ${
+                                    status === 'active'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      : status === 'degraded'
+                                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
+                                  }`}
+                                >
+                                  {statusLabel}
+                                </span>
+                              </span>
+                            </div>
+
+                            {/* Reason is required whenever status is not active (G3) */}
+                            {status !== 'active' && reason && (
+                              <p className="text-2xs text-zinc-500 leading-relaxed">
+                                {reason}
+                                {typeof s.consecutive_failures === 'number' &&
+                                  s.consecutive_failures > 0 && (
+                                    <span className="font-mono">
+                                      {' '}
+                                      ({s.consecutive_failures} جستجوی ناموفق پیاپی)
+                                    </span>
+                                  )}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )

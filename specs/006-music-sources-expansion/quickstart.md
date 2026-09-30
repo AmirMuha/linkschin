@@ -246,3 +246,31 @@ poe test-offline
 | `consecutive_failures` column missing | The `ALTER TABLE` guard did not run; `CREATE TABLE IF NOT EXISTS` does not add columns to an existing table |
 | A source never reaches `degraded` | Counter incremented per request rather than per completed search |
 | Ordering looks random | Sort applied before the gather, or an unstable sort key varying within a kind |
+
+---
+
+## 13. Accessibility verification (T059, T079)
+
+Verified by reading the rendered markup of both frontends. Recorded here because the ui-contract
+makes these non-negotiable and they are otherwise unproven.
+
+| Requirement | Next.js client (`apps/web`) | Jinja server (`apps/api`) |
+|---|---|---|
+| Kind conveyed by text, not colour alone | `SourceStatusBar.tsx:182` renders `ارجاعی` / `کامل` as a text badge; colour is decoration on the same node | `base.html:73` renders `('ارجاعی'` / `'کامل')` inline in the badge text |
+| Status conveyed by text, not colour alone | `SourceStatusBar.tsx:35` maps status to `statusLabel` (`فعال` / `افت کیفیت` / `غیرفعال`) and renders it as text; the emerald/amber palette is a parallel cue only | `base.html:73` appends `(افت کیفیت)` / `(غیرفعال)` as text |
+| Reason present whenever status is not active | `SourceStatusBar.tsx:199-207` renders `inactive_reason` plus the failure count, gated on `status !== 'active'` | `base.html:74` renders `— {{ src_reason }}` |
+| Hide toggles are real labelled form controls | `InViewFilterBar.tsx:234-241` — a real `<input type="checkbox">` inside a `<label>` wrapping the source name, so the accessible name is the visible text. Not a `div` with an `onClick` | not applicable (no hide filter on the server surface) |
+| Keyboard reachable and operable | Native checkbox: focusable, toggles on Space, no custom key handling to break. Nothing is `tabindex="-1"` and no `onKeyDown` is required to operate it | n/a |
+| Focus order follows visual order | `sourceRegistry.map` emits controls in registry order inside a single flex row; no `tabindex` overrides, so DOM order is focus order | n/a |
+| `degraded` / `inactive` is announced, not only coloured | `InViewFilterBar.tsx:216-227` replaces the checkbox with a `<span>` carrying the literal text `افت کیفیت — قابل پنهان‌سازی نیست` / `غیرفعال — قابل پنهان‌سازی نیست`. The state is not conveyed by a disabled control alone (FR-031) | n/a |
+| Icon-only elements carry an accessible label | The only icon-only element added by this feature is the hidden-source marker at `InViewFilterBar.tsx:243`, which carries `aria-hidden="true"` because the `line-through` styling and the checkbox state already convey it | n/a |
+| Hidden source stays visible and restorable | The toggle is rendered for every non-blocked source whether or not hidden; hiding only adds `line-through`. A "restore all" control sits at `InViewFilterBar.tsx:106` | n/a |
+
+**Not met, carried forward.** Status changes are not announced to assistive technology on a live
+search: neither surface wraps the source list in an `aria-live` region, so a source that crosses
+into `degraded` between two page loads is only picked up on the next render. The ui-contract asks
+that the state be "announced, not only coloured", which is satisfied for a user who navigates to
+the list, but a user already on the page is not notified. Fix is one attribute per surface
+(`aria-live="polite"` on the source-list container). Add when either surface is ever left open
+across a search that changes source health; the current flow re-renders the list on navigation,
+so the cost of waiting is a screen-reader user not hearing a status change they did not trigger.

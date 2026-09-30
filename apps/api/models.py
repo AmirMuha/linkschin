@@ -15,6 +15,12 @@ class Category(str, Enum):
     MUSIC = "music"
 
 
+class SourceKind(str, Enum):
+    """Whether a source resolves playable media or is a link-out reference."""
+    FULL = "full"
+    REFERENCE = "reference"
+
+
 def validate_media_url(url: str) -> str:
     """Ensure URL strictly adheres to http or https scheme."""
     if not url:
@@ -36,10 +42,16 @@ class SourceConfig:
     base_urls: list[str] = field(default_factory=list)
     enabled: bool = True
     timeout_seconds: float = 7.0
+    # Default FULL keeps every pre-006 SourceConfig(...) call site working unchanged (FR-028).
+    kind: SourceKind = SourceKind.FULL
 
     @property
     def primary_base_url(self) -> str:
         return self.base_urls[0] if self.base_urls else ""
+
+    @property
+    def is_reference(self) -> bool:
+        return self.kind is SourceKind.REFERENCE
 
 
 @dataclass(slots=True)
@@ -169,6 +181,11 @@ class MediaItem:
     stream_url: str | None = None  # Opportunistic video/audio stream
     game_releases: list[GameRelease] = field(default_factory=list)
     music_tracks: list[MusicTrack] = field(default_factory=list)
+
+    # Source health/kind for template branching (_music_card.html). Plain str, not
+    # SourceKind: every pre-006 constructor site and the DB rehydrate path default
+    # to "full" without importing the enum. Set in _collect_items from config.kind.
+    source_kind: str = "full"
 
     def __post_init__(self):
         validate_media_url(self.page_url)

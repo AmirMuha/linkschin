@@ -17,6 +17,8 @@ import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { Sparkles, AlertCircle, Compass } from 'lucide-react'
 
+const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
+
 export default function Home() {
   const [category, setCategory] = useState<Category>('movies')
   const [query, setQuery] = useState('')
@@ -27,11 +29,13 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // In-view filter state
+  // In-view filter state. `hiddenSources` is the per-user hidden set: it is
+  // persisted to localStorage and re-sent on every search, never to the server.
   const [filters, setFilters] = useState<FilterState>({
     qualities: [],
     audioTracks: [],
     sources: [],
+    hiddenSources: [],
   })
 
   // Video modal state
@@ -75,9 +79,34 @@ export default function Home() {
     },
   })
 
+  // Restore the saved hidden set after hydration (client-only, no server state).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(HIDDEN_SOURCES_KEY)
+      if (!raw) return
+      const parsed: unknown = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        const ids = parsed.filter((v): v is string => typeof v === 'string')
+        if (ids.length > 0) setFilters((prev) => ({ ...prev, hiddenSources: ids }))
+      }
+    } catch {
+      // A corrupt saved set must never break the app; start from the default set.
+    }
+  }, [])
+
+  // Persist the hidden set and re-run the current query so the exclusion takes
+  // effect server-side (the filter can only ever remove sources).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(HIDDEN_SOURCES_KEY, JSON.stringify(filters.hiddenSources))
+    } catch {
+      // Storage unavailable (private mode/quota) — the toggle still works in-session.
+    }
+  }, [filters.hiddenSources])
+
   // Execute search
   const handleSearch = useCallback(
-    async (searchQuery: string, refresh = false) => {
+    async (searchQuery: string, refresh = false, excludeSources?: string[]) => {
       const q = searchQuery.trim()
       if (!q) return
 
@@ -92,12 +121,18 @@ export default function Home() {
       setErrorMessage(null)
       setHasSearched(true)
 
-      // Reset filters on new search
-      setFilters({ qualities: [], audioTracks: [], sources: [] })
+      // Reset in-view filters on new search. The hidden set is NOT reset — it is
+      // a durable per-user preference, not a per-search filter.
+      setFilters((prev) => ({
+        qualities: [],
+        audioTracks: [],
+        sources: [],
+        hiddenSources: prev.hiddenSources,
+      }))
 
       try {
         const response = await searchMedia(
-          { q, category, refresh },
+          { q, category, refresh, excludeSources },
           controller.signal
         )
         setItems(response.items || [])
@@ -128,7 +163,12 @@ export default function Home() {
     setWarnings([])
     setHasSearched(false)
     setErrorMessage(null)
-    setFilters({ qualities: [], audioTracks: [], sources: [] })
+    setFilters((prev) => ({
+      qualities: [],
+      audioTracks: [],
+      sources: [],
+      hiddenSources: prev.hiddenSources,
+    }))
     // Each tab is a fresh query: the old term is about a different category, and
     // re-running it fired a search from the pre-switch handleSearch closure.
     setQuery('')
@@ -162,7 +202,14 @@ export default function Home() {
 
   // In-memory filtered items
   const filteredItems = useMemo(() => {
+    const hiddenSources = filters.hiddenSources
     return items.filter((item) => {
+      // Hidden-source set: applied server-side via `sources=` on the next search
+      // and here too, so the toggle takes effect without a refetch.
+      if (hiddenSources.length > 0 && hiddenSources.includes(item.source_id)) {
+        return false
+      }
+
       // Source filter
       if (
         filters.sources.length > 0 &&
@@ -241,7 +288,7 @@ export default function Home() {
             isLoading={isLoading}
             onQueryChange={setQuery}
             onCategoryChange={handleCategoryChange}
-            onSearch={(q, refresh) => handleSearch(q, refresh)}
+            onSearch={(q, refresh) => handleSearch(q, refresh, filters.hiddenSources)}
             inputRef={searchInputRef}
           />
 
@@ -254,6 +301,7 @@ export default function Home() {
                 availableSources={availableFilterOptions.sources}
                 filters={filters}
                 onFilterChange={setFilters}
+                sourceRegistry={sources}
               />
             </div>
           )}
@@ -299,7 +347,12 @@ export default function Home() {
               {items.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setFilters({ qualities: [], audioTracks: [], sources: [] })}
+                  onClick={() => setFilters((prev) => ({
+                    qualities: [],
+                    audioTracks: [],
+                    sources: [],
+                    hiddenSources: prev.hiddenSources,
+                  }))}
                   className="mt-2 px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
                 >
                   حذف تمام فیلترها

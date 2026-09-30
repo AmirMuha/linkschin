@@ -80,7 +80,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
 CREATE TABLE IF NOT EXISTS crawl_state (
     source_id  TEXT PRIMARY KEY,
     last_page  INT NOT NULL DEFAULT 0,
-    last_crawl REAL
+    last_crawl REAL,
+    consecutive_failures INT NOT NULL DEFAULT 0
 );
 -- One-shot data migrations record that they have run here, so they stay idempotent
 -- across restarts without re-scanning the whole table every time the DB is opened.
@@ -102,6 +103,7 @@ END;
 _ADDED_COLUMNS = {
     "download_variants": (("access", "TEXT DEFAULT 'direct'"),),
     "game_parts": (("access", "TEXT DEFAULT 'direct'"),),
+    "crawl_state": (("consecutive_failures", "INTEGER NOT NULL DEFAULT 0"),),
 }
 
 
@@ -400,6 +402,51 @@ def set_last_page(conn: sqlite3.Connection, source_id: str, page: int) -> None:
             "last_crawl=excluded.last_crawl",
             (source_id, page, time.time()),
         )
+
+
+def get_consecutive_failures(source_id: str, db_path: Path | str | None = None) -> int:
+    """Failed searches since the last success (0 when the source has no row)."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT consecutive_failures FROM crawl_state WHERE source_id=?", (source_id,)
+        ).fetchone()
+        return int(row["consecutive_failures"]) if row else 0
+    finally:
+        conn.close()
+
+
+def record_search_failure(source_id: str, db_path: Path | str | None = None) -> int:
+    """Increment the failure counter once per completed search; return the new value."""
+    conn = connect(db_path)
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO crawl_state (source_id, consecutive_failures) VALUES (?, 1) "
+                "ON CONFLICT(source_id) DO UPDATE SET"
+                " consecutive_failures = consecutive_failures + 1",
+                (source_id,),
+            )
+        row = conn.execute(
+            "SELECT consecutive_failures FROM crawl_state WHERE source_id=?", (source_id,)
+        ).fetchone()
+        return int(row["consecutive_failures"])
+    finally:
+        conn.close()
+
+
+def record_search_success(source_id: str, db_path: Path | str | None = None) -> None:
+    """Any success resets the counter to 0."""
+    conn = connect(db_path)
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO crawl_state (source_id, consecutive_failures) VALUES (?, 0) "
+                "ON CONFLICT(source_id) DO UPDATE SET consecutive_failures = 0",
+                (source_id,),
+            )
+    finally:
+        conn.close()
 
 
 def stats(db_path: Path | str | None = None) -> dict:

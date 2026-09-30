@@ -11,7 +11,7 @@ interface SearchBarProps {
   isLoading: boolean
   onQueryChange: (q: string) => void
   onCategoryChange: (cat: Category) => void
-  onSearch: (q: string, refresh?: boolean) => void
+  onSearch: (q: string, refresh?: boolean, excludeSources?: string[]) => void
   inputRef?: React.RefObject<HTMLInputElement | null>
 }
 
