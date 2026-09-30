@@ -1,0 +1,190 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Iranian Multi-Media Aggregator Search & Sources API",
+    "version": "1.2.0",
+    "description": "Contracts for search results with access tier, censorship metadata, and IMDb scores."
+  },
+  "paths": {
+    "/api/search": {
+      "get": {
+        "summary": "Search aggregated media sources",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search query terms"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["movies", "games", "music"],
+              "default": "movies"
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sources/status": {
+      "get": {
+        "summary": "List configured scraper sources and their operational status",
+        "responses": {
+          "200": {
+            "description": "Source statuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SourceAccessTier": {
+        "type": "string",
+        "enum": ["free", "premium", "freemium"],
+        "description": "Subscription and access model for the source"
+      },
+      "CensorshipStatus": {
+        "type": "string",
+        "enum": ["uncensored", "censored", "mixed", "unspecified"],
+        "description": "Censorship classification of the movie release"
+      },
+      "MovieDownloadVariant": {
+        "type": "object",
+        "required": ["id", "quality", "codec", "audio_track", "download_url"],
+        "properties": {
+          "id": { "type": "string" },
+          "quality": { "type": "string" },
+          "codec": { "type": "string" },
+          "audio_track": { "type": "string" },
+          "download_url": { "type": "string", "format": "uri" },
+          "file_size_mb": { "type": ["number", "null"] },
+          "source_name": { "type": "string" },
+          "is_censored": {
+            "type": ["boolean", "null"],
+            "description": "Specific censorship status of this file variant"
+          },
+          "is_premium": {
+            "type": "boolean",
+            "default": false,
+            "description": "True if downloading this variant requires a paid VIP account"
+          }
+        }
+      },
+      "MediaItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "category",
+          "source_id",
+          "page_url",
+          "source_access_tier",
+          "censorship_status"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "category": { "type": "string", "enum": ["movies", "games", "music"] },
+          "source_id": { "type": "string" },
+          "page_url": { "type": "string", "format": "uri" },
+          "original_title": { "type": ["string", "null"] },
+          "release_year": { "type": ["integer", "null"] },
+          "poster_url": { "type": ["string", "null"], "format": "uri" },
+          "description": { "type": ["string", "null"] },
+          "stream_url": { "type": ["string", "null"], "format": "uri" },
+          "imdb_rating": {
+            "type": ["number", "null"],
+            "minimum": 0.0,
+            "maximum": 10.0,
+            "description": "IMDb rating score from 0.0 to 10.0 or null if unrated"
+          },
+          "censorship_status": {
+            "$ref": "#/components/schemas/CensorshipStatus"
+          },
+          "source_access_tier": {
+            "$ref": "#/components/schemas/SourceAccessTier"
+          },
+          "movie_variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovieDownloadVariant"
+            }
+          },
+          "game_releases": { "type": "array", "items": { "type": "object" } },
+          "music_tracks": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "SearchApiResponse": {
+        "type": "object",
+        "required": ["query", "category", "is_cached", "warnings", "items"],
+        "properties": {
+          "query": { "type": "string" },
+          "category": { "type": "string" },
+          "is_cached": { "type": "boolean" },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaItem"
+            }
+          }
+        }
+      },
+      "SourceStatus": {
+        "type": "object",
+        "required": ["id", "name", "category", "base_url", "enabled", "access_tier"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" },
+          "base_url": { "type": "string", "format": "uri" },
+          "enabled": { "type": "boolean" },
+          "access_tier": {
+            "$ref": "#/components/schemas/SourceAccessTier"
+          }
+        }
+      }
+    }
+  }
+}
