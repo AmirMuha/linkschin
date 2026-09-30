@@ -166,3 +166,16 @@ def test_imdb_rejects_out_of_range_scores():
     assert UpTVsPlugin._parse_imdb('<i class="ficon-imdb"></i> 55 /10') is None
     assert UpTVsPlugin._parse_imdb('<i class="ficon-imdb"></i> 7.9 /10') == 7.9
     assert UpTVsPlugin._parse_imdb("no marker here") is None
+
+def test_movie_item_ids_are_unique_for_persian_titles(uptvs_search_html: str, doostihaa_search_html: str):
+    """Persian titles reduce to '' under [^a-zA-Z0-9], so ids need a URL-derived suffix.
+
+    Duplicate ids make React drop a card and collide in the SQLite primary key, so two
+    distinct releases would silently disappear from the grid.
+    """
+    for plugin, html in ((UpTVsPlugin(), uptvs_search_html), (DoostihaaPlugin(), doostihaa_search_html)):
+        items = plugin.parse_search_results(html)
+        ids = [i.id for i in items]
+        assert len(ids) == len(set(ids)), f"{plugin.config.id} produced duplicate ids"
+        # Deterministic: re-parsing the same page yields the same ids.
+        assert ids == [i.id for i in plugin.parse_search_results(html)]

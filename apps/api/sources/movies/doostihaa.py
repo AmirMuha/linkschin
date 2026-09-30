@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html as html_lib
+import hashlib
 import logging
 import re
 from urllib.parse import quote
@@ -145,7 +146,11 @@ class DoostihaaPlugin:
             # 1-5 site-user vote, so it is deliberately not consulted.
             imdb_rating = self._parse_imdb(decoded_body)
 
-            item_id = f"doostihaa_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:40]}"
+            # Persian titles collapse to '' under [^a-zA-Z0-9], so two distinct releases
+            # could share an id (React then drops a card and the DB upserts collide).
+            # A hash of the page URL keeps the id unique and deterministic.
+            digest = hashlib.sha1(raw_url.encode("utf-8")).hexdigest()[:8]
+            item_id = f"doostihaa_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:32]}_{digest}"
             items.append(
                 MediaItem(
                     id=item_id,
