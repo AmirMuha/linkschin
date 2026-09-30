@@ -1,5 +1,8 @@
 export type Category = 'movies' | 'games' | 'music'
 
+export type SourceAccessTier = 'free' | 'premium' | 'freemium'
+export type CensorshipStatus = 'uncensored' | 'censored' | 'mixed' | 'unspecified'
+
 export interface MovieDownloadVariant {
   id: string
   quality: string
@@ -8,6 +11,8 @@ export interface MovieDownloadVariant {
   download_url: string
   file_size_mb: number | null
   source_name: string
+  is_censored?: boolean | null
+  is_premium?: boolean
 }
 
 export interface GamePartLink {
@@ -57,6 +62,9 @@ export interface MediaItem {
   poster_url: string | null
   description: string | null
   stream_url: string | null
+  imdb_rating: number | null
+  censorship_status: CensorshipStatus
+  source_access_tier: SourceAccessTier
   movie_variants: MovieDownloadVariant[]
   game_releases: GameRelease[]
   music_tracks: MusicTrack[]
@@ -76,4 +84,5 @@ export interface SourceStatus {
   category: string
   base_url: string
   enabled: boolean
+  access_tier: SourceAccessTier
 }

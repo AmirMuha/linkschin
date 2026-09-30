@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
-from models import Category, SourceConfig
+from models import Category, SourceAccessTier, SourceConfig
 from sources.base import SourcePlugin
 from sources.games.downloadha import DownloadhaPlugin
 from sources.games.yasdl import YasDLPlugin
@@ -43,6 +43,7 @@ DEFAULT_CONFIGS: list[SourceConfig] = [
         category=Category.MOVIES,
         base_urls=["https://www.uptvs.com"],
         enabled=True,
+        access_tier=SourceAccessTier.FREE,
     ),
     SourceConfig(
         id="doostihaa",
@@ -50,6 +51,9 @@ DEFAULT_CONFIGS: list[SourceConfig] = [
         category=Category.MOVIES,
         base_urls=["https://www.doostihaa.com"],
         enabled=True,
+        # ponytail: games/music sources keep the FREE default; declare a tier
+        # here only when a registry entry deviates from it.
+        access_tier=SourceAccessTier.FREEMIUM,
     ),
     SourceConfig(
         id="downloadha",

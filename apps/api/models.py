@@ -15,6 +15,21 @@ class Category(str, Enum):
     MUSIC = "music"
 
 
+class SourceAccessTier(str, Enum):
+    """Upstream source access model."""
+    FREE = "free"
+    PREMIUM = "premium"
+    FREEMIUM = "freemium"
+
+
+class CensorshipStatus(str, Enum):
+    """Censorship classification of a movie release."""
+    UNCENSORED = "uncensored"
+    CENSORED = "censored"
+    MIXED = "mixed"
+    UNSPECIFIED = "unspecified"
+
+
 def validate_media_url(url: str) -> str:
     """Ensure URL strictly adheres to http or https scheme."""
     if not url:
@@ -36,6 +51,7 @@ class SourceConfig:
     base_urls: list[str] = field(default_factory=list)
     enabled: bool = True
     timeout_seconds: float = 7.0
+    access_tier: SourceAccessTier = SourceAccessTier.FREE
 
     @property
     def primary_base_url(self) -> str:
@@ -61,6 +77,8 @@ class MovieDownloadVariant:
     download_url: str
     file_size_mb: float | None = None
     source_name: str = ""
+    is_censored: bool | None = None
+    is_premium: bool = False
 
     def __post_init__(self):
         validate_media_url(self.download_url)
@@ -158,6 +176,11 @@ class MediaItem:
     release_year: int | None = None
     poster_url: str | None = None
     description: str | None = None
+
+    # Enrichment metadata (spec 007)
+    imdb_rating: float | None = None
+    censorship_status: CensorshipStatus = CensorshipStatus.UNSPECIFIED
+    source_access_tier: SourceAccessTier = SourceAccessTier.FREE
 
     # Category-specific payloads
     movie_variants: list[MovieDownloadVariant] = field(default_factory=list)

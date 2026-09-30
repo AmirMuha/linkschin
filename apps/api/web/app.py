@@ -242,6 +242,7 @@ async def list_sources() -> JSONResponse:
             "category": s.category.value,
             "base_url": s.primary_base_url,
             "enabled": s.enabled,
+            "access_tier": s.access_tier.value,
         }
         for s in all_sources
     ]

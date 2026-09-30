@@ -10,12 +10,14 @@ from pathlib import Path
 from cache import normalize_persian_text
 from models import (
     Category,
+    CensorshipStatus,
     GamePartLink,
     GameRelease,
     MediaItem,
     MovieDownloadVariant,
     MusicDownloadVariant,
     MusicTrack,
+    SourceAccessTier,
 )
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "data" / "index.db"
@@ -36,6 +38,9 @@ CREATE TABLE IF NOT EXISTS media_items (
     release_group    TEXT,
     archive_password TEXT,
     total_size       TEXT,
+    imdb_rating      REAL,
+    censorship_status TEXT,
+    source_access_tier TEXT,
     first_seen       REAL NOT NULL,
     last_seen        REAL NOT NULL,
     UNIQUE(source_id, page_url)
@@ -49,6 +54,8 @@ CREATE TABLE IF NOT EXISTS download_variants (
     audio_track TEXT,
     size_bytes  INT,
     size_text   TEXT,
+    is_censored INT,
+    is_premium  INT,
     url         TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS game_parts (
@@ -76,6 +83,30 @@ END;
 """
 
 
+# Columns added after the first shipped schema; CREATE TABLE IF NOT EXISTS never
+# alters an existing table, so older index.db files get them via ALTER here.
+_ADDED_COLUMNS = {
+    "media_items": [
+        ("imdb_rating", "REAL"),
+        ("censorship_status", "TEXT"),
+        ("source_access_tier", "TEXT"),
+    ],
+    "download_variants": [
+        ("is_censored", "INT"),
+        ("is_premium", "INT"),
+    ],
+}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add missing spec-007 columns to pre-existing databases (idempotent)."""
+    for table, columns in _ADDED_COLUMNS.items():
+        existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, ddl in columns:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+
+
 def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     """Open (and initialize) the index database."""
     raw = db_path or os.environ.get("MOVIE_FETCHER_DB") or DEFAULT_DB_PATH
@@ -87,6 +118,7 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
 
 
@@ -104,10 +136,14 @@ def _variant_rows(item: MediaItem) -> list[tuple]:
         # ponytail: size_bytes holds file_size_mb as-is; rename the column if MB->bytes ever matters.
         rows.append((item.id, "movie", v.quality, v.codec, v.audio_track,
                      int(v.file_size_mb) if v.file_size_mb is not None else None,
-                     None, v.download_url))
+                     None,
+                     None if v.is_censored is None else int(v.is_censored),
+                     int(v.is_premium),
+                     v.download_url))
     for t in item.music_tracks:
         for d in t.downloads:
-            rows.append((item.id, "music", d.bitrate, None, None, None, d.file_size, d.download_url))
+            rows.append((item.id, "music", d.bitrate, None, None, None, d.file_size,
+                         None, None, d.download_url))
     return rows
 
 
@@ -136,8 +172,9 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                     """INSERT INTO media_items
                        (id, category, source_id, title, title_norm, artist, page_url, poster_url,
                         release_year, description, stream_url, release_group, archive_password,
-                        total_size, first_seen, last_seen)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        total_size, imdb_rating, censorship_status, source_access_tier,
+                        first_seen, last_seen)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                        ON CONFLICT(id) DO UPDATE SET
                          category=excluded.category, title=excluded.title,
                          title_norm=excluded.title_norm, artist=excluded.artist,
@@ -145,6 +182,9 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                          description=excluded.description, stream_url=excluded.stream_url,
                          release_group=excluded.release_group, archive_password=excluded.archive_password,
                          total_size=excluded.total_size,
+                         imdb_rating=excluded.imdb_rating,
+                         censorship_status=excluded.censorship_status,
+                         source_access_tier=excluded.source_access_tier,
                          first_seen=MIN(media_items.first_seen, excluded.first_seen),
                          last_seen=excluded.last_seen""",
                     (item.id, _cat(item.category), item.source_id, item.title,
@@ -153,12 +193,13 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                      game.release_group if game else None,
                      game.archive_password if game else None,
                      game.total_size if game else None,
+                     item.imdb_rating, item.censorship_status.value, item.source_access_tier.value,
                      now, now),
                 )
                 conn.execute("DELETE FROM download_variants WHERE item_id=?", (item.id,))
                 conn.executemany(
                     "INSERT INTO download_variants (item_id, kind, label, codec, audio_track,"
-                    " size_bytes, size_text, url) VALUES (?,?,?,?,?,?,?,?)",
+                    " size_bytes, size_text, is_censored, is_premium, url) VALUES (?,?,?,?,?,?,?,?,?,?)",
                     _variant_rows(item),
                 )
                 conn.execute("DELETE FROM game_parts WHERE item_id=?", (item.id,))
@@ -192,6 +233,8 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
             id=f"{row['id']}:{v['id']}", quality=v["label"] or "", codec=v["codec"] or "",
             audio_track=v["audio_track"] or "", download_url=v["url"],
             file_size_mb=float(v["size_bytes"]) if v["size_bytes"] is not None else None,
+            is_censored=None if v["is_censored"] is None else bool(v["is_censored"]),
+            is_premium=bool(v["is_premium"]) if v["is_premium"] is not None else False,
         )
         for v in variants if v["kind"] == "movie"
     ]
@@ -227,6 +270,9 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
         source_id=row["source_id"], page_url=row["page_url"],
         release_year=row["release_year"], poster_url=row["poster_url"],
         description=row["description"], stream_url=row["stream_url"],
+        imdb_rating=float(row["imdb_rating"]) if row["imdb_rating"] is not None else None,
+        censorship_status=CensorshipStatus(row["censorship_status"] or "unspecified"),
+        source_access_tier=SourceAccessTier(row["source_access_tier"] or "free"),
         movie_variants=movies, game_releases=releases, music_tracks=tracks,
     )
 
