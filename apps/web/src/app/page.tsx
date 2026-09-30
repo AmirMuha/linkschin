@@ -64,18 +64,25 @@ export default function Home() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Load registered sources on mount
+  // Load registered sources on mount and poll every 30s
   useEffect(() => {
     let mounted = true
-    fetchSources()
-      .then((data) => {
-        if (mounted) setSources(data)
-      })
-      .catch(() => {
-        // Fallback gracefully if API is waking up
-      })
+    const load = () => {
+      fetchSources()
+        .then((data) => {
+          if (mounted) setSources(data)
+        })
+        .catch(() => {
+          // Fallback gracefully if API is waking up
+        })
+    }
+
+    load()
+    const timer = setInterval(load, 30000)
+
     return () => {
       mounted = false
+      clearInterval(timer)
     }
   }, [])
 
@@ -167,6 +174,9 @@ export default function Home() {
         setItems(response.items || [])
         setWarnings(response.warnings || [])
         addRecentSearch(q)
+
+        // Sync sources immediately after search, as backend health state may have changed
+        fetchSources().then((data) => setSources(data)).catch(() => {})
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
           return // User cancelled via new request

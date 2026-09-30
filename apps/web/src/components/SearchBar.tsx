@@ -19,7 +19,7 @@ interface SearchBarProps {
     scope?: SourceScopeFilter
   ) => void
   inputRef?: React.RefObject<HTMLInputElement | null>
-  /** FR-005: 'downloads' (default) hides subscription sources; 'all' includes them. */
+  /** FR-005: 'downloads' (default) hides streaming platforms; 'all' includes them. */
   scope?: SourceScopeFilter
   onScopeChange?: (scope: SourceScopeFilter) => void
 }
@@ -139,7 +139,7 @@ export function SearchBar({
                 title={
                   opt.id === 'downloads'
                     ? 'فقط منابعی که لینک دانلود عمومی دارند'
-                    : 'شامل سرویس‌های اشتراکی که فقط صفحه تماشا دارند'
+                    : 'شامل پلتفرم‌های استریم (تماشای آنلاین)'
                 }
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                   isActive

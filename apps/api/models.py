@@ -60,6 +60,8 @@ class SourceConfig:
     # FR-003: a subscription/regional-availability service returns a watch destination
     # instead of a public download. Default True keeps every existing source unchanged.
     provides_downloads: bool = True
+    # Indicates whether the source is a streaming platform (like Filimo, Aparat, etc.)
+    is_streaming: bool = False
     # FR-021: when set, this id is an alias of another source and must not open a
     # second result stream for the same site.
     duplicate_of: str | None = None

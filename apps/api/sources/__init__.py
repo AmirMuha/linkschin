@@ -427,16 +427,14 @@ def get_sources_for_category(
     category: Category,
     include_disabled: bool = False,
     exclude_ids: set[str] | None = None,
-    downloads_only: bool = False,
+    exclude_streaming: bool = False,
 ) -> list[SourcePlugin]:
     """Instantiate and return active scraper plugins for a given category.
 
     ``exclude_ids`` is the per-user hidden-source set (FR-029). It defaults to
     ``None`` so existing callers are unaffected.
 
-    ``downloads_only`` (FR-005) drops sources that hand back a watch destination
-    instead of a download, for the default Movies toggle. Defaults to False so
-    existing callers keep seeing every source.
+    ``exclude_streaming`` drops sources that are streaming platforms.
     """
     excluded = exclude_ids or set()
     plugins: list[SourcePlugin] = []
@@ -450,7 +448,7 @@ def get_sources_for_category(
             continue
         if cfg.is_alias:
             continue
-        if downloads_only and not cfg.provides_downloads:
+        if exclude_streaming and cfg.is_streaming:
             continue
 
         plugin_cls = (

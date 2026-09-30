@@ -51,6 +51,7 @@ class SourceProfile:
     category: Category
     addresses: list[str]
     provides_downloads: bool = True
+    is_streaming: bool = False
     parser: str = ""
     enabled: bool = True
 
@@ -62,6 +63,7 @@ class SourceProfile:
             base_urls=list(self.addresses),
             enabled=self.enabled,
             provides_downloads=self.provides_downloads,
+            is_streaming=self.is_streaming,
         )
 
 
@@ -123,6 +125,7 @@ def load_profiles(path: Path | str | None = None) -> list[SourceProfile]:
             )
 
         provides_downloads = bool(raw.get("provides_downloads", True))
+        is_streaming = bool(raw.get("is_streaming", False))
         enabled = bool(raw.get("enabled", True))
 
         profiles.append(
@@ -132,6 +135,7 @@ def load_profiles(path: Path | str | None = None) -> list[SourceProfile]:
                 category=category,
                 addresses=validated_addresses,
                 provides_downloads=provides_downloads,
+                is_streaming=is_streaming,
                 parser=parser_name,
                 enabled=enabled,
             )

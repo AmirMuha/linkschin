@@ -4,8 +4,8 @@
 export type TierFilter = 'all' | 'free' | 'premium'
 export type CensorshipFilter = 'all' | 'uncensored' | 'censored'
 /**
- * FR-005: 'downloads' is the default Movies scope -- subscription sources return a
- * watch page and no file, so they are excluded unless the user asks for everything.
+ * FR-005: 'downloads' is the default Movies scope -- streaming platforms are
+ * excluded unless the user asks for everything.
  */
 export type SourceScopeFilter = 'downloads' | 'all'
 

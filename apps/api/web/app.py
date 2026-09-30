@@ -184,11 +184,10 @@ async def _collect_items(
     #    nothing, so a stale saved set can never break a search.
     degraded = _degraded_ids()
     hidden = set(exclude_ids or ())
-    # FR-005: the default Movies scope excludes subscription sources, which return a
-    # watch page and no file. scope='all' opts into them.
+    # Default scope excludes streaming platforms. scope='all' opts into them.
     plugins = [
         p for p in get_sources_for_category(
-            cat_enum, include_disabled=False, downloads_only=(scope != "all")
+            cat_enum, include_disabled=False, exclude_streaming=(scope != "all")
         )
         if p.config.id not in degraded and p.config.id not in hidden
     ]
@@ -331,7 +330,7 @@ async def search_media(
     category: str = Query("movies", description="Active media category"),
     refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
     sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
-    scope: str = Query("downloads", description="'all' to include subscription sources that return a watch page (FR-005)"),
+    scope: str = Query("downloads", description="'all' to include streaming video platforms"),
 ) -> HTMLResponse:
     """Search enabled sources for the category, extract direct links, and render results."""
     cat_clean = category.lower()
@@ -367,7 +366,7 @@ async def api_search_media(
     category: str = Query("movies", description="Active media category"),
     refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
     sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
-    scope: str = Query("downloads", description="'all' to include subscription sources that return a watch page (FR-005)"),
+    scope: str = Query("downloads", description="'all' to include streaming video platforms"),
 ) -> JSONResponse:
     """JSON API endpoint returning structured media search results."""
     cat_clean = category.lower()
@@ -486,6 +485,7 @@ def _source_display_rows() -> list[dict]:
             "consecutive_failures": 0,
             "access_tier": s.access_tier.value,
             "provides_downloads": s.provides_downloads,
+            "is_streaming": s.is_streaming,
             "state": health.get(s.id).state.value,
             "last_reachable_at": None,
             "active_address": None,

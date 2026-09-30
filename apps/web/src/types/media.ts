@@ -115,6 +115,7 @@ export interface SourceStatus {
   access_tier: SourceAccessTier
   /** 005: false when the source hands back a watch page rather than a download. */
   provides_downloads?: boolean
+  is_streaming?: boolean
   /** 005: the server's own view of the source, as opposed to the derived status. */
   state?: SourceState
   last_reachable_at?: string | null

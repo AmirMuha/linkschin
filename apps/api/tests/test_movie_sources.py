@@ -457,16 +457,16 @@ def test_a_profile_naming_an_unimplemented_parser_is_rejected(tmp_path: Path):
 # --- Source filtering (FR-005) and aliases (FR-021, T083) -------------------
 
 
-def test_downloads_only_filter_drops_watch_destinations():
-    """FR-005: the default Movies toggle excludes subscription sources."""
+def test_exclude_streaming_filter_drops_watch_destinations():
+    """FR-005: the default Movies toggle excludes streaming video platforms."""
     all_ids = {p.config.id for p in get_sources_for_category(Category.MOVIES)}
-    download_ids = {p.config.id for p in get_sources_for_category(Category.MOVIES, downloads_only=True)}
+    download_ids = {p.config.id for p in get_sources_for_category(Category.MOVIES, exclude_streaming=True)}
 
-    assert download_ids < all_ids, "downloads_only removed nothing"
-    assert {"filimo", "namava", "filmnet"} <= all_ids - download_ids
-    assert all(
+    assert download_ids < all_ids, "exclude_streaming removed nothing"
+    assert {"filimo", "namava", "filmnet", "telewebion", "aparat"} <= all_ids - download_ids
+    assert not any(
         next(c for c in get_all_source_configs() if c.category is Category.MOVIES and c.id == i)
-        .provides_downloads
+        .is_streaming
         for i in download_ids
     )
 
@@ -521,8 +521,8 @@ def test_scope_param_selects_a_different_plugin_set(monkeypatch):
 
     seen: list[bool] = []
 
-    def _record(category, include_disabled=False, exclude_ids=None, downloads_only=False):
-        seen.append(downloads_only)
+    def _record(category, include_disabled=False, exclude_ids=None, exclude_streaming=False):
+        seen.append(exclude_streaming)
         return []
 
     monkeypatch.setattr(web_app, "get_sources_for_category", _record)
@@ -536,7 +536,7 @@ def test_scope_param_selects_a_different_plugin_set(monkeypatch):
                 Category.MOVIES, "batman", "batman", refresh=True, scope=scope
             )
         )
-        assert seen == [expect], f"scope={scope} asked for downloads_only={seen}"
+        assert seen == [expect], f"scope={scope} asked for exclude_streaming={seen}"
 
 
 def test_scope_responses_do_not_share_a_cache_entry():

@@ -70,9 +70,11 @@ def test_unknown_source_id_defaults_to_full():
     assert ordered[0].source_kind == "full"
 
 
-def test_finalize_is_stable_within_each_group():
+def test_finalize_is_stable_within_each_group(monkeypatch):
     """Relevance order inside a group must survive the sort exactly."""
     from web.app import _finalize
+    from web import app as web_app
+    monkeypatch.setattr(web_app, "_degraded_ids", lambda: set())
 
     items = [
         _item("musicdel", "f1"),
@@ -540,7 +542,7 @@ def test_degraded_source_is_labelled_degraded(monkeypatch):
     assert "MusicDel" in html, "a degraded source was removed from the list"
 
 
-def test_source_rows_are_shared_with_the_api_listing():
+def test_source_rows_are_shared_with_the_api_listing(monkeypatch):
     """T080: one derivation, two consumers — the JSON and the page cannot drift.
 
     Compared positionally against the raw list, not keyed by id: a movie source and
@@ -549,6 +551,7 @@ def test_source_rows_are_shared_with_the_api_listing():
     """
     from fastapi.testclient import TestClient
     from web import app as web_app
+    monkeypatch.setattr(web_app.db, "get_consecutive_failures", lambda x: 0)
 
     client = TestClient(web_app.app)
     api_rows = client.get("/api/sources").json()
