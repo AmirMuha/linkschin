@@ -45,3 +45,89 @@ body {
   outline: 2px solid #06b6d4;
   outline-offset: 2px;
 }
+
+/* Range sliders. The UA default draws no fill — `accent-color` is ignored once
+   `appearance: none` is set — so the played portion needs a real gradient built
+   from a custom property the component keeps in sync with the value. Two bars
+   share these rules and nothing else sets them. */
+.range {
+  --range-progress: 0%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--range-fill, #06b6d4) 0%,
+    var(--range-fill, #06b6d4) var(--range-progress),
+    #27272a var(--range-progress),
+    #27272a 100%
+  );
+  background-repeat: no-repeat;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fafafa;
+  border: none;
+  box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.18);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.range:hover::-webkit-slider-thumb,
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 7px rgba(6, 182, 212, 0.28);
+}
+
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fafafa;
+  border: none;
+  box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.18);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+
+.range:hover::-moz-range-thumb,
+.range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 7px rgba(6, 182, 212, 0.28);
+}
+
+.range:active::-moz-range-thumb {
+  transform: scale(1.12);
+}
+
+.range::-moz-range-track {
+  background: transparent;
+}
+
+/* Equalizer bars for the now-playing indicator. Animation is decorative, so it
+   is gated on the user's motion preference rather than removed per-element. */
+.eq-bar {
+  transform-origin: bottom;
+  animation: eq-bounce 900ms ease-in-out infinite alternate;
+}
+
+.eq-bar:nth-child(2) { animation-delay: 180ms; }
+.eq-bar:nth-child(3) { animation-delay: 360ms; }
+
+@keyframes eq-bounce {
+  from { transform: scaleY(0.25); }
+  to   { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}

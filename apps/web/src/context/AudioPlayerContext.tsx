@@ -9,12 +9,23 @@ interface AudioPlayerContextType {
   currentTime: number
   duration: number
   volume: number
+  /** Previous volume, restored by the mute toggle. Needed because the slider's
+   *  value is the source of truth and a bare `volume > 0 ? 0 : 0.8` loses it. */
+  volumeBeforeMute: number
+  isMuted: boolean
+  playbackRate: number
   play: (track: MusicTrack) => void
   togglePlay: () => void
   seek: (seconds: number) => void
+  skip: (delta: number) => void
   setVolume: (vol: number) => void
+  toggleMute: () => void
+  cyclePlaybackRate: () => void
   close: () => void
 }
+
+export const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2] as const
+const SKIP_SECONDS = 15
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined)
 
@@ -26,6 +37,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(0.8)
+  const [volumeBeforeMute, setVolumeBeforeMute] = useState(0.8)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -48,6 +61,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
     audio.volume = initialVol
     setVolumeState(initialVol)
+    setVolumeBeforeMute(initialVol)
 
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
     const handleLoadedMetadata = () => setDuration(audio.duration || 0)
@@ -107,8 +121,49 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current
     if (!audio) return
-    audio.currentTime = seconds
-    setCurrentTime(seconds)
+    const target = Math.max(0, Math.min(audio.duration || seconds, seconds))
+    audio.currentTime = target
+    setCurrentTime(target)
+  }, [])
+
+  const skip = useCallback((delta: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    const target = Math.max(0, Math.min(audio.duration || Infinity, audio.currentTime + delta))
+    audio.currentTime = target
+    setCurrentTime(target)
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    setVolumeState((current) => {
+      // Leaving mute must restore what the user had, not a fixed 0.8.
+      if (current > 0) {
+        setVolumeBeforeMute(current)
+        if (audioRef.current) audioRef.current.volume = 0
+        try {
+          localStorage.removeItem(VOLUME_STORAGE_KEY)
+        } catch {
+          // Ignore
+        }
+        return 0
+      }
+      const restored = volumeBeforeMute || 0.8
+      if (audioRef.current) audioRef.current.volume = restored
+      try {
+        localStorage.setItem(VOLUME_STORAGE_KEY, restored.toString())
+      } catch {
+        // Ignore
+      }
+      return restored
+    })
+  }, [volumeBeforeMute])
+
+  const cyclePlaybackRate = useCallback(() => {
+    setPlaybackRate((current) => {
+      const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(current as (typeof PLAYBACK_RATES)[number]) + 1) % PLAYBACK_RATES.length]
+      if (audioRef.current) audioRef.current.playbackRate = next
+      return next
+    })
   }, [])
 
   const setVolume = useCallback((vol: number) => {
@@ -133,6 +188,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
+    setPlaybackRate(1)
+    if (audioRef.current) audioRef.current.playbackRate = 1
   }, [])
 
   return (
@@ -143,10 +200,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         currentTime,
         duration,
         volume,
+        volumeBeforeMute,
+        isMuted: volume === 0,
+        playbackRate,
         play,
         togglePlay,
         seek,
+        skip,
         setVolume,
+        toggleMute,
+        cyclePlaybackRate,
         close,
       }}
     >
