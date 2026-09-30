@@ -541,15 +541,21 @@ def test_degraded_source_is_labelled_degraded(monkeypatch):
 
 
 def test_source_rows_are_shared_with_the_api_listing():
-    """T080: one derivation, two consumers — the JSON and the page cannot drift."""
+    """T080: one derivation, two consumers — the JSON and the page cannot drift.
+
+    Compared positionally against the raw list, not keyed by id: a movie source and
+    a music source may share an id (aparat, namasha, fam, rubika), so an id-keyed
+    dict would silently collapse two real rows into one.
+    """
     from fastapi.testclient import TestClient
     from web import app as web_app
 
     client = TestClient(web_app.app)
-    api_rows = {r["id"]: r for r in client.get("/api/sources").json()}
+    api_rows = client.get("/api/sources").json()
     page_rows = web_app._source_display_rows()
 
-    assert [r["id"] for r in page_rows] == list(api_rows), \
-        "the page and the API disagree on which sources exist"
-    for row in page_rows:
-        assert row == api_rows[row["id"]], f"{row['id']} differs between page and API"
+    assert [(r["category"], r["id"]) for r in page_rows] == [
+        (r["category"], r["id"]) for r in api_rows
+    ], "the page and the API disagree on which sources exist"
+    for page_row, api_row in zip(page_rows, api_rows):
+        assert page_row == api_row, f"{api_row['id']} differs between page and API"

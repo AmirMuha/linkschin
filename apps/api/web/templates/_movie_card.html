@@ -28,5 +28,14 @@
         </a>
       {% endfor %}
     </div>
+  {% elif item.watch_url %}
+    {# FR-006: a subscription source has no public file, only a page to watch on.
+       Mutually exclusive with the download list above, so a card never shows both. #}
+    <div class="parts-list" style="margin-top: 0.5rem;">
+      <a href="{{ item.watch_url }}" class="btn-download" target="_blank" rel="noopener"
+         style="background: #4c1d95; border-color: #7c3aed;">
+        👁 مشاهده در سایت منبع
+      </a>
+    </div>
   {% endif %}
 </div>

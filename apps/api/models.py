@@ -57,6 +57,16 @@ class SourceConfig:
     # Default FULL keeps every pre-006 SourceConfig(...) call site working unchanged (FR-028).
     kind: SourceKind = SourceKind.FULL
     access_tier: SourceAccessTier = SourceAccessTier.FREE
+    # FR-003: a subscription/regional-availability service returns a watch destination
+    # instead of a public download. Default True keeps every existing source unchanged.
+    provides_downloads: bool = True
+    # FR-021: when set, this id is an alias of another source and must not open a
+    # second result stream for the same site.
+    duplicate_of: str | None = None
+
+    @property
+    def is_alias(self) -> bool:
+        return bool(self.duplicate_of)
 
     @property
     def primary_base_url(self) -> str:
@@ -198,6 +208,10 @@ class MediaItem:
 
     # Category-specific payloads
     movie_variants: list[MovieDownloadVariant] = field(default_factory=list)
+    # FR-006: a page on the SOURCE'S OWN site where the title may legitimately be
+    # watched. Deliberately NOT `stream_url`, which is a playable direct-file URL --
+    # a watch destination is a page a human opens, never a media payload we touch.
+    watch_url: str | None = None
     stream_url: str | None = None  # Opportunistic video/audio stream
     game_releases: list[GameRelease] = field(default_factory=list)
     music_tracks: list[MusicTrack] = field(default_factory=list)
@@ -211,6 +225,8 @@ class MediaItem:
         validate_media_url(self.page_url)
         if self.poster_url:
             validate_media_url(self.poster_url)
+        if self.watch_url:
+            validate_media_url(self.watch_url)
         if self.stream_url:
             validate_media_url(self.stream_url)
 

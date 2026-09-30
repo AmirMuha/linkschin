@@ -11,7 +11,9 @@ import { itemMatchesCensorship, itemMatchesTier } from '@/lib/filters'
 import {
   buildSearchParams,
   parseCensorshipParam,
+  parseScopeParam,
   parseTierParam,
+  type SourceScopeFilter,
 } from '@/lib/urlFilters'
 import { SkeletonGrid } from '@/components/ui/SkeletonGrid'
 import { MovieCard } from '@/components/cards/MovieCard'
@@ -34,6 +36,8 @@ export default function Home() {
   const [sources, setSources] = useState<SourceStatus[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // FR-005: downloads-only by default; 'all' opts into subscription sources.
+  const [scope, setScope] = useState<SourceScopeFilter>('downloads')
 
   // In-view filter state. `hiddenSources` is the per-user hidden set: it is
   // persisted to localStorage and re-sent on every search, never to the server.
@@ -114,7 +118,12 @@ export default function Home() {
 
   // Execute search
   const handleSearch = useCallback(
-    async (searchQuery: string, refresh = false, excludeSources?: string[]) => {
+    async (
+      searchQuery: string,
+      refresh = false,
+      excludeSources?: string[],
+      requestScope?: SourceScopeFilter
+    ) => {
       const q = searchQuery.trim()
       if (!q) return
 
@@ -152,7 +161,7 @@ export default function Home() {
 
       try {
         const response = await searchMedia(
-          { q, category, refresh, excludeSources },
+          { q, category, refresh, excludeSources, scope: requestScope ?? scope },
           controller.signal
         )
         setItems(response.items || [])
@@ -172,7 +181,7 @@ export default function Home() {
         setIsLoading(false)
       }
     },
-    [category]
+    [category, scope]
   )
 
   // Handle category switch
@@ -272,10 +281,14 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search)
     const tier = parseTierParam(params.get('tier'))
     const censorship = parseCensorshipParam(params.get('censorship'))
+    const initialScope = parseScopeParam(params.get('scope'))
     const initialQuery = params.get('q')
+    // Seeded before the replay search so handleSearch reads the shared scope rather
+    // than the default; setScope is async, so the value is passed explicitly too.
+    if (initialScope !== 'downloads') setScope(initialScope)
     if (initialQuery) {
       setQuery(initialQuery)
-      handleSearch(initialQuery)
+      handleSearch(initialQuery, false, undefined, initialScope)
     }
     // Applied after handleSearch, which resets filters for a fresh query.
     if (tier !== 'all' || censorship !== 'all') {
@@ -290,11 +303,12 @@ export default function Home() {
     const params = buildSearchParams(
       filters.accessTier,
       filters.censorship,
-      new URLSearchParams(window.location.search)
+      new URLSearchParams(window.location.search),
+      scope
     )
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
     window.history.replaceState(null, '', next)
-  }, [filters.accessTier, filters.censorship])
+  }, [filters.accessTier, filters.censorship, scope])
 
   function handleOpenVideo(url: string, title: string) {
     setVideoModal({
@@ -346,8 +360,12 @@ export default function Home() {
             isLoading={isLoading}
             onQueryChange={setQuery}
             onCategoryChange={handleCategoryChange}
-            onSearch={(q, refresh) => handleSearch(q, refresh, filters.hiddenSources)}
+            onSearch={(q, refresh, excludeSources, requestScope) =>
+              handleSearch(q, refresh, filters.hiddenSources, requestScope)
+            }
             inputRef={searchInputRef}
+            scope={scope}
+            onScopeChange={setScope}
           />
 
           {/* Filter Bar */}

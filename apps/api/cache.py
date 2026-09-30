@@ -72,13 +72,16 @@ class SearchCache:
         self.ttl_seconds = ttl_seconds
         self._store: dict[str, tuple[list[MediaItem], float]] = {}
 
-    def _make_key(self, category: Category | str, query: str) -> str:
+    # FR-005: the two scopes are different result sets, so they are different keys.
+    # Without the scope in the key, whichever ran first would answer for both and the
+    # toggle would appear to do nothing on a warm cache.
+    def _make_key(self, category: Category | str, query: str, scope: str = "downloads") -> str:
         cat_str = category.value if isinstance(category, Category) else str(category)
         norm_q = normalize_persian_text(query)
-        return f"{cat_str.lower()}:{norm_q}"
+        return f"{cat_str.lower()}:{scope}:{norm_q}"
 
-    def get(self, category: Category | str, query: str) -> list[MediaItem] | None:
-        key = self._make_key(category, query)
+    def get(self, category: Category | str, query: str, scope: str = "downloads") -> list[MediaItem] | None:
+        key = self._make_key(category, query, scope)
         entry = self._store.get(key)
         if entry is None:
             return None
@@ -88,21 +91,24 @@ class SearchCache:
             return None
         return items
 
-    def set(self, category: Category | str, query: str, items: list[MediaItem]) -> None:
+    def set(
+        self,
+        category: Category | str,
+        query: str,
+        items: list[MediaItem],
+        scope: str = "downloads",
+    ) -> None:
+        key = self._make_key(category, query, scope)
         if len(self._store) >= self.maxsize:
             # Evict oldest entry (simple FIFO / TTL eviction)
             now = time.time()
-            expired = [k for k, (_, exp) in self._store.items() if now > exp]
-            if expired:
-                for k in expired:
-                    del self._store[k]
-            elif self._store:
-                first_key = next(iter(self._store))
-                del self._store[first_key]
-
-        key = self._make_key(category, query)
-        expires_at = time.time() + self.ttl_seconds
-        self._store[key] = (items, expires_at)
+            expired = [k for k, (_, exp) in self._store.items()
+                       if now > exp]
+            for k in expired:
+                del self._store[k]
+            while len(self._store) >= self.maxsize:
+                del self._store[next(iter(self._store))]
+        self._store[key] = (items, time.time() + self.ttl_seconds)
 
     def clear(self) -> None:
         self._store.clear()

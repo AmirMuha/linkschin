@@ -9,8 +9,31 @@ from models import Category, SourceAccessTier, SourceConfig, SourceKind
 from sources.base import SourcePlugin
 from sources.games.downloadha import DownloadhaPlugin
 from sources.games.yasdl import YasDLPlugin
-from sources.movies.doostihaa import DoostihaaPlugin
-from sources.movies.uptvs import UpTVsPlugin
+from sources.movies import (
+    AparatPlugin as MovieAparatPlugin,
+)
+from sources.movies import (
+    BabakFilmPlugin,
+    DanfiloPlugin,
+    DigitoonPlugin,
+    DoostihaaPlugin,
+    FamPlugin as MovieFamPlugin,
+    FilimoPlugin,
+    FilmChiinPlugin,
+    FilmnetPlugin,
+    FilmTarinPlugin,
+    GapfilmPlugin,
+    IMVBoxPlugin,
+    NamashaPlugin as MovieNamashaPlugin,
+    NamavaPlugin,
+    NdaMediaPlugin,
+    RubikaPlugin as MovieRubikaPlugin,
+    SalamCinemaPlugin,
+    SarvnemaPlugin,
+    TelewebionPlugin,
+    TiwallPlugin,
+    UpTVsPlugin,
+)
 from sources.music.aparat import AparatPlugin
 from sources.music.fam import FamPlugin
 from sources.music.farsichart import FarsiChartPlugin
@@ -27,6 +50,7 @@ from sources.music.spotify import SpotifyPlugin
 from sources.music.upmusics import UpMusicsPlugin
 from sources.music.upsong import UpSongPlugin
 from sources.music.youtube_music import YoutubeMusicPlugin
+from sources.profiles import load_profiles, register_parser
 
 
 # Per-registry INACTIVE_REASONS strings for every source with enabled=False.
@@ -335,21 +359,84 @@ _PLUGIN_BY_ID: dict[str, type] = {
     "youtube_music": YoutubeMusicPlugin,
 }
 
+# Parser name -> plugin class for every movie profile. Registered here, where the
+# plugin factory can see the same table, so a profile resolves to an
+# implementation that genuinely exists (FR-022, FR-023).
+_MOVIE_PARSER_PLUGINS: dict[str, type] = {
+    "aparat": MovieAparatPlugin,
+    "babakfilm": BabakFilmPlugin,
+    "danfilo": DanfiloPlugin,
+    "digitoon": DigitoonPlugin,
+    "fam": MovieFamPlugin,
+    "filimo": FilimoPlugin,
+    "filmchiin": FilmChiinPlugin,
+    "filmnet": FilmnetPlugin,
+    "filmtarin": FilmTarinPlugin,
+    "gapfilm": GapfilmPlugin,
+    "imvbox": IMVBoxPlugin,
+    "namasha": MovieNamashaPlugin,
+    "namava": NamavaPlugin,
+    "ndamedia": NdaMediaPlugin,
+    "rubika": MovieRubikaPlugin,
+    "salamcinema": SalamCinemaPlugin,
+    "sarvnema": SarvnemaPlugin,
+    "telewebion": TelewebionPlugin,
+    "tiwall": TiwallPlugin,
+    "uptvs": UpTVsPlugin,
+}
+
+for _parser_name, _plugin_cls in _MOVIE_PARSER_PLUGINS.items():
+    register_parser(_parser_name, _plugin_cls)
+
+# Movie plugins are keyed separately from _PLUGIN_BY_ID: a movie source and a music
+# source may share an id (aparat, namasha, fam, rubika are all on both sides), and
+# one key for both would silently wire the wrong scraper.
+_MOVIE_PLUGIN_BY_ID: dict[str, type] = {**_MOVIE_PARSER_PLUGINS, "doostihaa": DoostihaaPlugin}
+
+
+def _profile_configs() -> list[SourceConfig]:
+    """Build SourceConfigs from profiles.yaml, merged over DEFAULT_CONFIGS.
+
+    Merge is per (category, id), not per id: uptvs, aparat, namasha, fam and rubika
+    exist on both the movie and the music side, and a movie plugin must not be
+    folded into the music registry entry that happens to share its name.
+
+    A (category, id) already in the registry keeps the registry entry, which carries
+    fields a profile has no schema for (access_tier, and the INACTIVE_REASONS pairing
+    a disabled source requires). Only ``provides_downloads`` is taken from the
+    profile, because DEFAULT_CONFIGS has no other source of truth for it -- it marks
+    a subscription service that returns a watch page instead of downloads (FR-003).
+    """
+    merged = {(c.category, c.id): c for c in DEFAULT_CONFIGS}
+    for profile in load_profiles():
+        key = (profile.category, profile.id)
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = profile.to_source_config()
+        elif profile.provides_downloads != existing.provides_downloads:
+            merged[key] = replace(existing, provides_downloads=profile.provides_downloads)
+    return list(merged.values())
+
 
 def get_all_source_configs() -> list[SourceConfig]:
     """Get all source configurations with environment variable overrides applied."""
-    return [apply_env_overrides(cfg) for cfg in DEFAULT_CONFIGS]
+    return [apply_env_overrides(cfg) for cfg in _profile_configs()]
 
 
 def get_sources_for_category(
     category: Category,
     include_disabled: bool = False,
     exclude_ids: set[str] | None = None,
+    downloads_only: bool = False,
 ) -> list[SourcePlugin]:
     """Instantiate and return active scraper plugins for a given category.
 
     ``exclude_ids`` is the per-user hidden-source set (FR-029). It defaults to
     ``None`` so existing callers are unaffected.
+
+    ``downloads_only`` (FR-005) drops sources that hand back a watch destination
+    instead of a download, for the default Movies toggle. Defaults to False so
+    existing callers keep seeing every source.
     """
     excluded = exclude_ids or set()
     plugins: list[SourcePlugin] = []
@@ -361,8 +448,16 @@ def get_sources_for_category(
             continue
         if cfg.id in excluded:
             continue
+        if cfg.is_alias:
+            continue
+        if downloads_only and not cfg.provides_downloads:
+            continue
 
-        plugin_cls = _PLUGIN_BY_ID.get(cfg.id)
+        plugin_cls = (
+            _MOVIE_PLUGIN_BY_ID.get(cfg.id)
+            if cfg.category is Category.MOVIES
+            else _PLUGIN_BY_ID.get(cfg.id)
+        )
         if plugin_cls is not None:
             plugins.append(plugin_cls(config=cfg))
 

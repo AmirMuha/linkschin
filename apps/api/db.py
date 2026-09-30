@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS media_items (
     poster_url       TEXT,
     release_year     INT,
     description      TEXT,
+    watch_url        TEXT,
     stream_url       TEXT,
     release_group    TEXT,
     archive_password TEXT,
@@ -93,6 +94,18 @@ CREATE TABLE IF NOT EXISTS crawl_state (
     last_crawl REAL,
     consecutive_failures INT NOT NULL DEFAULT 0
 );
+-- Per-source operational health (FR-008/FR-020). crawl_state counts failures for the
+-- degraded filter; this table is the richer record a maintainer reads: which state the
+-- source is in, why, when it last worked, and which address served the last request.
+CREATE TABLE IF NOT EXISTS source_health (
+    source_id            TEXT PRIMARY KEY,
+    state                TEXT NOT NULL,
+    reason               TEXT,
+    last_success_at      TEXT,
+    last_failure_at      TEXT,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    active_address       TEXT
+);
 -- One-shot data migrations record that they have run here, so they stay idempotent
 -- across restarts without re-scanning the whole table every time the DB is opened.
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -115,6 +128,7 @@ _ADDED_COLUMNS = {
         ("imdb_rating", "REAL"),
         ("censorship_status", "TEXT"),
         ("source_access_tier", "TEXT"),
+        ("watch_url", "TEXT"),
     ],
     "download_variants": [
         ("access", "TEXT DEFAULT 'direct'"),
@@ -234,15 +248,16 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                 conn.execute(
                     """INSERT INTO media_items
                        (id, category, source_id, title, title_norm, artist, page_url, poster_url,
-                        release_year, description, stream_url, release_group, archive_password,
+                        release_year, description, watch_url, stream_url, release_group, archive_password,
                         total_size, imdb_rating, censorship_status, source_access_tier,
                         first_seen, last_seen)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                        ON CONFLICT(id) DO UPDATE SET
                          category=excluded.category, title=excluded.title,
                          title_norm=excluded.title_norm, artist=excluded.artist,
                          poster_url=excluded.poster_url, release_year=excluded.release_year,
-                         description=excluded.description, stream_url=excluded.stream_url,
+                         description=excluded.description, watch_url=excluded.watch_url,
+                         stream_url=excluded.stream_url,
                          release_group=excluded.release_group, archive_password=excluded.archive_password,
                          total_size=excluded.total_size,
                          imdb_rating=excluded.imdb_rating,
@@ -252,7 +267,7 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                          last_seen=excluded.last_seen""",
                     (item.id, _cat(item.category), item.source_id, item.title,
                      normalize_persian_text(item.title), artist, item.page_url, item.poster_url,
-                     item.release_year, item.description, item.stream_url,
+                     item.release_year, item.description, item.watch_url, item.stream_url,
                      game.release_group if game else None,
                      game.archive_password if game else None,
                      game.total_size if game else None,
@@ -385,6 +400,7 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
         source_id=row["source_id"], page_url=row["page_url"],
         release_year=row["release_year"], poster_url=row["poster_url"],
         description=row["description"], stream_url=row["stream_url"],
+        watch_url=row["watch_url"],
         imdb_rating=float(row["imdb_rating"]) if row["imdb_rating"] is not None else None,
         censorship_status=_enum_or_default(row, "censorship_status", CensorshipStatus,
                                            CensorshipStatus.UNSPECIFIED),
@@ -454,6 +470,54 @@ def set_last_page(conn: sqlite3.Connection, source_id: str, page: int) -> None:
             "ON CONFLICT(source_id) DO UPDATE SET last_page=excluded.last_page, "
             "last_crawl=excluded.last_crawl",
             (source_id, page, time.time()),
+        )
+
+
+def get_source_health(source_id: str, db_path: Path | str | None = None) -> dict | None:
+    """Return the stored health record for a source, or None when it has no row."""
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT * FROM source_health WHERE source_id=?", (source_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_all_source_health(db_path: Path | str | None = None) -> list[dict]:
+    """Every stored health record, so a restart can restore the in-memory registry."""
+    conn = connect(db_path)
+    try:
+        return [dict(r) for r in conn.execute("SELECT * FROM source_health").fetchall()]
+    finally:
+        conn.close()
+
+
+def set_source_health(
+    conn: sqlite3.Connection,
+    source_id: str,
+    state: str,
+    reason: str | None = None,
+    last_success_at: str | None = None,
+    last_failure_at: str | None = None,
+    consecutive_failures: int = 0,
+    active_address: str | None = None,
+) -> None:
+    """Upsert a source's health record. Takes an open conn, like set_last_page."""
+    with conn:
+        conn.execute(
+            "INSERT INTO source_health (source_id, state, reason, last_success_at, "
+            "last_failure_at, consecutive_failures, active_address) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(source_id) DO UPDATE SET "
+            "state=excluded.state, reason=excluded.reason, "
+            "last_success_at=excluded.last_success_at, "
+            "last_failure_at=excluded.last_failure_at, "
+            "consecutive_failures=excluded.consecutive_failures, "
+            "active_address=excluded.active_address",
+            (source_id, state, reason, last_success_at, last_failure_at,
+             consecutive_failures, active_address),
         )
 
 

@@ -4,6 +4,14 @@ export type LinkAccess = 'direct' | 'needs_login'
 export type SourceAccessTier = 'free' | 'premium' | 'freemium'
 export type CensorshipStatus = 'uncensored' | 'censored' | 'mixed' | 'unspecified'
 
+/** Operational state of a source (FR-008), mirrored from the server's SourceState enum. */
+export type SourceState =
+  | 'providing_results'
+  | 'subscription_only'
+  | 'unreachable'
+  | 'requires_login'
+  | 'not_yet_proven'
+
 export interface MovieDownloadVariant {
   id: string
   quality: string
@@ -66,6 +74,13 @@ export interface MediaItem {
   poster_url: string | null
   description: string | null
   stream_url: string | null
+  /**
+   * A page on the source's own site where the title is watchable, for sources with
+   * no public download (FR-006). Deliberately distinct from `stream_url`, which is a
+   * playable file: nothing here is fetched, buffered or relayed (FR-026). Optional so
+   * a pre-005 server response still typechecks; absence means "no watch page".
+   */
+  watch_url?: string | null
   imdb_rating: number | null
   censorship_status: CensorshipStatus
   source_access_tier: SourceAccessTier
@@ -98,4 +113,11 @@ export interface SourceStatus {
   inactive_reason?: string | null
   consecutive_failures?: number
   access_tier: SourceAccessTier
+  /** 005: false when the source hands back a watch page rather than a download. */
+  provides_downloads?: boolean
+  /** 005: the server's own view of the source, as opposed to the derived status. */
+  state?: SourceState
+  last_reachable_at?: string | null
+  /** The address that actually answered, when it is not the first one configured. */
+  active_address?: string | null
 }

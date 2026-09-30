@@ -110,8 +110,11 @@ class UpTVsPlugin:
         from re-opening a block.
         """
         items: list[MediaItem] = []
+        # href may be site-relative (/contents/...) or absolute (a CDN, or markup
+        # replayed through a mirror address). Requiring https?:// here silently
+        # dropped every relative card, so accept both and absolutise below.
         link_pattern = re.compile(
-            r'<a[^>]+href=[\"\'](https?://[^\"\'\s]+/contents/[^\"\']+)[\"\'][^>]*title=[\"\']([^\"\']+)[\"\']',
+            r'<a[^>]+href=[\"\']((?:https?://[^\"\'\s]+)?/[^\"\']*contents[^\"\']*)[\"\'][^>]*title=[\"\']([^\"\']+)[\"\']',
             re.DOTALL | re.IGNORECASE,
         )
         poster_pattern = re.compile(r'<img[^>]+src=[\"\'](https?://[^\s\"\']+)[\"\']', re.IGNORECASE)

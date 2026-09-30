@@ -12,3 +12,5 @@ class NamashaPlugin(BaseMoviePlugin):
     SOURCE_NAME = "Namasha"
     PROVIDES_DOWNLOADS = False
     SEARCH_PATH = "/search?q={query}"
+    # A watch page is /v/<hash>. /playlist/ and /channel* are account chrome.
+    ITEM_URL_SUBSTRING = "/v/"

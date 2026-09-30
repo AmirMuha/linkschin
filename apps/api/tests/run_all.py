@@ -9,17 +9,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import tests.test_models as tm
-import tests.test_cache as tc
-import tests.test_db as tdb
-import tests.test_games_scrapers as tg
-import tests.test_movies_scrapers as tmov
-import tests.test_music_scrapers as tmu
-import tests.test_reference_sources as tref
-import tests.test_source_kind as tsk
-import tests.test_sources_config as ts
-import tests.test_streaming as tst
-import tests.test_worker as tw
+TESTS_DIR = Path(__file__).resolve().parent
+
+
+def _discover_modules() -> list:
+    """Import every tests/test_*.py, sorted for a stable run order.
+
+    Was a hand-kept import list, which is how a new test file ships as dead code
+    the way the 19 005 parsers did: pytest ran them, the offline runner silently
+    did not, and neither failure looked like a failure. Same reason the fixture map
+    below globs instead of listing.
+    """
+    import importlib
+
+    found = []
+    for path in sorted(TESTS_DIR.glob("test_*.py")):
+        found.append(importlib.import_module(f"tests.{path.stem}"))
+    return found
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -61,7 +67,7 @@ def main():
         for f in sorted(FIXTURES_DIR.glob("*.html"))
     }
 
-    modules = [tm, tc, tdb, tg, tmov, tmu, tref, tsk, ts, tst, tw]
+    modules = _discover_modules()
 
     total = 0
     passed = 0

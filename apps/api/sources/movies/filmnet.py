@@ -12,3 +12,6 @@ class FilmnetPlugin(BaseMoviePlugin):
     SOURCE_NAME = "Filmnet"
     PROVIDES_DOWNLOADS = False
     SEARCH_PATH = "/search?q={query}"
+    # Real content lives under /contents/<id>/<slug>; /contents?types= is the
+    # genre filter, not a result.
+    ITEM_URL_SUBSTRING = "/contents/"

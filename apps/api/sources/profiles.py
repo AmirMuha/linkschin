@@ -12,49 +12,35 @@ from models import Category, SourceConfig
 
 DEFAULT_PROFILES_PATH = Path(__file__).resolve().parent / "profiles.yaml"
 
-# Registry of known parser names and classes
+# parser name -> plugin class. Populated by sources/__init__.py registering each
+# plugin it owns, so a profile can only name a parser that genuinely exists. A
+# hand-kept list of names could drift from reality and let a profile resolve to a
+# name with no implementation behind it -- the "registers but returns nothing" bug
+# FR-023 forbids.
 PARSER_REGISTRY: dict[str, Any] = {}
 
-KNOWN_PARSER_NAMES: set[str] = {
-    "uptvs",
-    "doostihaa",
-    "downloadha",
-    "yasdl",
-    "popmusic",
-    "nex1music",
+# Shapes handled by the shared BaseMoviePlugin parser rather than a dedicated module.
+# Several profiles may share one parser (FR-022): a site whose shape is already
+# supported is registered by configuration alone, with no new code.
+SHARED_PARSER_NAMES: frozenset[str] = frozenset({
     "html_wordpress_list",
     "html_search_card",
-    "filimo",
-    "namava",
-    "filmnet",
-    "gapfilm",
-    "telewebion",
-    "aparat",
-    "imvbox",
-    "danfilo",
-    "filmchiin",
-    "filmtarin",
-    "babakfilm",
-    "ndamedia",
-    "sarvnema",
-    "salamcinema",
-    "tiwall",
-    "namasha",
-    "rubika",
-    "digitoon",
-    "fam",
-}
+})
 
 
 def register_parser(name: str, parser_cls: Any) -> None:
     """Register a parser implementation by name."""
     PARSER_REGISTRY[name] = parser_cls
-    KNOWN_PARSER_NAMES.add(name)
 
 
 def get_parser(name: str) -> Any:
-    """Retrieve a parser class by name."""
+    """Retrieve a parser class by name, or None when nothing is registered under it."""
     return PARSER_REGISTRY.get(name)
+
+
+def known_parser_names() -> set[str]:
+    """Every name a profile may legally reference."""
+    return set(PARSER_REGISTRY) | SHARED_PARSER_NAMES
 
 
 @dataclass(slots=True)
@@ -130,8 +116,11 @@ def load_profiles(path: Path | str | None = None) -> list[SourceProfile]:
         validated_addresses = [_validate_address(source_id, addr) for addr in addresses_raw]
 
         parser_name = str(raw.get("parser", "")).strip()
-        if not parser_name or (parser_name not in KNOWN_PARSER_NAMES and parser_name not in PARSER_REGISTRY):
-            raise ValueError(f"Unknown parser '{parser_name}' for source '{source_id}'")
+        if not parser_name or parser_name not in known_parser_names():
+            raise ValueError(
+                f"Unknown parser '{parser_name}' for source '{source_id}': "
+                f"no implementation is registered under that name"
+            )
 
         provides_downloads = bool(raw.get("provides_downloads", True))
         enabled = bool(raw.get("enabled", True))

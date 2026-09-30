@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import type { MediaItem } from '@/types/media'
-import { Film, PlayCircle, Calendar, ExternalLink, Star } from 'lucide-react'
+import { Film, PlayCircle, Calendar, ExternalLink, Star, Eye } from 'lucide-react'
 import { MovieDownloadMatrix } from './MovieDownloadMatrix'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 import type { CensorshipStatus, SourceAccessTier } from '@/types/media'
@@ -47,6 +47,13 @@ export function MovieCard({
   activeCensorshipFilter = 'all',
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false)
+
+  // FR-017: the server drops an item that has neither a download nor a watch page, so
+  // `movie_variants` is empty here only for a genuine watch-only source. Guarded
+  // anyway: an unfiltered list can still yield empty variants, and a dead link to
+  // undefined is worse than no button.
+  const hasDownload = (item.movie_variants?.length ?? 0) > 0
+  const watchUrl = item.watch_url ?? ''
 
   return (
     <article
@@ -152,13 +159,30 @@ export function MovieCard({
         <ExternalLink className="w-3 h-3" />
       </a>
 
-      {/* Download Variants Matrix */}
+      {/* Download Variants Matrix — or, for a watch-only source, a watch action
+          (FR-006, FR-017). The two are mutually exclusive: a card that offers a
+          download must not also offer "watch", or the user cannot tell whether the
+          source actually has a public file. */}
       <div className="mt-auto border-t border-zinc-800/80 pt-2">
-        <MovieDownloadMatrix
-          variants={item.movie_variants}
-          activeTierFilter={activeTierFilter}
-          activeCensorshipFilter={activeCensorshipFilter}
-        />
+        {hasDownload ? (
+          <MovieDownloadMatrix
+            variants={item.movie_variants}
+            activeTierFilter={activeTierFilter}
+            activeCensorshipFilter={activeCensorshipFilter}
+          />
+        ) : (
+          <a
+            href={watchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl bg-violet-500/15 border border-violet-500/40 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400/60 transition-colors text-xs sm:text-sm font-medium"
+            aria-label={`مشاهده ${item.title} در سایت منبع`}
+          >
+            <Eye className="w-4 h-4 shrink-0" />
+            <span>مشاهده در سایت منبع</span>
+            <ExternalLink className="w-3 h-3 shrink-0" />
+          </a>
+        )}
       </div>
     </article>
   )

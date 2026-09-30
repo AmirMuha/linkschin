@@ -143,3 +143,28 @@ def onerj_search_html(fixtures_dir: Path) -> str:
 @pytest.fixture
 def onerj_item_html(fixtures_dir: Path) -> str:
     return (fixtures_dir / "onerj_item.html").read_text(encoding="utf-8")
+
+
+# 005: committed search captures for the four movie sources whose markup was
+# verified against the live site. A fixture on disk that no test loads is never
+# executed, so these exist to be consumed by tests/test_movie_sources.py.
+
+
+@pytest.fixture
+def aparat_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "aparat_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def filmnet_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "filmnet_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def namasha_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "namasha_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def rubika_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "rubika_search.html").read_text(encoding="utf-8")

@@ -18,6 +18,7 @@ import db
 from http_client import AsyncHttpClient
 from models import Category, MediaItem, SearchQuery, SourceKind
 from sources import INACTIVE_REASONS, get_all_source_configs, get_sources_for_category
+from sources import health
 from sources.base import validate_stream_url
 
 DEGRADED_THRESHOLD = 3  # 3 consecutive failures → degraded, excluded from search (FR-018a)
@@ -86,17 +87,48 @@ def _finalize(items: list[MediaItem]) -> list[MediaItem]:
     stale items can still live in the cache/DB from before they failed, and
     FR-018a excludes them from returning results regardless of source.
     """
-    reference_ids = {c.id for c in get_all_source_configs() if c.kind is SourceKind.REFERENCE}
+    reference_ids = {
+        (c.category, c.id) for c in get_all_source_configs() if c.kind is SourceKind.REFERENCE
+    }
     degraded = _degraded_ids()
     kept: list[MediaItem] = []
     for item in items:
         if item.source_id in degraded:
             continue
-        item.source_kind = "reference" if item.source_id in reference_ids else "full"
+        item.source_kind = "reference" if (item.category, item.source_id) in reference_ids else "full"
         kept.append(item)
     # Stable sort: the key is constant within a kind, so relevance order inside
     # each group survives exactly.
     return sorted(kept, key=lambda i: 1 if i.source_kind == "reference" else 0)
+
+
+def _discard_unusable(items: list[MediaItem]) -> list[MediaItem]:
+    """Drop entries with nothing to open, and collapse same-title repeats (FR-017, FR-018).
+
+    A movie result with no ``movie_variants`` and no ``watch_url`` offers the user no
+    action at all — the parser matched the markup but the link extraction found
+    nothing, and shipping the row would advertise a result the page cannot deliver.
+    Games and music keep their own payloads and are not touched by this rule.
+
+    Duplicates are keyed by normalized title per source: one site listing a film
+    twice (a featured row and a grid entry) must not fill the list with copies.
+    """
+
+    def _title_key(item: MediaItem) -> str:
+        return " ".join((item.title or "").split()).casefold()
+
+    kept: list[MediaItem] = []
+    seen_titles: set[tuple[str, str]] = set()
+    for item in items:
+        if item.category is Category.MOVIES:
+            if not item.movie_variants and not item.watch_url:
+                continue
+            key = (item.source_id, _title_key(item))
+            if key in seen_titles:
+                continue
+            seen_titles.add(key)
+        kept.append(item)
+    return kept
 
 
 async def _collect_items(
@@ -105,6 +137,7 @@ async def _collect_items(
     raw_query: str,
     refresh: bool = False,
     exclude_ids: set[str] | None = None,
+    scope: str = "downloads",
 ) -> tuple[list[MediaItem], list[str], bool]:
     """Fetch items from cache, persistent DB, or concurrent scraper plugins.
 
@@ -129,7 +162,7 @@ async def _collect_items(
     #    hid a source would re-introduce the hidden source (FR-030). Filtered
     #    requests always scrape fresh and never write back to the cache.
     if not refresh and not exclude_ids:
-        cached_items = GLOBAL_CACHE.get(cat_enum, norm_query)
+        cached_items = GLOBAL_CACHE.get(cat_enum, norm_query, scope)
         # `if cached_items:` not `is not None` - a cached [] means an earlier scrape
         # found nothing, and treating it as authoritative would shadow the DB below
         # for the whole TTL, blanking out a query the index can still answer.
@@ -140,7 +173,7 @@ async def _collect_items(
         if db_items:
             if db.search(cat_enum, norm_query, max_age_seconds=DB_STALE_TTL_SECONDS):
                 db_items = _finalize(db_items)
-                GLOBAL_CACHE.set(cat_enum, norm_query, db_items)
+                GLOBAL_CACHE.set(cat_enum, norm_query, db_items, scope)
                 return db_items, [], True
             # Stale: fall through and re-scrape, but keep these as a floor so a failed
             # or slow refresh can never reduce a result set to nothing.
@@ -151,14 +184,18 @@ async def _collect_items(
     #    nothing, so a stale saved set can never break a search.
     degraded = _degraded_ids()
     hidden = set(exclude_ids or ())
+    # FR-005: the default Movies scope excludes subscription sources, which return a
+    # watch page and no file. scope='all' opts into them.
     plugins = [
-        p for p in get_sources_for_category(cat_enum, include_disabled=False)
+        p for p in get_sources_for_category(
+            cat_enum, include_disabled=False, downloads_only=(scope != "all")
+        )
         if p.config.id not in degraded and p.config.id not in hidden
     ]
     if not plugins:
         warning = f"هیچ منبع فعالی برای دسته «{cat_clean}» در دسترس نیست. منابع در حال به‌روزرسانی هستند."
         if stale_db_items:
-            GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items)
+            GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items, scope)
             return stale_db_items, [warning], False
         return [], [warning], False
 
@@ -200,18 +237,39 @@ async def _collect_items(
 
     # 4. Record one failure/success per source per completed search (FR-018a, T020).
     #    The counter moves once per SEARCH, not once per HTTP request.
+    #    sources/health.py is the richer record a maintainer reads: which state the
+    #    source is in, why, when it last worked, and which address served it (T080).
     for plugin in plugins:
         got_items = any(i.source_id == plugin.config.id for i in all_items)
-        try:
-            if got_items:
+        if got_items:
+            try:
                 db.record_search_success(plugin.config.id)
-            else:
+            except Exception:
+                pass  # health tracking must not break the search
+            try:
+                health.record_success(
+                    plugin.config.id,
+                    address=getattr(plugin, "active_address", None),
+                    provides_downloads=plugin.config.provides_downloads,
+                )
+            except Exception:
+                pass
+        else:
+            try:
                 db.record_search_failure(plugin.config.id)
-        except Exception:
-            pass  # health tracking must not break the search
+            except Exception:
+                pass
+            # An empty answer is its own signal: the site answered 200 with nothing
+            # parseable, which is how a silent markup change shows up (FR-019).
+            try:
+                health.record_empty_response(plugin.config.id)
+            except Exception:
+                pass
 
-    # 5. Stamp kind and order full-before-reference, before caching (FR-005a, T017/T018)
-    all_items = _finalize(all_items)
+    # 5. Discard unusable entries (FR-017, FR-018, T035): a movie carrying neither a
+    #    download nor a watch destination has nothing for the user to open, and one
+    #    source repeating a title must not fill the list with copies (T020).
+    all_items = _finalize(_discard_unusable(all_items))
 
     # 6. Persist the whole scrape, not the filtered view: a portal answers a games
     #    query from its soundtrack section too, and that item is correctly filed as
@@ -231,13 +289,13 @@ async def _collect_items(
     #    timed-out scrape must not overwrite a good answer with nothing.
     matching = [i for i in all_items if i.category == cat_enum]
     if not exclude_ids and matching:
-        GLOBAL_CACHE.set(cat_enum, norm_query, matching)
+        GLOBAL_CACHE.set(cat_enum, norm_query, matching, scope)
     if matching:
         return matching, warnings, False
 
     # Nothing fresh: serve the stale index rather than claim the query has no results.
     if stale_db_items:
-        GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items)
+        GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items, scope)
         warnings.append("نتایج ذخیره‌شده ممکن است به‌روز نباشند؛ منابع در دسترس نبودند.")
         return stale_db_items, warnings, False
 
@@ -273,6 +331,7 @@ async def search_media(
     category: str = Query("movies", description="Active media category"),
     refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
     sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
+    scope: str = Query("downloads", description="'all' to include subscription sources that return a watch page (FR-005)"),
 ) -> HTMLResponse:
     """Search enabled sources for the category, extract direct links, and render results."""
     cat_clean = category.lower()
@@ -283,7 +342,9 @@ async def search_media(
         cat_clean = "movies"
 
     norm_query = normalize_persian_text(q)
-    items, warnings, is_cached = await _collect_items(cat_enum, norm_query, q, refresh, exclude_ids=set(sources))
+    items, warnings, is_cached = await _collect_items(
+        cat_enum, norm_query, q, refresh, exclude_ids=set(sources), scope=scope
+    )
     all_sources = _source_display_rows()
 
     return templates.TemplateResponse(
@@ -306,6 +367,7 @@ async def api_search_media(
     category: str = Query("movies", description="Active media category"),
     refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
     sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
+    scope: str = Query("downloads", description="'all' to include subscription sources that return a watch page (FR-005)"),
 ) -> JSONResponse:
     """JSON API endpoint returning structured media search results."""
     cat_clean = category.lower()
@@ -316,7 +378,9 @@ async def api_search_media(
         cat_clean = "movies"
 
     norm_query = normalize_persian_text(q)
-    items, warnings, is_cached = await _collect_items(cat_enum, norm_query, q, refresh, exclude_ids=set(sources))
+    items, warnings, is_cached = await _collect_items(
+        cat_enum, norm_query, q, refresh, exclude_ids=set(sources), scope=scope
+    )
 
     # source_kind ships via asdict(); _collect_items stamped it on the objects.
     return JSONResponse(
@@ -355,8 +419,38 @@ async def health_check() -> JSONResponse:
             "cache_entries": GLOBAL_CACHE.size,
             "registered_sources": reg_sources,
             "database_stats": db_stats,
+            "source_health": _source_health_rows(),
+            "source_health_counts": health.get_counts(),
         }
     )
+
+
+def _source_health_rows() -> list[dict]:
+    """Every tracked source's health record, for /health (FR-008, T014).
+
+    Read from the DB rather than the in-memory registry so a fresh process reports
+    the state a previous one recorded. A DB that cannot be read falls back to the
+    in-memory registry rather than reporting nothing.
+    """
+    rows: list[dict] = []
+    try:
+        rows = db.get_all_source_health()
+    except Exception:
+        rows = []
+    if rows:
+        return rows
+    return [
+        {
+            "source_id": h.source_id,
+            "state": h.state.value,
+            "reason": h.reason,
+            "last_success_at": h.last_success_at,
+            "last_failure_at": h.last_failure_at,
+            "consecutive_failures": h.consecutive_failures,
+            "active_address": h.active_address,
+        }
+        for h in health.get_all().values()
+    ]
 
 
 def _source_display_rows() -> list[dict]:
@@ -368,9 +462,15 @@ def _source_display_rows() -> list[dict]:
     ``inactive_reason``, so every inactive source rendered with no reason.
 
     Derived at request time so a row never contradicts the DB or the registry.
+
+    ``id`` stays the bare source id even where a movie source and a music source
+    share one (aparat, namasha, fam, rubika). ``category`` disambiguates them for
+    any consumer that needs to address one specifically.
     """
     all_sources = get_all_source_configs()
-    reference_ids = {c.id for c in all_sources if c.kind is SourceKind.REFERENCE}
+    reference_ids = {
+        (c.category, c.id) for c in all_sources if c.kind is SourceKind.REFERENCE
+    }
     degraded = _degraded_ids()
     rows: list[dict] = []
     for s in all_sources:
@@ -380,16 +480,28 @@ def _source_display_rows() -> list[dict]:
             "category": s.category.value,
             "base_url": s.primary_base_url,
             "enabled": s.enabled,
-            "kind": "reference" if s.id in reference_ids else "full",
+            "kind": "reference" if (s.category, s.id) in reference_ids else "full",
             "status": "inactive" if not s.enabled else ("degraded" if s.id in degraded else "active"),
             "inactive_reason": INACTIVE_REASONS.get(s.id) if not s.enabled else None,
             "consecutive_failures": 0,
             "access_tier": s.access_tier.value,
+            "provides_downloads": s.provides_downloads,
+            "state": health.get(s.id).state.value,
+            "last_reachable_at": None,
+            "active_address": None,
         }
         try:
             row["consecutive_failures"] = db.get_consecutive_failures(s.id)
         except Exception:
             pass  # a failing DB must not break the listing
+        h = health.get(s.id)
+        row["state"] = h.state.value
+        row["last_reachable_at"] = h.last_success_at
+        row["active_address"] = h.active_address
+        # FR-020: a source can be disabled in config yet still be reachable; the
+        # registry reason is the authority for why it is off.
+        if not s.enabled and INACTIVE_REASONS.get(s.id):
+            row["inactive_reason"] = INACTIVE_REASONS[s.id]
         rows.append(row)
     return rows
 
@@ -399,6 +511,7 @@ async def list_sources() -> JSONResponse:
     """Return full source listing with kind and health status per FR-017/T013.
 
     Fields: id, name, category, base_url, enabled, kind, status, inactive_reason,
-    consecutive_failures.
+    consecutive_failures, access_tier, provides_downloads, state,
+    last_reachable_at, active_address.
     """
     return JSONResponse(_source_display_rows())

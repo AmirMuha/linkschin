@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import {
   parseTierParam,
   parseCensorshipParam,
+  parseScopeParam,
   buildSearchParams,
 } from './urlFilters.ts'
 
@@ -44,4 +45,33 @@ test('buildSearchParams round-trips through the parsers', () => {
   const params = buildSearchParams('premium', 'censored')
   assert.strictEqual(parseTierParam(params.get('tier')), 'premium')
   assert.strictEqual(parseCensorshipParam(params.get('censorship')), 'censored')
+})
+
+// FR-005: the scope toggle. The default is deliberately absent from the URL so a
+// shared downloads-only link looks exactly as it did before 005.
+test('parseScopeParam defaults to downloads and rejects anything else', () => {
+  assert.strictEqual(parseScopeParam(null), 'downloads')
+  assert.strictEqual(parseScopeParam(''), 'downloads')
+  assert.strictEqual(parseScopeParam('streaming'), 'downloads')
+  assert.strictEqual(parseScopeParam('all'), 'all')
+})
+
+test('buildSearchParams omits the default scope so shared URLs stay clean', () => {
+  assert.strictEqual(
+    buildSearchParams('all', 'all', undefined, 'downloads').toString(),
+    ''
+  )
+})
+
+test('buildSearchParams writes scope=all and round-trips it', () => {
+  const params = buildSearchParams('all', 'all', undefined, 'all')
+  assert.ok(params.toString().includes('scope=all'))
+  assert.strictEqual(parseScopeParam(params.get('scope')), 'all')
+})
+
+test('buildSearchParams drops a stale scope when returning to the default', () => {
+  const base = new URLSearchParams('q=batman&scope=all')
+  const params = buildSearchParams('all', 'all', base, 'downloads')
+  assert.strictEqual(params.get('scope'), null)
+  assert.strictEqual(params.get('q'), 'batman')
 })

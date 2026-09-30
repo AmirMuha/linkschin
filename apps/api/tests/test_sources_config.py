@@ -64,12 +64,12 @@ EXPECTED_REFERENCE_IDS = {
 def test_all_20_spec_sites_present_exactly_once():
     """SC-007: every named site is registered, and none is duplicated."""
     configs = get_all_source_configs()
-    ids = [c.id for c in configs]
+    keys = [(c.category, c.id) for c in configs]
 
-    duplicated = {i for i in ids if ids.count(i) > 1}
+    duplicated = {k for k in keys if keys.count(k) > 1}
     assert not duplicated, f"sources registered more than once: {duplicated}"
 
-    missing = SPEC_006_SITES - set(ids)
+    missing = {(Category.MUSIC, sid) for sid in SPEC_006_SITES} - set(keys)
     assert not missing, f"spec sites missing from registry: {missing}"
 
 
@@ -150,12 +150,17 @@ def test_new_full_sources_are_enabled_and_searchable():
 
 
 def test_pre_006_categories_are_untouched():
-    """FR-028: the movies and games registries keep their original sources."""
+    """FR-028: the games registry keeps its original sources.
+
+    The movies registry is no longer expected to hold exactly uptvs/doostihaa:
+    005 adds 18 more movie sources there (profiles.yaml). The pair is still
+    asserted as present, so this stays a check that neither was removed.
+    """
     from sources import get_sources_for_category
 
     movies = {p.config.id for p in get_sources_for_category(Category.MOVIES)}
     games = {p.config.id for p in get_sources_for_category(Category.GAMES)}
-    assert movies == {"uptvs", "doostihaa"}
+    assert {"uptvs", "doostihaa"} <= movies
     assert games == {"downloadha", "yasdl"}
 
 def test_every_source_declares_a_valid_access_tier():

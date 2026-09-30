@@ -22,6 +22,15 @@ DEFAULT_HEADERS = {
     "Accept-Language": "fa,en-US,en;q=0.9",
 }
 
+# Redirect hops allowed before a chain is called a loop (FR-015). tiwall answers
+# with an endless 307 chain and fam with an endless 308 chain; httpx's own
+# max_redirects default is 20, low enough that a legitimate CDN bounce still fits.
+MAX_REDIRECTS = 5
+
+
+class RedirectLoopError(RuntimeError):
+    """Raised when a redirect chain exceeds MAX_REDIRECTS hops."""
+
 
 class SimpleResponse:
     """Lightweight response wrapper compatible with httpx.Response."""
@@ -57,13 +66,19 @@ try:
             self._client = httpx.AsyncClient(
                 timeout=timeout,
                 follow_redirects=True,
+                max_redirects=MAX_REDIRECTS,
                 headers=DEFAULT_HEADERS,
             )
 
         async def get(self, url: str, headers: dict[str, str] | None = None, timeout: float | None = None) -> SimpleResponse:
             req_headers = {**DEFAULT_HEADERS, **(headers or {})}
             req_timeout = timeout if timeout is not None else self.timeout
-            resp = await self._client.get(url, headers=req_headers, timeout=req_timeout)
+            try:
+                resp = await self._client.get(url, headers=req_headers, timeout=req_timeout)
+            except httpx.TooManyRedirects as e:
+                raise RedirectLoopError(
+                    f"redirect loop: {url} exceeded {MAX_REDIRECTS} hops"
+                ) from e
             final_url = str(resp.url)
             track_redirect(url, final_url)
             return SimpleResponse(
@@ -76,7 +91,12 @@ try:
         async def head(self, url: str, headers: dict[str, str] | None = None, timeout: float | None = None) -> SimpleResponse:
             req_headers = {**DEFAULT_HEADERS, **(headers or {})}
             req_timeout = timeout if timeout is not None else self.timeout
-            resp = await self._client.head(url, headers=req_headers, timeout=req_timeout)
+            try:
+                resp = await self._client.head(url, headers=req_headers, timeout=req_timeout)
+            except httpx.TooManyRedirects as e:
+                raise RedirectLoopError(
+                    f"redirect loop: {url} exceeded {MAX_REDIRECTS} hops"
+                ) from e
             final_url = str(resp.url)
             track_redirect(url, final_url)
             return SimpleResponse(
@@ -100,8 +120,37 @@ except ImportError:
     class AsyncHttpClient:  # type: ignore[no-redef]
         """Stdlib-backed asynchronous HTTP client fallback."""
 
+        class _BoundedRedirectHandler(urllib.request.HTTPRedirectHandler):
+            """urllib's default cap is 10 and it raises HTTPError; make the loop
+            a distinct error so a caller can report it as a redirect loop."""
+
+            max_redirections = MAX_REDIRECTS
+
+            def http_error_308(self, req, fp, code, msg, headers):
+                return self.http_error_307(req, fp, code, msg, headers)
+
+            def http_error_301(self, req, fp, code, msg, headers):
+                return self._bounded(req, fp, 301, msg, headers)
+
+            def http_error_302(self, req, fp, code, msg, headers):
+                return self._bounded(req, fp, 302, msg, headers)
+
+            def http_error_303(self, req, fp, code, msg, headers):
+                return self._bounded(req, fp, 303, msg, headers)
+
+            def http_error_307(self, req, fp, code, msg, headers):
+                return self._bounded(req, fp, 307, msg, headers)
+
+            def _bounded(self, req, fp, code, msg, headers):
+                if self.max_repeats >= MAX_REDIRECTS:
+                    raise RedirectLoopError(
+                        f"redirect loop: {req.full_url} exceeded {MAX_REDIRECTS} hops"
+                    )
+                return super().http_error_302(req, fp, code, msg, headers)
+
         def __init__(self, timeout: float = 7.0):
             self.timeout = timeout
+            self._opener = urllib.request.build_opener(self._BoundedRedirectHandler)
 
         async def get(self, url: str, headers: dict[str, str] | None = None, timeout: float | None = None) -> SimpleResponse:
             loop = asyncio.get_running_loop()
@@ -111,7 +160,7 @@ except ImportError:
             def _fetch() -> SimpleResponse:
                 req = urllib.request.Request(url, headers=req_headers)
                 try:
-                    with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                    with self._opener.open(req, timeout=req_timeout) as resp:
                         final_url = resp.geturl()
                         text = resp.read().decode("utf-8", errors="replace")
                         track_redirect(url, final_url)
@@ -143,7 +192,7 @@ except ImportError:
             def _head() -> SimpleResponse:
                 req = urllib.request.Request(url, headers=req_headers, method="HEAD")
                 try:
-                    with urllib.request.urlopen(req, timeout=req_timeout) as resp:
+                    with self._opener.open(req, timeout=req_timeout) as resp:
                         final_url = resp.geturl()
                         track_redirect(url, final_url)
                         return SimpleResponse(

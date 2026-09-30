@@ -212,7 +212,28 @@ cd apps/api && python tests/run_all.py     # offline runner, per pyproject "test
 
 ## Known limitation
 
-Four sites could not be reached during research — **Nda Media, Salam Cinema, Tiwall, and Fam**
-(Tiwall and Fam sit in redirect loops). They can be registered and their state behaviour tested, but
-no HTML fixture can be captured, so no parser test is possible for them until a working address is
-supplied. This is a recorded gap, not a passing check; see research.md R-001 and R-008.
+Four sites have **no confirmed working address** and are shipped as a recorded gap, not as a
+passing check. They register, load, and report health state like any other source, but there is no
+captured HTML, so no parser fixture and no `parse_search_results` test exists for them. Every other
+movie source added by 005 is covered by `tests/test_movie_sources.py`.
+
+| id | Site | Why no address is confirmed | Health state seeded |
+|----|------|------------------------------|--------------------|
+| `ndamedia` | Nda Media | No verified domain | `not_yet_proven` |
+| `salamcinema` | Salam Cinema | No verified domain | `not_yet_proven` |
+| `tiwall` | Tiwall | Permanent redirect loop (307) | `not_yet_proven` |
+| `fam` | Fam | Permanent redirect loop (308) | `not_yet_proven` |
+
+The four ids and their reasons live in `apps/api/sources/health.py::INITIAL_UNPROVEN_SITES`, so
+`/api/health` reports them as `not_yet_proven` with a reason rather than silently reporting
+`providing_results` for a source that has never answered.
+
+**To close the gap**: supply a working address, capture a search page to
+`apps/api/tests/fixtures/<id>_search.html`, and add the matching case to `PARSER_BY_SOURCE` in
+`tests/test_movie_sources.py`. The parsers exist and are registered; only the captured markup is
+missing. Note that the address list, not a hardcoded host, is what a parser reads — an address
+change is configuration alone.
+
+Bounded-redirect handling (T079, FR-015) is what keeps `tiwall` and `fam` from hanging the search:
+their loops now surface as a `RedirectLoopError` after `MAX_REDIRECTS` hops instead of spinning.
+See research.md R-001 and R-008.

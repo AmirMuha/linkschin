@@ -2,8 +2,9 @@
 
 import React, { useRef, useState, useEffect } from 'react'
 import type { Category } from '@/types/media'
-import { Search, RotateCw, X, Film, Gamepad2, Music, Clock } from 'lucide-react'
+import { Search, RotateCw, X, Film, Gamepad2, Music, Clock, Download, Layers } from 'lucide-react'
 import { getRecentSearches, clearRecentSearches } from '@/lib/history'
+import type { SourceScopeFilter } from '@/lib/urlFilters'
 
 interface SearchBarProps {
   query: string
@@ -11,8 +12,16 @@ interface SearchBarProps {
   isLoading: boolean
   onQueryChange: (q: string) => void
   onCategoryChange: (cat: Category) => void
-  onSearch: (q: string, refresh?: boolean, excludeSources?: string[]) => void
+  onSearch: (
+    q: string,
+    refresh?: boolean,
+    excludeSources?: string[],
+    scope?: SourceScopeFilter
+  ) => void
   inputRef?: React.RefObject<HTMLInputElement | null>
+  /** FR-005: 'downloads' (default) hides subscription sources; 'all' includes them. */
+  scope?: SourceScopeFilter
+  onScopeChange?: (scope: SourceScopeFilter) => void
 }
 
 const CATEGORIES: { id: Category; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -29,6 +38,8 @@ export function SearchBar({
   onCategoryChange,
   onSearch,
   inputRef,
+  scope = 'downloads',
+  onScopeChange,
 }: SearchBarProps) {
   const localInputRef = useRef<HTMLInputElement>(null)
   const activeInput = inputRef || localInputRef
@@ -38,6 +49,14 @@ export function SearchBar({
   useEffect(() => {
     setHistory(getRecentSearches())
   }, [])
+
+  function setScope(next: SourceScopeFilter) {
+    if (next === scope) return
+    onScopeChange?.(next)
+    // Re-run immediately: the toggle is a filter on the current query, not a
+    // preference to apply on the next search.
+    if (query.trim()) onSearch(query.trim(), undefined, undefined, next)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -92,6 +111,49 @@ export function SearchBar({
           )
         })}
       </div>
+
+      {/* FR-005 source scope — Movies only, and a segmented control rather than a
+          fourth category tab: "watch" is not a category, and a Streaming tab would
+          force the user to choose a category before knowing which they want. */}
+      {category === 'movies' && onScopeChange && (
+        <div
+          role="radiogroup"
+          aria-label="دامنه منابع فیلم و سریال"
+          className="flex items-center p-1 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-lg backdrop-blur-md"
+        >
+          {(
+            [
+              { id: 'downloads' as const, label: 'فقط دانلود', icon: Download },
+              { id: 'all' as const, label: 'همه منابع', icon: Layers },
+            ]
+          ).map((opt) => {
+            const Icon = opt.icon
+            const isActive = scope === opt.id
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => setScope(opt.id)}
+                title={
+                  opt.id === 'downloads'
+                    ? 'فقط منابعی که لینک دانلود عمومی دارند'
+                    : 'شامل سرویس‌های اشتراکی که فقط صفحه تماشا دارند'
+                }
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{opt.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Main Search Input Form */}
       <form

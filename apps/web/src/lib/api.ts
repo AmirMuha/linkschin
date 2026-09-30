@@ -1,4 +1,5 @@
 import type { Category, SearchApiResponse, SourceStatus } from '@/types/media'
+import type { SourceScopeFilter } from './urlFilters'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000'
 
@@ -9,6 +10,8 @@ export async function searchMedia(
     refresh?: boolean
     /** Source ids to EXCLUDE from the query (the user's saved hidden set). */
     excludeSources?: string[]
+    /** FR-005: 'all' opts into subscription sources; anything else is downloads-only. */
+    scope?: SourceScopeFilter
   },
   signal?: AbortSignal
 ): Promise<SearchApiResponse> {
@@ -19,6 +22,11 @@ export async function searchMedia(
   }
   if (params.refresh) {
     url.searchParams.set('refresh', 'true')
+  }
+  // Omitted for the default so a shared downloads-only URL stays as short as it was
+  // before 005; a pre-005 server ignores an unknown param either way.
+  if (params.scope === 'all') {
+    url.searchParams.set('scope', 'all')
   }
   // `append` (not `set`) so the param repeats — the server reads a list, and it
   // can only ever drop sources, never add one (search contract, G3).
