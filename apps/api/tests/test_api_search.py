@@ -92,6 +92,8 @@ def test_api_search_empty_cache_entry_does_not_shadow_db(tmp_path, monkeypatch):
     was treated as authoritative, so db.search() was never reached.
     """
     monkeypatch.setenv("MOVIE_FETCHER_DB", str(tmp_path / "index.db"))
+    # YasDL answers the same query; this check is about Downloadha, so silence it.
+    monkeypatch.setenv("MOVIE_FETCHER_ENABLE_YASDL", "false")
     cat = Category.MOVIES
     query = "مرد عنکبوتی"
     GLOBAL_CACHE.set(cat, query, [])
@@ -124,3 +126,46 @@ def test_cors_headers_present():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_games_response_excludes_music_but_still_indexes_it(tmp_path, monkeypatch):
+    """A games tab must not show a soundtrack, but the music tab must still find it.
+
+    Downloadha answers a games query from its soundtrack section, and the scraper files
+    that card as `music` rather than dropping it. So the games response has to filter,
+    and the filter must not run before the upsert: the index is the only way a
+    re-labelled item becomes searchable again, so filtering first would silently make
+    every soundtrack permanently unfindable.
+    """
+    from sources.games.downloadha import DownloadhaPlugin
+
+    scraped = DownloadhaPlugin().parse_search_results(
+        "<h1 class='entry-title'><a href='https://www.downloadha.com/game/elden-ring/'>"
+        "دانلود بازی Elden Ring</a></h1>"
+        "<h1 class='entry-title'><a href='https://www.downloadha.com/others/elden-ost/'>"
+        "دانلود موسیقی متن بازی Elden Ring</a></h1>"
+    )
+    assert [i.category for i in scraped] == [Category.GAMES, Category.MUSIC]
+
+    async def fake_search(self, query, client):
+        return list(scraped)
+
+    monkeypatch.setenv("MOVIE_FETCHER_DB", str(tmp_path / "index.db"))
+    # YasDL answers the same query; this check is about Downloadha, so silence it.
+    monkeypatch.setenv("MOVIE_FETCHER_ENABLE_YASDL", "false")
+    monkeypatch.setattr(DownloadhaPlugin, "search", fake_search)
+    monkeypatch.setattr(DownloadhaPlugin, "extract_links",
+                        lambda self, item, client: _identity(item))
+
+    response = client.get("/api/search?q=elden%20ring&category=games&refresh=true")
+    items = response.json()["items"]
+    assert [i["title"] for i in items] == ["دانلود بازی Elden Ring"]
+    assert all(i["category"] == "games" for i in items)
+
+    # Persisted despite being filtered from the response, so the music tab can serve it.
+    indexed = db.search(Category.MUSIC, "Elden Ring", db_path=tmp_path / "index.db")
+    assert [i.title for i in indexed] == ["دانلود موسیقی متن بازی Elden Ring"]
+
+
+async def _identity(item):
+    return item

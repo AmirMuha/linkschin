@@ -137,15 +137,20 @@ async def _collect_items(
     # Only a non-empty result is cached: a timed-out scrape must not overwrite a
     # good answer with nothing.
     if all_items:
-        all_items = [i for i in all_items if i.category == cat_enum]
-        if not all_items:
-            return [], warnings, False
-        GLOBAL_CACHE.set(cat_enum, norm_query, all_items)
+        # Persist the whole scrape, not the filtered view: a portal answers a games
+        # query from its soundtrack section too, and that item is correctly filed as
+        # music -- it just must not appear in THIS tab. Dropping it before the upsert
+        # would mean the music tab can never find it, since the index is the only way
+        # a re-labelled item becomes searchable. Filtering after the write keeps both.
         try:
             db.upsert_items(all_items)
         except Exception:
             pass
-        return all_items, warnings, False
+        matching = [i for i in all_items if i.category == cat_enum]
+        if not matching:
+            return [], warnings, False
+        GLOBAL_CACHE.set(cat_enum, norm_query, matching)
+        return matching, warnings, False
 
     # Nothing fresh: serve the stale index rather than claim the query has no results.
     if stale_db_items:
