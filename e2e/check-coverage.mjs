@@ -19,6 +19,7 @@ const SPECS = [
   { id: '002', dir: '002-ui-ux-redesign' },
   { id: '003', dir: '003-ai-assistant' },
   { id: '004', dir: '004-source-suggestions' },
+  { id: '007', dir: '007-source-filters-movie-details' },
 ]
 
 /** Wall-clock and population requirements. Recorded, not skipped silently. */
@@ -36,6 +37,7 @@ const NOT_E2E = {
   '003-SC-008': 'needs conversation population data',
   '004-SC-001': 'monthly suggestion volume — not observable from a test',
   '004-SC-004': 'latency <50ms — flaky against a dev server',
+  '007-SC-001': 'latency <50ms — flaky against a dev server',
 }
 
 function walk(dir) {

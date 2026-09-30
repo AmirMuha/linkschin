@@ -94,10 +94,13 @@ export function MovieCard({
           </div>
         )}
 
-        {/* IMDb Rating — always rendered so the badge never shifts layout when unrated */}
+        {/* IMDb Rating — always rendered, with a fixed-width score so the badge is
+            identical whether the score is 7.9 or the unrated em-dash (SC-002). */}
         <div className="absolute bottom-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 font-mono text-2xs text-amber-300 backdrop-blur-md">
           <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-          <span>{item.imdb_rating?.toFixed(1) ?? '—'}</span>
+          <span className="inline-block w-[2.5ch] text-center">
+            {item.imdb_rating?.toFixed(1) ?? '—'}
+          </span>
         </div>
 
         {/* Source access tier */}
