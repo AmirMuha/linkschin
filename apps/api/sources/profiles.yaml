@@ -1,0 +1,175 @@
+# Declarative site profiles for movie sources.
+# Adding a site of a new shape requires a dedicated parser; only that parser is new code (FR-022, Principle I).
+# Sites with supported shapes can be registered here with no new code.
+
+sources:
+  - id: filimo
+    name: Filimo
+    category: movies
+    provides_downloads: false
+    parser: filimo
+    addresses:
+      - https://www.filimo.com
+      - https://filimo.com
+
+  - id: namava
+    name: Namava
+    category: movies
+    provides_downloads: false
+    parser: namava
+    addresses:
+      - https://namava.ir
+
+  - id: filmnet
+    name: Filmnet
+    category: movies
+    provides_downloads: false
+    parser: filmnet
+    addresses:
+      - https://filmnet.ir
+      - https://filmnet.film
+
+  - id: gapfilm
+    name: Gapfilm
+    category: movies
+    provides_downloads: true
+    parser: gapfilm
+    addresses:
+      - https://gapfilm.ir
+      - https://gapfilm.com
+
+  - id: telewebion
+    name: Telewebion
+    category: movies
+    provides_downloads: true
+    parser: telewebion
+    addresses:
+      - https://telewebion.ir
+      - https://telewebion.com
+
+  - id: aparat
+    name: Aparat
+    category: movies
+    provides_downloads: true
+    parser: aparat
+    addresses:
+      - https://www.aparat.com
+      - https://aparat.com
+
+  - id: imvbox
+    name: IMVBox
+    category: movies
+    provides_downloads: true
+    parser: imvbox
+    addresses:
+      - https://www.imvbox.com
+      - https://imvbox.com
+
+  - id: danfilo
+    name: Danfilo
+    category: movies
+    provides_downloads: true
+    parser: danfilo
+    addresses:
+      - https://danfilo.ir
+      - https://danfilo.com
+
+  - id: filmchiin
+    name: FilmChiin
+    category: movies
+    provides_downloads: true
+    parser: filmchiin
+    addresses:
+      - https://filmchiin.ir
+
+  - id: filmtarin
+    name: FilmTarin
+    category: movies
+    provides_downloads: true
+    parser: filmtarin
+    addresses:
+      - https://filmtarin.com
+
+  - id: babakfilm
+    name: BabakFilm
+    category: movies
+    provides_downloads: true
+    parser: babakfilm
+    addresses:
+      - https://babakfilm.com
+      - http://babakfilm.com
+
+  - id: ndamedia
+    name: Nda Media
+    category: movies
+    provides_downloads: true
+    parser: ndamedia
+    addresses:
+      - https://ndamedia.ir
+
+  - id: sarvnema
+    name: Sarvnema
+    category: movies
+    provides_downloads: true
+    parser: sarvnema
+    addresses:
+      - https://sarvnema.ir
+      - https://sarvnema.com
+
+  - id: salamcinema
+    name: Salam Cinema
+    category: movies
+    provides_downloads: false
+    parser: salamcinema
+    addresses:
+      - https://salamscinema.io
+
+  - id: tiwall
+    name: Tiwall
+    category: movies
+    provides_downloads: false
+    parser: tiwall
+    addresses:
+      - https://tiwall.com
+      - https://www.tiwall.com
+
+  - id: uptvs
+    name: UpTVs
+    category: movies
+    provides_downloads: true
+    parser: uptvs
+    addresses:
+      - https://www.uptvs.com
+
+  - id: namasha
+    name: Namasha
+    category: movies
+    provides_downloads: false
+    parser: namasha
+    addresses:
+      - https://namasha.com
+      - https://namasha.ir
+
+  - id: rubika
+    name: Rubika
+    category: movies
+    provides_downloads: false
+    parser: rubika
+    addresses:
+      - https://rubika.ir
+
+  - id: digitoon
+    name: Digitoon
+    category: movies
+    provides_downloads: false
+    parser: digitoon
+    addresses:
+      - https://digitoon.com
+
+  - id: fam
+    name: Fam
+    category: movies
+    provides_downloads: false
+    parser: fam
+    addresses:
+      - https://fam.ir
