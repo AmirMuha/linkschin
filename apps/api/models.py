@@ -19,6 +19,18 @@ class SourceKind(str, Enum):
     """Whether a source resolves playable media or is a link-out reference."""
     FULL = "full"
     REFERENCE = "reference"
+class SourceAccessTier(str, Enum):
+    """Upstream source access model."""
+    FREE = "free"
+    PREMIUM = "premium"
+    FREEMIUM = "freemium"
+
+class CensorshipStatus(str, Enum):
+    """Censorship classification of a movie release."""
+    UNCENSORED = "uncensored"
+    CENSORED = "censored"
+    MIXED = "mixed"
+    UNSPECIFIED = "unspecified"
 
 
 def validate_media_url(url: str) -> str:
@@ -44,6 +56,7 @@ class SourceConfig:
     timeout_seconds: float = 7.0
     # Default FULL keeps every pre-006 SourceConfig(...) call site working unchanged (FR-028).
     kind: SourceKind = SourceKind.FULL
+    access_tier: SourceAccessTier = SourceAccessTier.FREE
 
     @property
     def primary_base_url(self) -> str:
@@ -76,6 +89,8 @@ class MovieDownloadVariant:
     # "direct" (default) or "needs_login" when the host answers with an
     # interstitial page instead of the file.
     access: str = "direct"
+    is_censored: bool | None = None
+    is_premium: bool = False
 
     def __post_init__(self):
         validate_media_url(self.download_url)
@@ -175,6 +190,11 @@ class MediaItem:
     release_year: int | None = None
     poster_url: str | None = None
     description: str | None = None
+
+    # Enrichment metadata (spec 007)
+    imdb_rating: float | None = None
+    censorship_status: CensorshipStatus = CensorshipStatus.UNSPECIFIED
+    source_access_tier: SourceAccessTier = SourceAccessTier.FREE
 
     # Category-specific payloads
     movie_variants: list[MovieDownloadVariant] = field(default_factory=list)

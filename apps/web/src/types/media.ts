@@ -1,11 +1,8 @@
 export type Category = 'movies' | 'games' | 'music'
 
-/**
- * 'direct'    - the URL serves the file itself.
- * 'needs_login' - the host answers with an interstitial/login page instead of the
- *                 file, so it must not be presented as a plain download.
- */
 export type LinkAccess = 'direct' | 'needs_login'
+export type SourceAccessTier = 'free' | 'premium' | 'freemium'
+export type CensorshipStatus = 'uncensored' | 'censored' | 'mixed' | 'unspecified'
 
 export interface MovieDownloadVariant {
   id: string
@@ -16,6 +13,8 @@ export interface MovieDownloadVariant {
   file_size_mb: number | null
   source_name: string
   access?: LinkAccess
+  is_censored?: boolean | null
+  is_premium?: boolean
 }
 
 export interface GamePartLink {
@@ -67,6 +66,9 @@ export interface MediaItem {
   poster_url: string | null
   description: string | null
   stream_url: string | null
+  imdb_rating: number | null
+  censorship_status: CensorshipStatus
+  source_access_tier: SourceAccessTier
   movie_variants: MovieDownloadVariant[]
   game_releases: GameRelease[]
   music_tracks: MusicTrack[]
@@ -95,4 +97,5 @@ export interface SourceStatus {
   /** Non-null and specific whenever status is not "active". */
   inactive_reason?: string | null
   consecutive_failures?: number
+  access_tier: SourceAccessTier
 }

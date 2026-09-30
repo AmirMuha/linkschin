@@ -181,6 +181,17 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
                                 >
                                   {isReference ? 'ارجاعی' : 'کامل'}
                                 </span>
+                                {s.access_tier !== 'free' && (
+                                  <span
+                                    className={`text-2xs px-1.5 py-0.5 rounded-md ${
+                                      s.access_tier === 'premium'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                        : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                    }`}
+                                  >
+                                    {s.access_tier === 'premium' ? 'VIP' : 'ترکیبی'}
+                                  </span>
+                                )}
                                 <span
                                   className={`text-2xs px-1.5 py-0.5 rounded-md ${
                                     status === 'active'

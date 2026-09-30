@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from http_client import DOMAIN_MIRROR_MAP, get_effective_domain, track_redirect
-from models import Category
+from models import Category, SourceAccessTier
 from sources import get_all_source_configs, get_sources_for_category
 
 
@@ -157,3 +157,16 @@ def test_pre_006_categories_are_untouched():
     games = {p.config.id for p in get_sources_for_category(Category.GAMES)}
     assert movies == {"uptvs", "doostihaa"}
     assert games == {"downloadha", "yasdl"}
+
+def test_every_source_declares_a_valid_access_tier():
+    """Every registry entry exposes a SourceAccessTier so the frontend never sees a gap."""
+    from models import SourceAccessTier
+    for config in get_all_source_configs():
+        assert isinstance(config.access_tier, SourceAccessTier), config.id
+
+def test_movie_source_tiers_match_their_access_model():
+    """UpTVs is fully free; Doostihaa gates HD behind membership, so it is freemium."""
+    movie_tiers = {c.id: c.access_tier for c in get_all_source_configs()
+                    if c.category == Category.MOVIES and c.enabled}
+    assert movie_tiers["uptvs"] is SourceAccessTier.FREE
+    assert movie_tiers["doostihaa"] is SourceAccessTier.FREEMIUM

@@ -5,17 +5,20 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from enum import Enum
 from pathlib import Path
 
 from cache import normalize_persian_text
 from models import (
     Category,
+    CensorshipStatus,
     GamePartLink,
     GameRelease,
     MediaItem,
     MovieDownloadVariant,
     MusicDownloadVariant,
     MusicTrack,
+    SourceAccessTier,
 )
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "data" / "index.db"
@@ -36,6 +39,9 @@ CREATE TABLE IF NOT EXISTS media_items (
     release_group    TEXT,
     archive_password TEXT,
     total_size       TEXT,
+    imdb_rating      REAL,
+    censorship_status TEXT,
+    source_access_tier TEXT,
     first_seen       REAL NOT NULL,
     last_seen        REAL NOT NULL,
     UNIQUE(source_id, page_url)
@@ -49,7 +55,10 @@ CREATE TABLE IF NOT EXISTS download_variants (
     audio_track TEXT,
     size_bytes  INT,
     size_text   TEXT,
-    url         TEXT NOT NULL
+    is_censored INT,
+    is_premium  INT,
+    url         TEXT NOT NULL,
+    access      TEXT DEFAULT 'direct'
 );
 CREATE TABLE IF NOT EXISTS game_parts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +67,8 @@ CREATE TABLE IF NOT EXISTS game_parts (
     part_number INT NOT NULL,
     part_label  TEXT,
     file_size   TEXT,
-    url         TEXT NOT NULL
+    url         TEXT NOT NULL,
+    access      TEXT DEFAULT 'direct'
 );
 -- One post can ship several archives (an exFAT set and a PKG set), each numbered
 -- from 1. Their per-release metadata needs somewhere to live, otherwise _rehydrate
@@ -101,13 +111,23 @@ END;
 # `CREATE TABLE IF NOT EXISTS` never adds columns to an existing table, so new ones
 # ship as idempotent migrations checked against PRAGMA table_info.
 _ADDED_COLUMNS = {
-    "download_variants": (("access", "TEXT DEFAULT 'direct'"),),
-    "game_parts": (("access", "TEXT DEFAULT 'direct'"),),
-    "crawl_state": (("consecutive_failures", "INTEGER NOT NULL DEFAULT 0"),),
+    "media_items": [
+        ("imdb_rating", "REAL"),
+        ("censorship_status", "TEXT"),
+        ("source_access_tier", "TEXT"),
+    ],
+    "download_variants": [
+        ("access", "TEXT DEFAULT 'direct'"),
+        ("is_censored", "INT"),
+        ("is_premium", "INT"),
+    ],
+    "game_parts": [("access", "TEXT DEFAULT 'direct'")],
+    "crawl_state": [("consecutive_failures", "INTEGER NOT NULL DEFAULT 0")],
 }
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
+    """Add missing columns to pre-existing databases (idempotent)."""
     for table, columns in _ADDED_COLUMNS.items():
         existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
         for name, decl in columns:
@@ -153,7 +173,9 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
     _migrate(conn)
+    _migrate(conn)
     conn.commit()
+    return conn
     return conn
 
 
@@ -171,11 +193,14 @@ def _variant_rows(item: MediaItem) -> list[tuple]:
         # ponytail: size_bytes holds file_size_mb as-is; rename the column if MB->bytes ever matters.
         rows.append((item.id, "movie", v.quality, v.codec, v.audio_track,
                      int(v.file_size_mb) if v.file_size_mb is not None else None,
-                     None, v.download_url, v.access))
+                     None,
+                     None if v.is_censored is None else int(v.is_censored),
+                     int(v.is_premium),
+                     v.download_url, v.access))
     for t in item.music_tracks:
         for d in t.downloads:
             rows.append((item.id, "music", d.bitrate, None, None, None, d.file_size,
-                         d.download_url, d.access))
+                         None, None, d.download_url, d.access))
     return rows
 
 
@@ -210,8 +235,9 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                     """INSERT INTO media_items
                        (id, category, source_id, title, title_norm, artist, page_url, poster_url,
                         release_year, description, stream_url, release_group, archive_password,
-                        total_size, first_seen, last_seen)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        total_size, imdb_rating, censorship_status, source_access_tier,
+                        first_seen, last_seen)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                        ON CONFLICT(id) DO UPDATE SET
                          category=excluded.category, title=excluded.title,
                          title_norm=excluded.title_norm, artist=excluded.artist,
@@ -219,6 +245,9 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                          description=excluded.description, stream_url=excluded.stream_url,
                          release_group=excluded.release_group, archive_password=excluded.archive_password,
                          total_size=excluded.total_size,
+                         imdb_rating=excluded.imdb_rating,
+                         censorship_status=excluded.censorship_status,
+                         source_access_tier=excluded.source_access_tier,
                          first_seen=MIN(media_items.first_seen, excluded.first_seen),
                          last_seen=excluded.last_seen""",
                     (item.id, _cat(item.category), item.source_id, item.title,
@@ -227,12 +256,14 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
                      game.release_group if game else None,
                      game.archive_password if game else None,
                      game.total_size if game else None,
+                     item.imdb_rating, item.censorship_status.value, item.source_access_tier.value,
                      now, now),
                 )
                 conn.execute("DELETE FROM download_variants WHERE item_id=?", (item.id,))
                 conn.executemany(
                     "INSERT INTO download_variants (item_id, kind, label, codec, audio_track,"
-                    " size_bytes, size_text, url, access) VALUES (?,?,?,?,?,?,?,?,?)",
+                    " size_bytes, size_text, is_censored, is_premium, url, access)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     _variant_rows(item),
                 )
                 conn.execute("DELETE FROM game_releases WHERE item_id=?", (item.id,))
@@ -261,6 +292,21 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
         conn.close()
 
 
+def _enum_or_default(row: sqlite3.Row, key: str, enum_cls: type[Enum], default: Enum):
+    """Read an enum column, tolerating NULL and any value a future version may add.
+
+    A hand-edited or newer-format row must degrade to the default, not raise a
+    ValueError out of search() and 500 the request.
+    """
+    raw = row[key]
+    if not raw:
+        return default
+    try:
+        return enum_cls(raw)
+    except ValueError:
+        return default
+
+
 def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
     """Rebuild a typed MediaItem from its row plus child rows."""
     # ponytail: 3 extra queries per result; batch-load child rows if result sets grow past ~100.
@@ -280,6 +326,8 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
             audio_track=v["audio_track"] or "", download_url=v["url"],
             file_size_mb=float(v["size_bytes"]) if v["size_bytes"] is not None else None,
             access=v["access"] or "direct",
+            is_censored=None if v["is_censored"] is None else bool(v["is_censored"]),
+            is_premium=bool(v["is_premium"]) if v["is_premium"] is not None else False,
         )
         for v in variants if v["kind"] == "movie"
     ]
@@ -337,6 +385,11 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
         source_id=row["source_id"], page_url=row["page_url"],
         release_year=row["release_year"], poster_url=row["poster_url"],
         description=row["description"], stream_url=row["stream_url"],
+        imdb_rating=float(row["imdb_rating"]) if row["imdb_rating"] is not None else None,
+        censorship_status=_enum_or_default(row, "censorship_status", CensorshipStatus,
+                                           CensorshipStatus.UNSPECIFIED),
+        source_access_tier=_enum_or_default(row, "source_access_tier", SourceAccessTier,
+                                            SourceAccessTier.FREE),
         movie_variants=movies, game_releases=releases, music_tracks=tracks,
     )
 

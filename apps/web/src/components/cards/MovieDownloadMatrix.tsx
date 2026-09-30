@@ -4,22 +4,45 @@ import React, { useState } from 'react'
 import type { MovieDownloadVariant } from '@/types/media'
 import { Download, Copy, Check } from 'lucide-react'
 import { copyToClipboard } from '@/lib/clipboard'
+import { variantsForCensorship, variantsForTier } from '@/lib/filters'
+import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 import { AccessBadge } from '@/components/ui/AccessBadge'
 
 interface MovieDownloadMatrixProps {
   variants: MovieDownloadVariant[]
+  activeTierFilter?: TierFilter
+  activeCensorshipFilter?: CensorshipFilter
 }
 
-export function MovieDownloadMatrix({ variants }: MovieDownloadMatrixProps) {
+export function MovieDownloadMatrix({
+  variants,
+  activeTierFilter = 'all',
+  activeCensorshipFilter = 'all',
+}: MovieDownloadMatrixProps) {
   const { showToast } = useToast()
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Freemium sources keep their free rows under "free only"; mixed releases keep the
+  // rows matching the active censorship filter.
+  const visible = variantsForCensorship(
+    variantsForTier(variants || [], activeTierFilter),
+    activeCensorshipFilter
+  )
 
   if (!variants || variants.length === 0) {
     return (
       <div className="text-xs text-zinc-500 py-2">
         لینکی برای دانلود مستقیم یافت نشد.
+      </div>
+    )
+  }
+
+  if (visible.length === 0) {
+    return (
+      <div className="text-xs text-zinc-500 py-2">
+        هیچ لینکی با فیلترهای فعلی مطابقت ندارد.
       </div>
     )
   }
@@ -39,7 +62,7 @@ export function MovieDownloadMatrix({ variants }: MovieDownloadMatrixProps) {
     <div className="flex flex-col gap-2 w-full pt-2">
       <div className="text-xs font-semibold text-zinc-400">لینک‌های دانلود مستقیم:</div>
       <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto pe-1">
-        {variants.map((v) => {
+        {visible.map((v) => {
           const isCopied = copiedId === v.id
           const sizeStr = v.file_size_mb
             ? v.file_size_mb > 1024
@@ -80,6 +103,24 @@ export function MovieDownloadMatrix({ variants }: MovieDownloadMatrixProps) {
                 )}
 
                 <AccessBadge access={v.access} />
+
+                {v.is_censored === true && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                    سانسور شده
+                  </span>
+                )}
+
+                {v.is_censored === false && (
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                    بدون سانسور
+                  </span>
+                )}
+
+                {v.is_premium && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                    VIP
+                  </span>
+                )}
               </div>
 
               {/* Action buttons: Copy & Direct Download */}

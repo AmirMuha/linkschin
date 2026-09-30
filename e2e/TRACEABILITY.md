@@ -9,9 +9,10 @@ and exits non-zero on any gap.
 | 002 | 18 | 4 | 20 |
 | 003 | 20 | 5 | 18 |
 | 004 | 11 | 4 | 9 |
-| **Total** | **73** | **18** | **61** |
+| 007 | 12 | 3 | 10 |
+| **Total** | **85** | **21** | **71** |
 
-Tests carrying spec ids: **5**
+Tests carrying spec ids: **24**
 
 ## Not e2e-testable
 
@@ -33,3 +34,4 @@ depends on is asserted elsewhere (cache badge, skeleton render, stale-response a
 | 003-SC-008 | needs conversation population data |
 | 004-SC-001 | monthly suggestion volume — not observable from a test |
 | 004-SC-004 | latency <50ms — flaky against a dev server |
+| 007-SC-001 | latency <50ms — flaky against a dev server |

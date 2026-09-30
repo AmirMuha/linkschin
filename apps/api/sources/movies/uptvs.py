@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from urllib.parse import quote
@@ -9,9 +10,11 @@ from urllib.parse import quote
 from http_client import AsyncHttpClient
 from models import (
     Category,
+    CensorshipStatus,
     MediaItem,
     MovieDownloadVariant,
     SearchQuery,
+    SourceAccessTier,
     SourceConfig,
 )
 from sources.base import (
@@ -29,6 +32,36 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://www.uptvs.com"
 
+# Persian markers only. A bare 'اشتراک' means "share" (اشتراک گذاری) on these portals,
+# so only the 'ویژه' (special) form counts as a paywall.
+_UNCENSORED_MARKERS = re.compile(r"نسخه\s*کامل|بدون\s*سانسور|uncut")
+_CENSORED_MARKERS = re.compile(r"بازبینی\s*شده|سانسور\s*شده|نسخه\s*سانسور")
+# Matched as a standalone token in the visible label. A bare 'اشتراك'/'اشتراک' means
+# "share" (اشتراک گذاری) on these portals, and a URL path may contain '/vip/', so
+# neither the bare word nor the href is evidence of a paywall.
+_VIP_MARKERS = re.compile(
+    r'(?:^|[\s\[\(])(?:VIP|وی\.آی\.پی|اشتراک\s*ویژه)(?:$|[\s\]\)])', re.IGNORECASE
+)
+
+
+def _censorship_flag(text: str) -> bool | None:
+    """True/False when a marker is present, None when the source says nothing (never guess)."""
+    if _CENSORED_MARKERS.search(text):
+        return True
+    if _UNCENSORED_MARKERS.search(text):
+        return False
+    return None
+
+
+def derive_censorship_status(variants: list[MovieDownloadVariant]) -> CensorshipStatus:
+    """Roll per-variant flags up to an item status; unknown stays unknown (spec 007)."""
+    flags = {v.is_censored for v in variants if v.is_censored is not None}
+    if not flags:
+        return CensorshipStatus.UNSPECIFIED
+    if len(flags) > 1:
+        return CensorshipStatus.MIXED
+    return CensorshipStatus.CENSORED if flags.pop() else CensorshipStatus.UNCENSORED
+
 
 class UpTVsPlugin:
     """UpTVs movie scraper plugin."""
@@ -41,6 +74,7 @@ class UpTVsPlugin:
             base_urls=[DEFAULT_BASE_URL],
             enabled=True,
             timeout_seconds=7.0,
+            access_tier=SourceAccessTier.FREE,
         )
 
     @property
@@ -102,7 +136,13 @@ class UpTVsPlugin:
             year_match = re.search(r"\b(20[12]\d)\b", clean_title) or re.search(r"-(20[12]\d)\.html", raw_url)
             release_year = int(year_match.group(1)) if year_match else None
 
-            item_id = f"uptvs_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:40]}"
+            imdb_rating = self._parse_imdb(card_html[match.end():])
+
+            # Persian titles collapse to '' under [^a-zA-Z0-9], so two distinct releases
+            # could share an id (React then drops a card and the DB upserts collide).
+            # A hash of the page URL keeps the id unique and deterministic.
+            digest = hashlib.sha1(raw_url.encode("utf-8")).hexdigest()[:8]
+            item_id = f"uptvs_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:32]}_{digest}"
             poster_match = poster_pattern.search(card_html)
             items.append(
                 MediaItem(
@@ -113,10 +153,25 @@ class UpTVsPlugin:
                     page_url=clean_absolute_url(self.base_url, raw_url),
                     release_year=release_year,
                     poster_url=clean_absolute_url(self.base_url, poster_match.group(1).strip()) if poster_match else None,
+                    imdb_rating=imdb_rating,
+                    source_access_tier=self.config.access_tier,
                 )
             )
 
         return items
+
+    @staticmethod
+    def _parse_imdb(chunk: str) -> float | None:
+        """Pull UpTVs' 'N /10' card score. JSON-LD aggregateRating is a 0-100 site vote."""
+        m = re.search(
+            r'ficon-imdb[^>]*>\s*</i>\s*([0-9]+(?:\.[0-9]+)?)\s*/\s*10',
+            chunk,
+            re.IGNORECASE,
+        )
+        if not m:
+            return None
+        score = float(m.group(1))
+        return round(score, 1) if 0.0 <= score <= 10.0 else None
 
     async def extract_links(
         self,
@@ -167,6 +222,9 @@ class UpTVsPlugin:
             # Parse audio / subtitle
             audio = parse_audio_track(link.url + " " + link.label)
 
+            # ponytail: VIP detection from label/anchor text; no markup says 'premium' outright on uptvs
+            is_premium = bool(_VIP_MARKERS.search(link.label))
+
             seen_urls.add(clean_url)
             variants.append(
                 MovieDownloadVariant(
@@ -176,11 +234,19 @@ class UpTVsPlugin:
                     audio_track=audio,
                     download_url=clean_url,
                     source_name=self.config.name,
+                    is_censored=_censorship_flag(link.label + " " + link.url),
+                    is_premium=is_premium,
                 )
             )
 
         if variants:
             item.movie_variants = variants
+            # A page-level badge describes the whole release; a per-link marker still wins.
+            page_flag = _censorship_flag(html)
+            for v in variants:
+                if v.is_censored is None:
+                    v.is_censored = page_flag
+            item.censorship_status = derive_censorship_status(variants)
 
         # Extract direct stream URL (opportunistic HTML5 player)
         # UpTVs direct MP4s (like 720p or trailer) can be used as stream_url

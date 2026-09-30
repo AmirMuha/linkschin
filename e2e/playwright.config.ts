@@ -30,7 +30,9 @@ const dbPath = join(mkdtempSync(join(tmpdir(), 'mf-e2e-')), 'index.db')
 // Never reuse: something unrelated already answers on 8000 here, and silently adopting
 // it would send every search to a different project's API.
 const apiServer = {
-  command: `.venv/bin/uvicorn main:app --port ${API_PORT} --host 127.0.0.1`,
+  // Absolute: cwd is apps/api, whose .venv/ is the repo-root symlink. Relative breaks in a
+  // linked git worktree where that symlink was never created.
+  command: `${join(REPO, '.venv', 'bin', 'uvicorn')} main:app --port ${API_PORT} --host 127.0.0.1`,
   cwd: join(REPO, 'apps', 'api'),
   url: `${API}/health`,
   reuseExistingServer: false,

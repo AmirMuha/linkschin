@@ -384,6 +384,7 @@ def _source_display_rows() -> list[dict]:
             "status": "inactive" if not s.enabled else ("degraded" if s.id in degraded else "active"),
             "inactive_reason": INACTIVE_REASONS.get(s.id) if not s.enabled else None,
             "consecutive_failures": 0,
+            "access_tier": s.access_tier.value,
         }
         try:
             row["consecutive_failures"] = db.get_consecutive_failures(s.id)

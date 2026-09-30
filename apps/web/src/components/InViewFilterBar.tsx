@@ -2,6 +2,7 @@
 
 import React from 'react'
 import type { SourceStatus } from '@/types/media'
+import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
 import { Filter, X, EyeOff, RotateCcw } from 'lucide-react'
 
 export interface FilterState {
@@ -10,6 +11,8 @@ export interface FilterState {
   sources: string[]
   /** Persisted per-user hidden set; sent as repeated `sources=` params. */
   hiddenSources: string[]
+  accessTier: TierFilter
+  censorship: CensorshipFilter
 }
 
 interface InViewFilterBarProps {
@@ -20,7 +23,22 @@ interface InViewFilterBarProps {
   onFilterChange: (filters: FilterState) => void
   /** Full registry, so hide toggles can show status and refuse degraded/inactive. */
   sourceRegistry?: SourceStatus[]
+  showMovieFilters?: boolean
 }
+
+const TIER_CHIPS: { value: TierFilter; label: string; active: string }[] = [
+  { value: 'all', label: 'همه', active: 'bg-zinc-700/60 border-zinc-600/60 text-zinc-200' },
+  { value: 'free', label: 'فقط رایگان', active: 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300' },
+  { value: 'premium', label: 'فقط اشتراکی / VIP', active: 'bg-amber-500/20 border-amber-500/50 text-amber-300' },
+]
+
+const CENSORSHIP_CHIPS: { value: CensorshipFilter; label: string; active: string }[] = [
+  { value: 'all', label: 'همه', active: 'bg-zinc-700/60 border-zinc-600/60 text-zinc-200' },
+  { value: 'uncensored', label: 'بدون سانسور', active: 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' },
+  { value: 'censored', label: 'سانسور شده', active: 'bg-amber-500/20 border-amber-500/50 text-amber-300' },
+]
+
+const IDLE = 'bg-zinc-800/60 border-zinc-700/60 text-zinc-400 hover:text-zinc-200'
 
 export function InViewFilterBar({
   availableQualities,
@@ -29,11 +47,14 @@ export function InViewFilterBar({
   filters,
   onFilterChange,
   sourceRegistry = [],
+  showMovieFilters = true,
 }: InViewFilterBarProps) {
   const hasActiveFilters =
     filters.qualities.length > 0 ||
     filters.audioTracks.length > 0 ||
-    filters.sources.length > 0
+    filters.sources.length > 0 ||
+    filters.accessTier !== 'all' ||
+    filters.censorship !== 'all'
   const hiddenSources = filters.hiddenSources ?? []
   const hasHiddenSources = hiddenSources.length > 0
 
@@ -74,11 +95,14 @@ export function InViewFilterBar({
       audioTracks: [],
       sources: [],
       hiddenSources: [],
+      accessTier: 'all',
+      censorship: 'all',
     })
   }
 
   // Only render if there are options to filter by
   if (
+    !showMovieFilters &&
     availableQualities.length === 0 &&
     availableAudioTracks.length === 0 &&
     availableSources.length <= 1 &&
@@ -190,6 +214,48 @@ export function InViewFilterBar({
                   }`}
                 >
                   {s.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Access Tier Chips — movies only */}
+        {showMovieFilters && (
+          <div className="flex items-center flex-wrap gap-1.5">
+            <span className="text-zinc-500 font-medium">دسترسی:</span>
+            {TIER_CHIPS.map((chip) => {
+              const active = filters.accessTier === chip.value
+              return (
+                <button
+                  key={chip.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onFilterChange({ ...filters, accessTier: chip.value })}
+                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
+                >
+                  {chip.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Censorship Chips — movies only */}
+        {showMovieFilters && (
+          <div className="flex items-center flex-wrap gap-1.5">
+            <span className="text-zinc-500 font-medium">سانسور:</span>
+            {CENSORSHIP_CHIPS.map((chip) => {
+              const active = filters.censorship === chip.value
+              return (
+                <button
+                  key={chip.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onFilterChange({ ...filters, censorship: chip.value })}
+                  className={`px-2.5 py-1 rounded-lg border font-medium transition-colors ${active ? chip.active : IDLE}`}
+                >
+                  {chip.label}
                 </button>
               )
             })}

@@ -7,6 +7,12 @@ import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
 import { SourceStatusBar } from '@/components/SourceStatusBar'
 import { InViewFilterBar, type FilterState } from '@/components/InViewFilterBar'
+import { itemMatchesCensorship, itemMatchesTier } from '@/lib/filters'
+import {
+  buildSearchParams,
+  parseCensorshipParam,
+  parseTierParam,
+} from '@/lib/urlFilters'
 import { SkeletonGrid } from '@/components/ui/SkeletonGrid'
 import { MovieCard } from '@/components/cards/MovieCard'
 import { GameCard } from '@/components/cards/GameCard'
@@ -15,7 +21,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { Sparkles, AlertCircle, Compass } from 'lucide-react'
+import { Sparkles, AlertCircle, Compass, Filter } from 'lucide-react'
 
 const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
 
@@ -36,6 +42,8 @@ export default function Home() {
     audioTracks: [],
     sources: [],
     hiddenSources: [],
+    accessTier: 'all',
+    censorship: 'all',
   })
 
   // Video modal state
@@ -120,6 +128,16 @@ export default function Home() {
       setIsLoading(true)
       setErrorMessage(null)
       setHasSearched(true)
+      setQuery(q)
+
+      // Put the query in the URL so a refresh or a shared link replays it (FR-012).
+      const urlParams = new URLSearchParams(window.location.search)
+      urlParams.set('q', q)
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}?${urlParams.toString()}`
+      )
 
       // Reset in-view filters on new search. The hidden set is NOT reset — it is
       // a durable per-user preference, not a per-search filter.
@@ -128,6 +146,8 @@ export default function Home() {
         audioTracks: [],
         sources: [],
         hiddenSources: prev.hiddenSources,
+        accessTier: 'all',
+        censorship: 'all',
       }))
 
       try {
@@ -168,6 +188,8 @@ export default function Home() {
       audioTracks: [],
       sources: [],
       hiddenSources: prev.hiddenSources,
+      accessTier: 'all',
+      censorship: 'all',
     }))
     // Each tab is a fresh query: the old term is about a different category, and
     // re-running it fired a search from the pre-switch handleSearch closure.
@@ -234,9 +256,45 @@ export default function Home() {
         if (!hasAudio) return false
       }
 
+      // Source access tier + censorship (spec 007). Freemium items stay visible under
+      // either tier; only their download rows are pruned inside MovieDownloadMatrix.
+      if (!itemMatchesTier(item, filters.accessTier)) return false
+      if (!itemMatchesCensorship(item, filters.censorship)) return false
+
       return true
     })
   }, [items, filters])
+
+  // Seed tier/censorship from the URL once on mount so a shared or refreshed link
+  // restores the same filtered view (FR-012). The query string is restored too, so a
+  // reload replays the search instead of landing on an empty grid.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tier = parseTierParam(params.get('tier'))
+    const censorship = parseCensorshipParam(params.get('censorship'))
+    const initialQuery = params.get('q')
+    if (initialQuery) {
+      setQuery(initialQuery)
+      handleSearch(initialQuery)
+    }
+    // Applied after handleSearch, which resets filters for a fresh query.
+    if (tier !== 'all' || censorship !== 'all') {
+      setFilters((prev) => ({ ...prev, accessTier: tier, censorship }))
+    }
+    // Runs once on mount; handleSearch is stable enough for this replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Mirror filter changes back to the URL without navigating (FR-011, FR-012).
+  useEffect(() => {
+    const params = buildSearchParams(
+      filters.accessTier,
+      filters.censorship,
+      new URLSearchParams(window.location.search)
+    )
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
+    window.history.replaceState(null, '', next)
+  }, [filters.accessTier, filters.censorship])
 
   function handleOpenVideo(url: string, title: string) {
     setVideoModal({
@@ -302,6 +360,7 @@ export default function Home() {
                 filters={filters}
                 onFilterChange={setFilters}
                 sourceRegistry={sources}
+                showMovieFilters={category === 'movies'}
               />
             </div>
           )}
@@ -352,12 +411,45 @@ export default function Home() {
                     audioTracks: [],
                     sources: [],
                     hiddenSources: prev.hiddenSources,
+                    accessTier: 'all',
+                    censorship: 'all',
                   }))}
                   className="mt-2 px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
                 >
                   حذف تمام فیلترها
                 </button>
               )}
+            </div>
+          )}
+
+          {!isLoading && !errorMessage && hasSearched && items.length > 0 && filteredItems.length === 0 && (
+            <div
+              role="status"
+              className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8"
+            >
+              <Filter className="w-12 h-12 text-zinc-600" />
+              <h3 className="font-bold text-base text-zinc-200">
+                نتیجه‌ای با این فیلترها نیست
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                هیچ موردی با فیلترهای انتخاب‌شده مطابقت ندارد. فیلترها را حذف یا گسترده‌تر کنید.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters((prev) => ({
+                    qualities: [],
+                    audioTracks: [],
+                    sources: [],
+                    hiddenSources: prev.hiddenSources,
+                    accessTier: 'all',
+                    censorship: 'all',
+                  }))
+                }
+                className="mt-2 px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-xs font-semibold transition-colors"
+              >
+                حذف فیلترها
+              </button>
             </div>
           )}
 
@@ -370,6 +462,8 @@ export default function Home() {
                       key={item.id}
                       item={item}
                       onPlayStream={handleOpenVideo}
+                      activeTierFilter={filters.accessTier}
+                      activeCensorshipFilter={filters.censorship}
                     />
                   )
                 }
