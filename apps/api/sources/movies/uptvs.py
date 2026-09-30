@@ -31,7 +31,12 @@ DEFAULT_BASE_URL = "https://www.uptvs.com"
 # so only the 'ویژه' (special) form counts as a paywall.
 _UNCENSORED_MARKERS = re.compile(r"نسخه\s*کامل|بدون\s*سانسور|uncut")
 _CENSORED_MARKERS = re.compile(r"بازبینی\s*شده|سانسور\s*شده|نسخه\s*سانسور")
-_VIP_MARKERS = re.compile(r"\bVIP\b|وی\.آی\.پی|اشتراک\s*ویژه", re.IGNORECASE)
+# Matched as a standalone token in the visible label. A bare 'اشتراك'/'اشتراک' means
+# "share" (اشتراک گذاری) on these portals, and a URL path may contain '/vip/', so
+# neither the bare word nor the href is evidence of a paywall.
+_VIP_MARKERS = re.compile(
+    r'(?:^|[\s\[\(])(?:VIP|وی\.آی\.پی|اشتراک\s*ویژه)(?:$|[\s\]\)])', re.IGNORECASE
+)
 
 
 def _censorship_flag(text: str) -> bool | None:
@@ -101,7 +106,13 @@ class UpTVsPlugin:
 
         seen_urls: set[str] = set()
 
-        for match in pattern.finditer(html):
+        # A card's own IMDb score sits after its link, so bound the lookup by where the
+        # NEXT link starts. A fixed character window would let an unrated card borrow the
+        # neighbouring card's score and display a rating the page never gave it.
+        matches = list(pattern.finditer(html))
+        bounds = [m.start() for m in matches] + [len(html)]
+
+        for index, match in enumerate(matches):
             raw_url = match.group(1).strip()
             raw_title = match.group(2).strip()
             clean_title = re.sub(r"<[^>]+>", "", raw_title).strip()
@@ -115,9 +126,7 @@ class UpTVsPlugin:
             year_match = re.search(r"\b(20[12]\d)\b", clean_title) or re.search(r"-(20[12]\d)\.html", raw_url)
             release_year = int(year_match.group(1)) if year_match else None
 
-            # The IMDb score lives inside the card, after this link's own markup, so scope the
-            # lookup to the enclosing card rather than the whole page.
-            imdb_rating = self._parse_imdb(html[match.end():match.end() + 4000])
+            imdb_rating = self._parse_imdb(html[match.end():bounds[index + 1]])
 
             # Persian titles collapse to '' under [^a-zA-Z0-9], so two distinct releases
             # could share an id (React then drops a card and the DB upserts collide).
@@ -219,7 +228,7 @@ class UpTVsPlugin:
                 audio = "زیرنویس فارسی"
 
             # ponytail: VIP detection from label/anchor text; no markup says 'premium' outright on uptvs
-            is_premium = bool(re.search(r'\bVIP\b|وی\.آی\.پی|اشتراک ویژه|paid|vip', raw_label + " " + raw_url, re.I))
+            is_premium = bool(_VIP_MARKERS.search(raw_label))
 
             seen_urls.add(clean_url)
             variants.append(

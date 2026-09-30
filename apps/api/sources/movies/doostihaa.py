@@ -33,7 +33,12 @@ DEFAULT_BASE_URL = "https://www.doostihaa.com"
 # A bare 'اشتراک' means "share" (اشتراک گذاری) here; only 'ویژه' marks a paywall.
 _UNCENSORED_MARKERS = re.compile(r"نسخه\s*کامل|بدون\s*سانسور|uncut")
 _CENSORED_MARKERS = re.compile(r"بازبینی\s*شده|سانسور\s*شده|نسخه\s*سانسور")
-_VIP_MARKERS = re.compile(r"\bVIP\b|وی\.آی\.پی|اشتراک\s*ویژه", re.IGNORECASE)
+# Matched as a standalone token in the visible label. A bare 'اشتراك'/'اشتراک' means
+# "share" (اشتراک گذاری) on these portals, and a URL path may contain '/vip/', so
+# neither the bare word nor the href is evidence of a paywall.
+_VIP_MARKERS = re.compile(
+    r'(?:^|[\s\[\(])(?:VIP|وی\.آی\.پی|اشتراک\s*ویژه)(?:$|[\s\]\)])', re.IGNORECASE
+)
 
 
 def _censorship_flag(text: str) -> bool | None:
@@ -248,7 +253,7 @@ class DoostihaaPlugin:
 
             # ponytail: VIP is detected from link text/URL; doostihaa gates HD behind
             # membership in the live site but the recorded fixture has no such row.
-            is_premium = bool(_VIP_MARKERS.search(raw_label + " " + raw_url))
+            is_premium = bool(_VIP_MARKERS.search(raw_label))
 
             seen_urls.add(clean_url)
             variants.append(

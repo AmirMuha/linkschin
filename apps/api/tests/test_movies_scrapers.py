@@ -179,3 +179,25 @@ def test_movie_item_ids_are_unique_for_persian_titles(uptvs_search_html: str, do
         assert len(ids) == len(set(ids)), f"{plugin.config.id} produced duplicate ids"
         # Deterministic: re-parsing the same page yields the same ids.
         assert ids == [i.id for i in plugin.parse_search_results(html)]
+
+def test_uptvs_unrated_card_does_not_borrow_a_neighbours_score(uptvs_search_html: str):
+    """A card's rating must come from its own markup, not the next card along.
+
+    A fixed character window would let an unrated card adopt the following
+    card's score and display a rating the page never stated for it.
+    """
+    import re as _re
+    cards = _re.split(r'<div class="content-thumb mb-20">', uptvs_search_html)[1:]
+    target = next(c for c in cards if _re.search(r'ficon-imdb', c))
+    stripped = _re.sub(
+        r'(ficon-imdb[^>]*>\s*</i>\s*)[0-9]+(?:\.[0-9]+)?(\s*/\s*10)', r'\1\2', target, count=1
+    )
+    without = uptvs_search_html.replace(target, stripped, 1)
+
+    before = {i.title: i.imdb_rating for i in UpTVsPlugin().parse_search_results(uptvs_search_html)}
+    after = {i.title: i.imdb_rating for i in UpTVsPlugin().parse_search_results(without)}
+
+    assert before != after, "fixture mutation did not remove any score"
+    became_unrated = [t for t in before if before[t] != after[t]]
+    assert len(became_unrated) == 1, f"expected exactly one card to lose its score, got {became_unrated}"
+    assert after[became_unrated[0]] is None, "card must fall back to unrated, never a neighbour's score"

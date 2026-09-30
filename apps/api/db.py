@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import time
+from enum import Enum
 from pathlib import Path
 
 from cache import normalize_persian_text
@@ -218,6 +219,21 @@ def upsert_items(items: list[MediaItem], db_path: Path | str | None = None) -> i
         conn.close()
 
 
+def _enum_or_default(row: sqlite3.Row, key: str, enum_cls: type[Enum], default: Enum):
+    """Read an enum column, tolerating NULL and any value a future version may add.
+
+    A hand-edited or newer-format row must degrade to the default, not raise a
+    ValueError out of search() and 500 the request.
+    """
+    raw = row[key]
+    if not raw:
+        return default
+    try:
+        return enum_cls(raw)
+    except ValueError:
+        return default
+
+
 def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
     """Rebuild a typed MediaItem from its row plus child rows."""
     # ponytail: 2 extra queries per result; batch-load child rows if result sets grow past ~100.
@@ -271,8 +287,10 @@ def _rehydrate(conn: sqlite3.Connection, row: sqlite3.Row) -> MediaItem:
         release_year=row["release_year"], poster_url=row["poster_url"],
         description=row["description"], stream_url=row["stream_url"],
         imdb_rating=float(row["imdb_rating"]) if row["imdb_rating"] is not None else None,
-        censorship_status=CensorshipStatus(row["censorship_status"] or "unspecified"),
-        source_access_tier=SourceAccessTier(row["source_access_tier"] or "free"),
+        censorship_status=_enum_or_default(row, "censorship_status", CensorshipStatus,
+                                           CensorshipStatus.UNSPECIFIED),
+        source_access_tier=_enum_or_default(row, "source_access_tier", SourceAccessTier,
+                                            SourceAccessTier.FREE),
         movie_variants=movies, game_releases=releases, music_tracks=tracks,
     )
 
