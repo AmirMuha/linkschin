@@ -80,9 +80,9 @@ A maintainer identifies another film site worth adding. The site's behavior is d
 
 **Acceptance Scenarios**:
 
-1. **Given** a site that fits a known standard site pattern, **When** a maintainer describes it declaratively and enables it, **Then** it participates in search with no new scraping code written.
-2. **Given** a site that does not fit any known pattern, **When** a maintainer attempts to add it declaratively, **Then** the platform reports what is missing rather than silently returning no results.
-3. **Given** an added site behaves differently from every known pattern, **When** a dedicated handler is written for it, **Then** the dedicated handler is the only new code required, and shared behavior is unaffected.
+1. **Given** a site whose shape an existing parser already handles, **When** a maintainer describes it declaratively and enables it, **Then** it participates in search with no new scraping code written.
+2. **Given** a site whose shape no existing parser handles, **When** a maintainer attempts to add it declaratively, **Then** the platform reports what is missing rather than silently returning no results.
+3. **Given** an added site behaves differently from every existing parser, **When** a dedicated handler is written for it, **Then** the dedicated handler is the only new code required, and shared behavior is unaffected.
 
 ---
 
@@ -128,7 +128,7 @@ A maintainer identifies another film site worth adding. The site's behavior is d
 - **FR-020**: System MUST provide a diagnostic view listing each source's current state, last successful activity, and last failure reason, for maintainer use.
 - **FR-021**: System MUST allow a maintainer to mark a source as a duplicate or alias of another source, so that it does not produce a separate stream of results.
 - **FR-022**: System MUST allow a new site to be registered by declarative configuration alone — its addresses, category, download-capability flag, and the name of a parser that already handles a site of its shape — without writing new scraping code. A site whose shape is not already supported requires a dedicated parser, and only that parser is new code; shared behaviour is unaffected. The configuration MUST be a hand-written file read at startup, consistent with how source base addresses are already supplied; this feature MUST NOT introduce a new administrative screen for adding sources.
-- **FR-023**: When a declarative addition does not match any known pattern, system MUST report specifically what information is missing rather than registering a source that silently returns nothing.
+- **FR-023**: When a declarative addition names a parser that does not exist or supplies an invalid address, system MUST report specifically what is missing — naming the source and the offending value — rather than registering a source that silently returns nothing.
 - **FR-024**: System MUST preserve the existing behaviour of already-supported sources; adding the twenty requested sites MUST NOT reduce or alter results from sources that work today.
 - **FR-025**: System MUST verify every new source offline against stored page samples, so that the test suite does not depend on any upstream site being reachable.
 - **FR-026**: System MUST NOT store, host, proxy, or relay any media payload, for any source in this feature or any other.
@@ -137,12 +137,10 @@ A maintainer identifies another film site worth adding. The site's behavior is d
 ### Key Entities
 
 - **Source**: A known upstream site, carrying a name, content domain, operational state, current base address, enablement status, and a record of its relationship to any duplicate or alias.
-- **SourceOperationalState**: The current condition of a source — providing results, subscription-only, unreachable, requires interactive sign-in, or not yet provided — together with a plain-language reason and the time of the last success and last failure.
-- **SourcePattern**: A declarative description of a recognized standard site shape, sufficient to configure a new source without custom code, including the addressing scheme, how to list results, and how to recognize a result page.
-- **MediaItem**: A discovered title, carrying Persian and English names, category, year, artwork, and its originating source. An item from a subscription source carries a watch destination instead of download links.
-- **WatchDestination**: A pointer to where a title may legitimately be watched, consisting of the destination address, the source name, and whether a subscription or account is required.
+- **SourceHealth**: The current condition of a source — providing results, subscription-only, unreachable, requires interactive sign-in, or not yet provided — together with a plain-language reason, the time of the last success and last failure, and which configured address last served a request.
+- **SourceProfile**: A declarative configuration entry sufficient to register a source without custom code, carrying its ordered addresses, category, whether it provides downloads, and the name of a parser that already handles a site of its shape.
+- **MediaItem**: A discovered title, carrying Persian and English names, category, year, artwork, and its originating source. An item from a subscription source carries a `watch_url` — a page on the source's own site where the title may legitimately be watched — instead of download links. This is distinct from a playable direct-file URL, which is a separate concept.
 - **MovieDownloadVariant**: A downloadable file variant for a title, carrying resolution, codec, audio track, size, and the direct download address — present only for sources that provide public links.
-- **SourceDiagnostic**: A maintainer-facing record of a source's recent behaviour, used to tell a working source from a silently broken one.
 
 ## Success Criteria *(mandatory)*
 
@@ -151,7 +149,7 @@ A maintainer identifies another film site worth adding. The site's behavior is d
 - **SC-001**: All twenty requested sites appear in the source listing for consumers and for maintainers, with zero sites absent, and a site that stops working remains listed rather than disappearing.
 - **SC-001a**: A source that regains reachability is returned to active search participation with no manual action, verified by restoring a previously failing source and observing results again.
 - **SC-002**: A consumer can run any one search and receive results attributed to at least five distinct requested sites, or an explicit per-site state explaining why a site did not contribute. The five is a target for sites that genuinely offer public links; a site that cannot offer one is correctly handled by being labelled, and is not counted as a failure.
-- **SC-003**: Adding a site that matches a known standard pattern requires no new scraping code and reaches a working state within one configuration change.
+- **SC-003**: Adding a site whose shape an existing parser already handles requires no new scraping code and reaches a working state within one configuration change.
 - **SC-004**: With at least half of all registered sources failing, timeouting, or returning unusable content, a search still completes and returns results from the remaining healthy sources.
 - **SC-005**: Zero search requests exceed the existing time budget, measured across the full registered source set.
 - **SC-006**: Zero results are returned to consumers from advertising shortener, referral, or parked-domain pages.

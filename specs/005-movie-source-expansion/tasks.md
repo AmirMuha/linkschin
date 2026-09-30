@@ -29,10 +29,10 @@ Backend: `apps/api/` · Web client: `apps/web/src/` · All backend paths relativ
 
 **Purpose**: Configuration layer the new sources register through
 
-- [ ] T001  Create `apps/api/sources/profiles.yaml` declaring all 20 requested sites with `id`, `name`, `category: movies`, `provides_downloads`, `parser`, and `addresses` — using the observed-reachable addresses from research.md R-001 (filmnet.ir, gapfilm.ir, telewebion.ir, danfilo.ir, sarvnema.ir, namasha.com), NOT the commonly-known names
+- [ ] T001  Create `apps/api/sources/profiles.yaml` declaring all 20 requested sites with `id`, `name`, `category: movies`, `provides_downloads`, `parser`, and `addresses` (FR-001, FR-003) — using the observed-reachable addresses from research.md R-001 (filmnet.ir, gapfilm.ir, telewebion.ir, danfilo.ir, sarvnema.ir, namasha.com), NOT the commonly-known names
 - [ ] T002  Create `apps/api/sources/profiles.py` with a `SourceProfile` dataclass and `load_profiles(path)` that reads the YAML at startup and returns profiles merged into the source registry
-- [ ] T003 [P] Add `provides_downloads: bool = True`, `inactive_reason: str | None = None`, and `last_reachable_at: str | None = None` fields to `SourceConfig` in `apps/api/models.py`, keeping `primary_base_url` unchanged
-- [ ] T004 [P] Add PyYAML to `apps/api/pyproject.toml` dependencies if not already transitively available; verify with `python -c "import yaml"` before adding
+- [ ] T003 [P] Add `provides_downloads: bool = True`, `inactive_reason: str | None = None`, and `last_reachable_at: str | None = None` fields to `SourceConfig` in `apps/api/models.py`, keeping `primary_base_url` unchanged (FR-003)
+- [ ] T004 **DONE — no action.** PyYAML 6.0.3 is already installed in `apps/api/.venv`, so `sources/profiles.yaml` needs no dependency change. Verified: `python -c "import yaml"` succeeds. Do not add a dependency to `pyproject.toml`.
 
 **Checkpoint**: profiles load without error and the registry reports 20 movie sources
 
@@ -45,15 +45,17 @@ Backend: `apps/api/` · Web client: `apps/web/src/` · All backend paths relativ
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [ ] T005  Add `watch_url: str | None = None` to `MediaItem` in `apps/api/models.py`, and validate it in `__post_init__` with the existing `validate_media_url` — absolute `http`/`https` with a netloc only. It MUST remain a **separate concept from `stream_url`** (a playable direct file) and MUST NOT reuse that column
-- [ ] T006  Create `apps/api/sources/health.py` with a `SourceState` enum (`providing_results`, `subscription_only`, `unreachable`, `requires_login`, `not_yet_proven`), a `SourceHealth` dataclass carrying `source_id`, `state`, `reason`, `last_success_at`, `last_failure_at`, `consecutive_failures`, `active_address`, and a module-level registry with `record_success(source_id, address)`, `record_failure(source_id, reason)`, `record_empty_response(source_id)`, and `get(source_id)`
+- [ ] T006  Create `apps/api/sources/health.py` with a `SourceState` enum (`providing_results`, `subscription_only`, `unreachable`, `requires_login`, `not_yet_proven`), a `SourceHealth` dataclass carrying `source_id`, `state`, `reason`, `last_success_at`, `last_failure_at`, `consecutive_failures`, `active_address`, and a module-level registry with `record_success(source_id, address)` (FR-008), `record_failure(source_id, reason)`, `record_empty_response(source_id)`, and `get(source_id)`
 - [ ] T007 [P] Add the `source_health` table to `apps/api/db.py` with `get_source_health()` / `set_source_health()` following the existing `get_last_page` / `set_last_page` per-source pattern
-- [ ] T008 [P] Persist and restore `watch_url` in `db.upsert_items` and `db._rehydrate` in `apps/api/db.py` — without this, watch-only items lose their destination on the first cache read
-- [ ] T009  Implement ordered multi-address iteration in `apps/api/sources/__init__.py`: replace the `primary_base_url`-only read with a loop over `cfg.base_urls`, skipping addresses the circuit breaker has marked dead, and record which address served the request
+- [ ] T008 Persist and restore `watch_url` in `db.upsert_items` and `db._rehydrate` in `apps/api/db.py` — without this, watch-only items lose their destination on the first cache read
+- [ ] T009  Implement ordered multi-address iteration in `apps/api/sources/__init__.py`: replace the `primary_base_url`-only read with a loop over `cfg.base_urls`, skipping addresses the circuit breaker has marked dead, and record which address served the request (FR-012, SC-009)
+- [ ] T009b  Replace the hardcoded `if/elif cfg.id == ...` dispatch chain in `get_sources_for_category()` with a registry dict mapping source id to plugin class. Today a config with no matching branch is **silently dropped** (no `else: raise`), which is exactly the "registers but returns nothing" failure FR-023 forbids — with 19 new sources the chain is also 19 more branches. A dict deletes branches instead of adding them, and a missing entry can fail loudly (FR-023)
 - [ ] T010  Implement the circuit breaker in `apps/api/sources/health.py`: after N consecutive failures on one address, skip it for subsequent requests within a cooldown, so a dead source does not consume its full 7s timeout on every search (protects the 10s global budget at 6x source count)
 - [ ] T011  Enforce bounded redirects in `apps/api/http_client.py` — currently `follow_redirects=True` with no cap, and tiwall.com/fam.ir loop indefinitely. Cap the chain and surface a redirect-loop failure reason rather than hanging
 - [ ] T012  Validate profile addresses at load in `apps/api/sources/profiles.py`: reject a non-absolute or non-`http`/`https` address with an error naming the source id and the offending value; never silently drop it (FR-014). Reject an unknown `parser` name rather than registering a source that silently returns nothing (FR-023)
 - [ ] T013  Wire health recording into `apps/api/web/app.py::_collect_items`: record success on results, failure on exception/timeout, and `record_empty_response` when HTTP 200 yields zero parseable items (FR-019)
-- [ ] T014  Extend `/api/sources` in `apps/api/web/app.py` to include `provides_downloads`, `state`, `inactive_reason`, `last_reachable_at`, and `active_address` per source, and extend `/api/health` with `source_health` and `source_health_counts`
+- [ ] T013b  Confirm every new source receives the already-normalized query — `normalize_persian_text` is applied once in `apps/api/web/app.py::_collect_items` before plugins are dispatched, so all 19 inherit it. Add a test asserting a new plugin builds its search URL from `query.normalized_query`, proving the constitutional NFKC gate holds for the new sources (FR-027). No production change expected — this is a verification task
+- [ ] T014  Extend `/api/sources` in `apps/api/web/app.py` to include `provides_downloads`, `state`, `inactive_reason`, `last_reachable_at`, and `active_address` per source, and extend `/api/health` with `source_health` and `source_health_counts` (FR-008)
 - [ ] T015  Add `SourceInfo` and `SourceState` types to `apps/web/src/types/media.ts`, leaving the `Category` union unchanged as `'movies' | 'games' | 'music'`
 
 **Checkpoint**: Foundation ready — a source with multiple addresses uses the fallback, health state round-trips through SQLite, and a dead source fails fast. Verify with `cd apps/api && python -m pytest tests/ -q` (existing suite must still pass — FR-024)
@@ -71,17 +73,19 @@ Backend: `apps/api/` · Web client: `apps/web/src/` · All backend paths relativ
 > Write first, confirm they FAIL before implementing
 
 - [ ] T016 [P] [US1] Registry test in `apps/api/tests/test_sources_config.py` asserting all 20 requested ids are present and UpTV resolves to the existing entry with no duplicate (FR-001, FR-002)
-- [ ] T017 [P] [US1] Offline parser test per new download source in `apps/api/tests/test_movies_scrapers.py` using a stored search fixture and a stored item fixture via respx, following the existing `uptvs` / `doostihaa` convention
+- [ ] T017 [P] [US1] Offline parser test per new download source in `apps/api/tests/test_movies_scrapers.py`, following the existing `uptvs` / `doostihaa` convention — call `plugin.parse_search_results(fixture_html)` directly. Do **not** use `respx`: it is declared in dev extras but has zero usages in the repo, and movie tests are pure-function fixture parsing
 - [ ] T018 [P] [US1] Add per-source fixture accessors to `apps/api/tests/conftest.py` — one `<site>_search_html` and one `<site>_item_html` fixture per new source, matching the existing per-source pattern
+- [ ] T018b [P] [US1] Register every new fixture in the offline runner `apps/api/tests/run_all.py` — it does **not** auto-discover tests: it imports each module explicitly and injects fixtures from a hardcoded fix_map, so a fixture present only in `conftest.py` passes under `pytest` but is **never executed** by `python tests/run_all.py`, the constitutional offline gate (Principle IV, FR-025). Add each new fixture to the `tmov` fix_map, and add a `modules` entry if any new test file is created
 - [ ] T019 [US1] Contract test in `apps/api/tests/test_api_search.py` asserting `/api/sources` returns every registered source including unreachable ones — absence is never used to represent a dead source (FR-009a)
 - [ ] T020 [US1] Deduplication test in `apps/api/tests/test_api_search.py` asserting duplicate entries for the same title from the same source collapse to one (FR-018)
 
 ### Implementation for User Story 1
 
-- [ ] T021 [P] [US1] Create `apps/api/sources/movies/babakfilm.py` implementing the `SourcePlugin` protocol — confirmed real search page (345 KB vs 488 KB home), so `?s=` genuinely works
+- [ ] T021 [P] [US1] Create `apps/api/sources/movies/babakfilm.py` implementing the `SourcePlugin` protocol — confirmed real search page (345 KB vs 488 KB home), so `?s=` genuinely works. Follow the existing `doostihaa.py` / `uptvs.py` structure exactly: stdlib `re` parsing (**not** selectolax, which is declared in `pyproject.toml` but has zero usages in the repo), a `base_url` property off `config.primary_base_url`, and a pure sync `parse_search_results(html)` that is the unit-test seam
+- [ ] T021b [P] [US1] Add a base-url-override test per new plugin, following `test_search_parsers_survive_base_url_override` in `apps/api/tests/test_movies_scrapers.py` — it rewrites the host to `http://127.0.0.1:8899` and asserts the item count is unchanged. **Never hardcode a host in a parser regex**; always resolve through `clean_absolute_url(self.base_url, raw)`, or the parser silently returns zero items under override and the domain-fallback feature (FR-012a) cannot work
 - [ ] T022 [P] [US1] Create `apps/api/sources/movies/gapfilm.py` — note `?s=` may soft-404; verify against the captured fixture before relying on it
-- [ ] T023 [P] [US1] Create `apps/api/sources/movies/filmchiin.py` — `?s=test` returned 100774 B, byte-identical to the homepage, so this site's search address must be discovered, not assumed
-- [ ] T024 [P] [US1] Create `apps/api/sources/movies/imvbox.py` — `?s=test` 413276 B vs home 413263 B, effectively a soft-404; confirm the real search route from the fixture
+- [ ] T023 [P] [US1] Create `apps/api/sources/movies/filmchiin.py` — `?s=test` returned 100774 B, byte-identical to the homepage, so do NOT assume `?s=` — capture the site homepage fixture first, read its search form action from the HTML, and build the search URL from what the page actually declares
+- [ ] T024 [P] [US1] Create `apps/api/sources/movies/imvbox.py` — `?s=test` 413276 B vs home 413263 B, effectively a soft-404; read the real search route from the captured fixture rather than assuming `?s=`
 - [ ] T025 [P] [US1] Create `apps/api/sources/movies/filmtarin.py` — WordPress confirmed
 - [ ] T026 [P] [US1] Create `apps/api/sources/movies/sarvnema.py` — WordPress confirmed, address `sarvnema.ir`
 - [ ] T027 [P] [US1] Create `apps/api/sources/movies/danfilo.py` — WordPress confirmed, address `danfilo.ir`
@@ -89,10 +93,12 @@ Backend: `apps/api/` · Web client: `apps/web/src/` · All backend paths relativ
 - [ ] T029 [P] [US1] Create `apps/api/sources/movies/filmnet.py` — address `filmnet.ir`
 - [ ] T030 [P] [US1] Create `apps/api/sources/movies/namasha.py` — address `namasha.com`
 - [ ] T031 [P] [US1] Create `apps/api/sources/movies/aparat.py` — video platform, registered under movies per user direction
-- [ ] T032 [P] [US1] Create `apps/api/sources/movies/rubika.py`, `apps/api/sources/movies/digitoon.py`, `apps/api/sources/movies/fam.py` — children's channels registered under movies per user direction; not download portals, so they must not have download links constructed for them
+- [ ] T032 [P] [US1] Create `apps/api/sources/movies/rubika.py` — children's channel registered under movies per user direction; not a download portal, so it must not have download links constructed for it
+- [ ] T032b [P] [US1] Create `apps/api/sources/movies/digitoon.py` — children's channel registered under movies per user direction; not a download portal
+- [ ] T032c [P] [US1] Create `apps/api/sources/movies/fam.py` — children's channel; note Fam has **no confirmed working address** (308 redirect loop per research.md R-001), so it registers with state `not_yet_proven` and cannot have a fixture-captured parser test until an address is supplied
 - [ ] T033 [P] [US1] Create `apps/api/sources/movies/ndamedia.py` — general media outlet registered under movies per user direction
 - [ ] T034 [P] [US1] Register all new plugins in `apps/api/sources/movies/__init__.py` and `apps/api/sources/__init__.py`, including the four sites with no confirmed working address (ndamedia, salamscinema, tiwall, fam) which register with state `not_yet_proven`
-- [ ] T035 [US1] Enforce the discard rules in `apps/api/web/app.py::_collect_items`: drop any item that has neither a populated `movie_variants` nor a `watch_url` (FR-017, FR-018)
+- [ ] T035 [US1] Enforce the discard rules in `apps/api/web/app.py::_collect_items`: drop any item that has neither a populated `movie_variants` nor a `watch_url` (FR-017, FR-018, SC-001, SC-002)
 - [ ] T036 [US1] Render every source in `apps/web/src/components/SourceStatusBar.tsx` including inactive ones, and render `state` and `inactive_reason` per `contracts/api-contract.md`
 
 **Checkpoint**: All 20 sites registered and listed; searches return results attributed to them. Verify with quickstart.md Check 1 and Check 8
@@ -174,7 +180,7 @@ Backend: `apps/api/` · Web client: `apps/web/src/` · All backend paths relativ
 ### Implementation for User Story 4
 
 - [ ] T066 [US4] Register parsers by name in `apps/api/sources/profiles.py` so a profile resolves its `parser` to an implementation, allowing several profiles to share one parser
-- [ ] T067 [US4] Reject a profile whose `parser` is unknown at load time, reporting the unknown name — never register a source that silently returns nothing (FR-023)
+- [ ] T067 [US4] Reject a profile whose `parser` is unknown at load time, reporting the unknown name — never register a source that silently returns nothing (FR-023, SC-003)
 - [ ] T068 [US4] Document in `apps/api/sources/profiles.yaml` header comments that adding a site of a new shape requires a dedicated parser, and that only that parser is new code (FR-022, Principle I)
 - [ ] T069 [US4] Verify no administrative screen was introduced for adding sources — configuration file only (clarification Q3)
 
