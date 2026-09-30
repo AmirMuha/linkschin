@@ -1,4 +1,6 @@
 .omc/
+.playwright-mcp/
+.pipeline/
 .venv/
 venv/
 __pycache__/
