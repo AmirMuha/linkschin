@@ -160,3 +160,24 @@ Ground truth: the shipped code. These refine or correct the decisions above.
    marker); `uptvs_item.html` has zero censorship markers, so uptvs items stay
    `unspecified` and strict censorship filters legitimately drop them — the spec's
    strict-verification behaviour, not a bug.
+
+### Review findings folded back into the implementation (2026-09-30)
+
+5. **Card-scoped IMDb, not a character window.** `parse_search_results` originally read
+   the score from a fixed 4000-character window after each result link, so a card with no
+   rating could display the *next* card's score. Verified by deleting one card's score from
+   the fixture: the rated total stayed at 15 and that card silently adopted a neighbour's
+   6.7. The lookup is now bounded by where the next result link starts, so an unrated card
+   resolves to `None`. Pinned by `test_uptvs_unrated_card_does_not_borrow_a_neighbours_score`.
+6. **VIP is a standalone token in the label.** `\bVIP\b` also matched a `/vip/` CDN path
+   segment, and a bare `اشتراک` means "share" (`اشتراک گذاری`). The marker is now
+   `(?:^|[\s\[\(])(?:VIP|وی\.آی\.پی|اشتراک\s*ویژه)(?:$|[\s\]\)])` matched against the
+   visible label only — never the href.
+7. **Enum columns are read tolerantly.** `_rehydrate` uses `_enum_or_default`, so NULL or an
+   unrecognised stored value degrades to the enum default instead of raising a `ValueError`
+   out of `db.search` and 500-ing the request.
+8. **Movie item ids are unique.** `re.sub(r'[^a-zA-Z0-9]', '_', title)` reduced a
+   Persian-only title to `''`, so 18 uptvs results produced 16 distinct ids. React dropped
+   the duplicate-keyed cards and the SQLite `upsert` collided on the primary key. Ids now
+   carry a short `sha1` of the page URL — deterministic, and no scraper, DB row, or e2e
+   selector depended on the old format.

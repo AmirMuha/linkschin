@@ -32,8 +32,8 @@ python tests/run_all.py
 ### Expected Outcome
 
 1. All scraper tests pass against the static offline fixtures in `tests/fixtures/`.
-   Measured (2026-09-30): `python tests/run_all.py` = **60 passed / 0 failed**;
-   `pytest tests/` = **65 passed**.
+   Measured (2026-09-30): `python tests/run_all.py` = **62 passed / 0 failed**;
+   `pytest tests/` = **67 passed**.
 2. `MediaItem` instances contain:
    - Valid `imdb_rating` float (e.g. `7.9`) or `None`.
    - `censorship_status` matching expected values (`uncensored`, `censored`, `mixed`, or `unspecified`).
@@ -98,33 +98,40 @@ in `apps/web/tsconfig.json` enables the `.ts`-extension imports the test files u
    - `itemMatchesCensorship`: strict filters keep `mixed`, drop `unspecified` (never coerced).
    - `variantsForCensorship`: rows with `is_censored == null` are hidden under either strict filter.
 2. `urlFilters.test.ts` verifies: parsers reject non-permitted values (incl. `mixed`) with fallback to `all`; `buildSearchParams` omits defaults, preserves `q`/`category`, and round-trips through the parsers.
-3. Badge rendering (`MovieCard`) is asserted through the e2e journey (Scenario 4, pending), not unit tests: IMDb `7.9`-style star badge or `—`, censorship pill per status (including neutral `نامشخص`), tier pill (`رایگان`/`ترکیبی`/`VIP`).
+3. Badge rendering (`MovieCard`) is asserted through the e2e journey (Scenario 4), not unit tests: IMDb `7.9`-style star badge or `—`, censorship pill per status (including neutral `نامشخص`), tier pill (`رایگان`/`ترکیبی`/`VIP`).
 
 ---
 
-## Scenario 4: End-to-End Search & URL Filter Verification (Playwright) — Not Yet Green for 007
+## Scenario 4: End-to-End Search & URL Filter Verification (Playwright) — Green for 007
 
-**Status (2026-09-30, measured)**: the spec-007 Playwright specs (T027) are NOT yet
-created and `node e2e/check-coverage.mjs --check` still exits **1** overall — due to
-pre-existing unmapped specs 002–004, not 007. Acceptance for this feature is "zero
-`007-` prefixed gaps in its output" (currently true only because 007 is not yet in the
-gate's `SPECS` list — e2e/specs/ contains only `001-mvp/`).
+**Status (2026-09-30, measured)**: the 16 spec-007 Playwright specs exist under
+`e2e/specs/007-source-filters-movie-details/` and **pass** — the full hermetic-chromium
+run is **20 passed** (4 pre-existing `001-mvp` + 16 new). 007 is registered in the gate's
+`SPECS` map, and `node e2e/check-coverage.mjs --check` reports **zero `007-` prefixed
+gaps**. The gate still exits 1 overall because specs 002–004 are unmapped — pre-existing,
+not this feature.
 
-Expected journey once `e2e/specs/007-source-filters-movie-details/` exists (assertions
-must come from what the recorded fixtures produce, e.g. IMDb `7.9` on the first card;
-the censorship positive path exists only on doostihaa item enrichment):
+Note for local runs: `playwright.config.ts` starts the web server on port 3000 with
+`reuseExistingServer: !process.env.CI`, so a dev server already on 3000 (e.g. from the
+main checkout) will be adopted silently and the specs will run against the wrong build.
+Run with `CI=1` and a free port 3000.
 
-1. User searches for a movie (e.g., "Inception").
-2. Results grid displays movie cards with:
-   - ⭐ IMDb score badge (bottom-start of the poster overlay, `7.9`-style or `—`).
-   - Censorship badge (نسخه کامل / بازبینی شده / شامل هر دو نسخه / نامشخص).
-   - Source tier tag (رایگان / ترکیبی / VIP).
+Journey asserted (values grounded in the recorded fixtures):
+
+1. User searches for a movie (e.g. "batman") — 28 cards render (18 uptvs + 10 doostihaa).
+2. Each card shows:
+   - ⭐ IMDb badge — 25 rated (4 at `7.9`, 1 at `6.0`), 3 unrated showing `—`.
+   - Censorship badge — 23 `نامشخص`, 5 `بازبینی شده` (the doostihaa release tagged
+     `نسخه سانسور شده`); the positive path exists only on doostihaa item enrichment.
+   - Source tier tag — `رایگان` (uptvs) / `ترکیبی` (doostihaa).
 3. User clicks `فقط رایگان` (Free Only):
-   - Grid updates instantly (< 50ms) without page reload.
+   - Grid refines client-side; no new `/api/search` request fires (FR-011).
    - URL updates to include `?tier=free`.
 4. User clicks `بدون سانسور` (Uncensored Only):
-   - Only verified uncensored (or mixed) movie cards remain visible; `unspecified` items are dropped.
-   - URL updates to include `&censorship=uncensored`.
+   - No fixture is verified uncensored, so the grid correctly empties and the
+     `نتیجه‌ای با این فیلترها نیست` panel offers a 1-click reset. This is the spec's
+     strict-verification rule working as designed, not a defect.
+   - `سانسور شده` keeps exactly the 5 `بازبینی شده` cards, each row tagged.
 5. User refreshes the page:
-   - Active filter chips and filtered results remain preserved from URL query parameters
-     (`page.tsx` mount effect seeds state from `parseTierParam`/`parseCensorshipParam`).
+   - The query, tier, and censorship all replay from `?q=&tier=&censorship=` — the
+     `page.tsx` mount effect seeds state and `handleSearch` re-runs.
