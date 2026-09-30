@@ -12,8 +12,8 @@ test.describe('001 US1 — movie search and format variants', () => {
     const card = page.getByRole('article').filter({ hasText: 'سقوط شوالیه' }).first()
     await expect(card).toBeVisible()
     await expect(card).toContainText('2026')
-    // uptvs's search fixture carries no poster, so this title is one of the un-enriched
-    // items; the AC's variant list is the part that holds. This item yields 2 variants.
+    // Only the first few items get extract_links() enrichment, and this card's 2 variants
+    // are the part this AC holds.
     await expect(card.getByLabel('کپی لینک مستقیم')).toHaveCount(2)
   })
 

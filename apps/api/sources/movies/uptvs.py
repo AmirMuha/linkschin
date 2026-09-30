@@ -63,16 +63,27 @@ class UpTVsPlugin:
             return []
 
     def parse_search_results(self, html: str) -> list[MediaItem]:
-        """Extract media items from search results HTML."""
+        """Extract media items from search results HTML.
+
+        Scoped to `content-thumb` card blocks: the page also carries a persistent
+        `uas_search_modal` widget whose hardcoded category links are not search results.
+        The class-token boundary keeps the nested `content-thumb-hasdesc-*` children
+        from re-opening a block.
+        """
         items: list[MediaItem] = []
-        pattern = re.compile(
+        link_pattern = re.compile(
             r'<a[^>]+href=[\"\'](https?://[^\"\'\s]+/contents/[^\"\']+)[\"\'][^>]*title=[\"\']([^\"\']+)[\"\']',
-            re.IGNORECASE,
+            re.DOTALL | re.IGNORECASE,
         )
+        poster_pattern = re.compile(r'<img[^>]+src=[\"\'](https?://[^\s\"\']+)[\"\']', re.IGNORECASE)
 
         seen_urls: set[str] = set()
 
-        for match in pattern.finditer(html):
+        for card_html in re.split(r'<div class=\"content-thumb(?=[ \"\'])', html)[1:]:
+            match = link_pattern.search(card_html)
+            if not match:
+                continue
+
             raw_url = match.group(1).strip()
             raw_title = match.group(2).strip()
             clean_title = re.sub(r"<[^>]+>", "", raw_title).strip()
@@ -87,6 +98,7 @@ class UpTVsPlugin:
             release_year = int(year_match.group(1)) if year_match else None
 
             item_id = f"uptvs_{re.sub(r'[^a-zA-Z0-9]', '_', clean_title)[:40]}"
+            poster_match = poster_pattern.search(card_html)
             items.append(
                 MediaItem(
                     id=item_id,
@@ -95,6 +107,7 @@ class UpTVsPlugin:
                     source_id=self.config.id,
                     page_url=clean_absolute_url(self.base_url, raw_url),
                     release_year=release_year,
+                    poster_url=clean_absolute_url(self.base_url, poster_match.group(1).strip()) if poster_match else None,
                 )
             )
 

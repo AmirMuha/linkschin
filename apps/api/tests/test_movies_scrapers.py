@@ -12,12 +12,17 @@ def test_uptvs_search_parsing(uptvs_search_html: str):
     plugin = UpTVsPlugin()
     items = plugin.parse_search_results(uptvs_search_html)
 
-    assert len(items) > 0
+    # Exactly the 15 rendered cards: the page also ships a `uas_search_modal` widget
+    # whose hardcoded "suggested categories" links are not results for any query.
+    assert len(items) == 15
+    assert not ({"سیلو", "باب اسفنجی", "From"} & {i.title for i in items})
     first = items[0]
     assert "بتمن" in first.title
     assert first.page_url.startswith("https://www.uptvs.com/contents/")
     assert first.category == Category.MOVIES
     assert first.source_id == "uptvs"
+    # The thumbnail lives in the same card block, so search can populate it directly.
+    assert all(i.poster_url and i.poster_url.startswith("https://") for i in items)
 
 
 def test_uptvs_item_link_extraction(uptvs_item_html: str):
