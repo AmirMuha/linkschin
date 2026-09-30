@@ -92,6 +92,7 @@ rows, and that purely `premium` cards are gone.
 - [x] T013 [US1] Add the access tier badge to the poster overlay of `MovieCard` in `apps/web/src/components/cards/MovieCard.tsx`: `free` → `رایگان` default pill, `premium` → `bg-amber-500/20 text-amber-300 border-amber-500/40` `VIP`, `freemium` → `bg-cyan-500/20 text-cyan-300 border-cyan-500/40` `ترکیبی`. Use RTL logical properties (`start-*`/`end-*`) like existing badges.
 - [x] T014 [US1] Add an optional `activeTierFilter?: 'all' | 'free' | 'premium'` prop and a VIP tag on premium variant rows in `apps/web/src/components/cards/MovieDownloadMatrix.tsx`; rows with `is_premium === true` are hidden when `activeTierFilter === 'free'`, and rows with `is_premium === false` are hidden when `activeTierFilter === 'premium'`.
 - [x] T015 [US1] Wire `filters.accessTier` into the `filteredItems` `useMemo` and the `InViewFilterBar` props in `apps/web/src/app/page.tsx`, seed the initial value from `parseTierParam` on mount, and push `tier` into the URL via `buildSearchParams` on change using `window.history.replaceState` (no page reload). Also surface tier on the source rows in `apps/web/src/components/SourceStatusBar.tsx` next to the enabled pill.
+  - **Partially done (2026-09-30)**: the `page.tsx` wiring is complete (`itemMatchesTier` in the `filteredItems` memo, `filters.accessTier` passed to `InViewFilterBar`/`MovieCard`, mount-time `parseTierParam` seed, `replaceState` URL sync). **Not done**: `SourceStatusBar.tsx` renders only the فعال/غیرفعال pill and never reads `s.access_tier` (verified: zero `tier` references in the file).
 
 **Checkpoint**: User Story 1 fully functional and independently verifiable — MVP scope.
 
@@ -109,7 +110,7 @@ uncensored rows.
 ### Tests for User Story 2 ⚠️ write first, confirm they fail
 
 - [x] T016 [P] [US2] Add censorship derivation tests in `apps/api/tests/test_movies_scrapers.py`: `doostihaa_item_html` parses to `censorship_status == CensorshipStatus.CENSORED` (the fixture's `نسخه سانسور شده` marker) with `is_censored=True` on matching variants; a synthetic page with both censored and uncensored labels yields `MIXED`; `uptvs_item_html` (no marker) yields `UNSPECIFIED`. Use only the four existing fixture parameter names plus `monkeypatch` (run_all.py constraint).
-- [ ] T017 [P] [US2] Add tests for censorship predicates in `apps/web/src/lib/filters.test.ts`: `uncensored` keeps `uncensored` and `mixed` items, drops `censored` and `unspecified`; `censored` keeps `censored` and `mixed`, drops `uncensored` and `unspecified`; mixed items prune to the matching variant rows; rows with `is_censored == null` are hidden under either strict filter.
+- [x] T017 [P] [US2] Add tests for censorship predicates in `apps/web/src/lib/filters.test.ts`: `uncensored` keeps `uncensored` and `mixed` items, drops `censored` and `unspecified`; `censored` keeps `censored` and `mixed`, drops `uncensored` and `unspecified`; mixed items prune to the matching variant rows; rows with `is_censored == null` are hidden under either strict filter.
 
 ### Implementation for User Story 2
 

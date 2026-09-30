@@ -108,3 +108,55 @@ This document details the architectural choices and patterns for implementing we
 **Rationale**:
 - Instantaneous UI response with zero backend round-trips.
 - Clean URL shareability: `/?q=inception&tier=free&censorship=uncensored`.
+
+---
+
+## Implementation notes / deviations (recorded post-implementation, 2026-09-30)
+
+Ground truth: the shipped code. These refine or correct the decisions above.
+
+1. **SQLite persistence is a hard requirement, not optional polish.**
+   `apps/api/web/app.py:_collect_items` serves repeat searches from the persistent
+   index (`db.search`) before any scraper runs. `_rehydrate` drops every field it has
+   no column for, so without the spec-007 columns (`media_items.imdb_rating /
+   censorship_status / source_access_tier`, `download_variants.is_censored /
+   is_premium`) every cached load silently renders `unspecified` / `free` / unrated.
+   Pre-existing `data/index.db` files are upgraded idempotently via
+   `db.py:_ADDED_COLUMNS` + `_migrate()` called from `connect()`, because
+   `CREATE TABLE IF NOT EXISTS` never alters an existing table. Verified by
+   `tests/test_db.py::test_enrichment_fields_survive_a_db_round_trip` and
+   `::test_connect_migrates_a_pre_007_database`.
+
+2. **Doostihaa Persian text is HTML-entity-encoded upstream** (`&#1575;&#1605;&#1578;…`).
+   Every Persian match (IMDb `امتیاز … از 10`, censorship `نسخه سانسور شده`, VIP markers)
+   runs against `html.unescape()` output, never the raw page — see
+   `doostihaa.py:parse_search_results` / `parse_item_page`. UpTVs search HTML carries
+   plain-ASCII scores and needs no decoding.
+
+3. **Tier decision deviation**: research.md Decision 1 leaned "freemium" for both
+   movie sites; the shipped registry marks `uptvs` as `FREE` and `doostihaa` as
+   `FREEMIUM` (`apps/api/sources/__init__.py:46,56`; all games/music sources keep the
+   `FREE` default). UpTVs publishes every link without any membership gate; Doostihaa
+   gates HD behind membership on the live site. Asserted by
+   `tests/test_sources_config.py::test_movie_source_tiers_match_their_access_model`.
+
+4. **No fixture contains a real VIP/paywalled download link.** All `اشتراک` hits in the
+   recorded pages are `اشتراک گذاری` ("share") buttons — bare `اشتراک` therefore never
+   counts as a paywall marker; only `اشتراک ویژه` / `VIP` / `وی.آی.پی` do
+   (`_VIP_MARKERS` in both plugins). Consequently `is_premium` is `False` on every
+   variant produced from the current recorded fixtures (uptvs 2/2 and doostihaa 6/6).
+   Freemium row-pruning is proven by the predicate unit tests
+   (`apps/web/src/lib/filters.test.ts`), not by fixture data.
+
+5. **JSON-LD `aggregateRating` is a site-user score, deliberately not IMDb.**
+   uptvs item pages report `ratingValue: 83` (0–100 scale), doostihaa reports `5`
+   (1–5 scale). Only the `/10` (uptvs `ficon-imdb … N /10`) and `از 10`
+   (doostihaa `امتیاز: N از 10`) forms map to `imdb_rating`. Enforced by
+   `test_movies_scrapers.py::test_imdb_jsonld_aggregate_rating_is_never_used`.
+   This narrows Decision 3's list, which had included JSON-LD `ratingValue` as a source.
+
+6. **Censorship is item-page-only and sparse.** The positive path exists only on the
+   doostihaa item fixture (page-level `نسخه سانسور شده` seeds variants lacking their own
+   marker); `uptvs_item.html` has zero censorship markers, so uptvs items stay
+   `unspecified` and strict censorship filters legitimately drop them — the spec's
+   strict-verification behaviour, not a bug.

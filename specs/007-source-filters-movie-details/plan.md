@@ -18,7 +18,7 @@ All metadata is extracted directly during scraper execution from upstream HTML a
 
 **Storage**: In-memory TTL cache (`apps/api/models.py`) and SQLite FTS5 (existing platform cache); no external databases
 
-**Testing**: `pytest` with `respx` offline fixtures (backend scrapers & API), Vitest / React Testing Library (frontend components), Playwright (E2E)
+**Testing**: `pytest` plus an offline fixture runner (`apps/api/tests/run_all.py`), both reading static HTML fixtures from `apps/api/tests/fixtures/` (backend scrapers, db & API); `node --test` over `src/lib/*.test.ts` (frontend filter/URL logic, plain TS — no component test runner); Playwright (E2E)
 
 **Target Platform**: Linux server / Modern Web Browsers (Desktop & Mobile)
 
@@ -28,7 +28,7 @@ All metadata is extracted directly during scraper execution from upstream HTML a
 
 **Constraints**: Zero new external runtime dependencies; strict compliance with Constitution Principle II (Simplicity / YAGNI), Principle III (No Media Relaying), and Principle IV (Offline Verification)
 
-**Scale/Scope**: ~4 scraper plugins updated, ~3 frontend components enhanced (`InViewFilterBar`, `MovieCard`, `MovieDownloadMatrix`), 2 new URL query parameters
+**Scale/Scope**: 2 movie scraper plugins updated (uptvs, doostihaa) + tier declarations in the source registry and SQLite persistence, ~3 frontend components enhanced (`InViewFilterBar`, `MovieCard`, `MovieDownloadMatrix`) with 2 new pure-lib modules (`filters.ts`, `urlFilters.ts`), 2 new URL query parameters
 
 ## Constitution Check
 
@@ -37,7 +37,7 @@ All metadata is extracted directly during scraper execution from upstream HTML a
 - [x] **Principle I: Library / Module Isolation**: PASS. Each movie scraper under `apps/api/sources/movies/` extracts censorship and IMDb scores independently using its own HTML parsing logic without depending on sibling scrapers.
 - [x] **Principle II: Simplicity / YAGNI & Monorepo Platform Structure**: PASS. Zero external third-party metadata APIs (no OMDb/TMDb keys or network hops); ratings and censorship tags are scraped directly from existing source pages. Client-side filtering uses native React state without redundant backend round-trips.
 - [x] **Principle III: No Media Relaying**: PASS. Aggregator handles only metadata (tier, censorship, IMDb rating) and direct links; no audio or video payloads are proxied or buffered.
-- [x] **Principle IV: Testability & Offline Verification**: PASS. Scraper parsing logic for IMDb scores, censorship status, and access tiers is tested offline against static HTML fixtures using `respx`.
+- [x] **Principle IV: Testability & Offline Verification**: PASS. Scraper parsing logic for IMDb scores, censorship status, and access tiers is tested offline against the static HTML fixtures in `apps/api/tests/fixtures/` (no network mocking required).
 
 ## Project Structure
 
@@ -62,27 +62,35 @@ specs/007-source-filters-movie-details/
 ```text
 apps/api/
 ├── models.py                           # SourceAccessTier, CensorshipStatus enums; MediaItem, MovieDownloadVariant extensions
+├── db.py                               # New columns + idempotent _migrate() so cached loads round-trip the metadata
 ├── sources/
-│   ├── __init__.py                     # SourceConfig declarations with access_tier
+│   ├── __init__.py                     # SourceConfig declarations with access_tier (uptvs=FREE, doostihaa=FREEMIUM)
 │   └── movies/
-│       ├── uptvs.py                    # Censorship & IMDb rating parser extensions
-│       └── doostihaa.py                # Censorship & IMDb rating parser extensions
+│       ├── uptvs.py                    # Censorship, VIP & IMDb rating parsers (card-scoped '/10')
+│       └── doostihaa.py                # Censorship, VIP & IMDb rating parsers (entity-decoded 'از 10')
+├── web/
+│   └── app.py                          # GET /api/sources emits access_tier; asdict search payload
 └── tests/
-    └── test_movie_sources.py           # Offline scraper fixture tests for ratings, tiers, and censorship
+    ├── test_movies_scrapers.py         # Offline fixture tests for ratings, tiers, and censorship derivation
+    ├── test_db.py                      # SQLite round-trip + pre-007 schema migration tests
+    └── test_sources_config.py          # Registry tier assertions
 
 apps/web/
 ├── src/
 │   ├── types/
 │   │   └── media.ts                    # SourceAccessTier, CensorshipStatus, MediaItem & MovieDownloadVariant type extensions
+│   ├── lib/
+│   │   ├── filters.ts                  # Pure tier/censorship item & variant predicates
+│   │   ├── urlFilters.ts               # URL <-> filter state (parseTierParam/parseCensorshipParam/buildSearchParams)
+│   │   ├── filters.test.ts             # Predicate tests (node --test)
+│   │   └── urlFilters.test.ts          # URL round-trip / default-omission tests (node --test)
+│   ├── app/
+│   │   └── page.tsx                    # Filter wiring, URL seeding/sync, empty-filtered-results panel
 │   └── components/
 │       ├── InViewFilterBar.tsx         # Access tier & censorship filter chips with reset action
-│       ├── cards/
-│       │   ├── MovieCard.tsx           # IMDb rating badge, censorship badge, source tier tag
-│       │   └── MovieDownloadMatrix.tsx # Variant-level censorship and VIP tags; filter refinement
-│       └── SearchBar.tsx               # (Unchanged or URL sync coordination)
-└── tests/
-    └── components/
-        └── InViewFilterBar.test.tsx    # Filter behavior tests
+│       └── cards/
+│           ├── MovieCard.tsx           # IMDb rating badge, censorship badge, source tier tag
+│           └── MovieDownloadMatrix.tsx # Variant-level censorship and VIP tags; row pruning via filters.ts
 ```
 
 **Structure Decision**: Standard monorepo extension directly modifying existing packages (`apps/api` and `apps/web`). No new directories, services, or microservices are added.

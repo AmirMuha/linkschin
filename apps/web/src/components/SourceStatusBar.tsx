@@ -148,17 +148,30 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
                       {catSources.map((s) => (
                         <div
                           key={s.id}
-                          className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
                         >
                           <span className="text-zinc-200 text-xs font-medium">{s.name}</span>
-                          <span
-                            className={`text-2xs px-1.5 py-0.5 rounded-md ${
-                              s.enabled
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
-                            }`}
-                          >
-                            {s.enabled ? 'فعال' : 'غیرفعال'}
+                          <span className="flex items-center gap-1">
+                            {s.access_tier !== 'free' && (
+                              <span
+                                className={`text-2xs px-1.5 py-0.5 rounded-md ${
+                                  s.access_tier === 'premium'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                }`}
+                              >
+                                {s.access_tier === 'premium' ? 'VIP' : 'ترکیبی'}
+                              </span>
+                            )}
+                            <span
+                              className={`text-2xs px-1.5 py-0.5 rounded-md ${
+                                s.enabled
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-zinc-900 text-zinc-500 border border-zinc-800'
+                              }`}
+                            >
+                              {s.enabled ? 'فعال' : 'غیرفعال'}
+                            </span>
                           </span>
                         </div>
                       ))}

@@ -20,12 +20,14 @@ Represents the business and access model of an upstream media source.
 ### 2. `CensorshipStatus`
 Represents the censorship classification of a movie title or media item.
 
-| Value | Persian Label | Badge Theme Token | Description |
-|-------|---------------|-------------------|-------------|
-| `uncensored` | نسخه کامل / بدون سانسور | Emerald (`bg-emerald-500/20 text-emerald-300 border-emerald-500/40`) | Verified untouched, complete release. |
-| `censored` | بازبینی شده / سانسور شده | Amber (`bg-amber-500/20 text-amber-300 border-amber-500/40`) | Verified edited or censored for broadcast/compliance. |
-| `mixed` | شامل هر دو نسخه | Cyan (`bg-cyan-500/20 text-cyan-300 border-cyan-500/40`) | Contains both censored and uncensored download variants. |
-| `unspecified` | نامشخص | Zinc (`bg-zinc-800/60 text-zinc-400 border-zinc-700/60`) | Censorship status not declared in upstream metadata. |
+| Value | Persian Label | Badge Theme Token (`MovieCard`) | Description |
+|-------|---------------|--------------------------------|-------------|
+| `uncensored` | نسخه کامل / بدون سانسور | Emerald (`bg-emerald-950/80 text-emerald-300 border-emerald-800/60`) | Verified untouched, complete release. |
+| `censored` | بازبینی شده / سانسور شده | Amber (`bg-amber-950/80 text-amber-300 border-amber-800/60`) | Verified edited or censored for broadcast/compliance. |
+| `mixed` | شامل هر دو نسخه | Cyan (`bg-cyan-950/80 text-cyan-300 border-cyan-800/60`) | Contains both censored and uncensored download variants. |
+| `unspecified` | نامشخص | Zinc, shown as a neutral pill (`bg-zinc-900/80 text-zinc-400 border-zinc-700/60`) | Censorship status not declared upstream. Always rendered; never coerced to `uncensored`. |
+
+Per-variant row tags in `MovieDownloadMatrix` use the lighter tokens: censored rows `bg-amber-500/20 text-amber-300` (`سانسور شده`), uncensored rows `bg-emerald-500/20 text-emerald-300` (`بدون سانسور`), `is_censored == null` rows carry no tag.
 
 ---
 
@@ -98,7 +100,6 @@ class MediaItem:
     release_year: int | None = None
     poster_url: str | None = None
     description: str | None = None
-    stream_url: str | None = None
 
     # New metadata fields
     imdb_rating: float | None = None
@@ -107,6 +108,7 @@ class MediaItem:
 
     # Category-specific payloads
     movie_variants: list[MovieDownloadVariant] = field(default_factory=list)
+    stream_url: str | None = None  # Opportunistic video/audio stream
     game_releases: list[GameRelease] = field(default_factory=list)
     music_tracks: list[MusicTrack] = field(default_factory=list)
 ```
@@ -141,7 +143,7 @@ export interface MediaItem {
 
 ### `SourceStatus` (Backend API Response & Frontend)
 
-Status object returned by `GET /api/sources/status`.
+Status object returned by `GET /api/sources`.
 
 ```typescript
 export interface SourceStatus {
@@ -174,11 +176,11 @@ export interface FilterState {
 | Selected Filter | Item Inclusion Rule | Variant Refinement Rule |
 |-----------------|---------------------|--------------------------|
 | `accessTier: 'all'` | Include all items | Show all variants |
-| `accessTier: 'free'` | Include `source_access_tier == 'free'` OR (`'freemium'` with free variants) | For freemium items, display only variants where `is_premium == false` |
-| `accessTier: 'premium'` | Include `source_access_tier == 'premium'` OR (`'freemium'` with VIP variants) | For freemium items, display only variants where `is_premium == true` |
+| `accessTier: 'free'` | Include `free` and `freemium` items (i.e. `source_access_tier != 'premium'`, unconditional) | Hide variants where `is_premium === true` |
+| `accessTier: 'premium'` | Include `premium` and `freemium` items (i.e. `source_access_tier != 'free'`, unconditional) | Hide variants where `is_premium` is falsy |
 | `censorship: 'all'` | Include all items | Show all variants |
-| `censorship: 'uncensored'` | Include `censorship_status == 'uncensored'` OR (`'mixed'` with uncensored variants) | For mixed items, display only variants where `is_censored == false` |
-| `censorship: 'censored'` | Include `censorship_status == 'censored'` OR (`'mixed'` with censored variants) | For mixed items, display only variants where `is_censored == true` |
+| `censorship: 'uncensored'` | Include `censorship_status == 'uncensored'` or `'mixed'` (drops `censored` and `unspecified`) | Keep only variants where `is_censored == false` — `true` and `null` rows are hidden |
+| `censorship: 'censored'` | Include `censorship_status == 'censored'` or `'mixed'` (drops `uncensored` and `unspecified`) | Keep only variants where `is_censored == true` — `false` and `null` rows are hidden |
 
 ---
 
@@ -187,8 +189,10 @@ export interface FilterState {
 1. **`imdb_rating`**:
    - Must be a float between `0.0` and `10.0` inclusive, rounded to 1 decimal place.
    - Any string parsed as NaN or out of range must resolve to `None`.
+   - Only the `/10` and `از 10` forms map to `imdb_rating`: UpTVs card scores following `<i class="ficon-imdb">…N /10`, Doostihaa article body `امتیاز … N از 10`. JSON-LD `aggregateRating` is a site-user vote — uptvs reports it on a 0–100 scale, doostihaa on 1–5 — and is deliberately NOT mapped to `imdb_rating`.
 2. **`censorship_status` derivation**:
    - If variants have mixed flags (`is_censored=True` and `is_censored=False`), status MUST be `CensorshipStatus.MIXED`.
    - If all variants are `is_censored=True` (or title/tags state censored), status MUST be `CensorshipStatus.CENSORED`.
    - If all variants are `is_censored=False` (or title/tags state uncensored/نسخه کامل), status MUST be `CensorshipStatus.UNCENSORED`.
-   - Otherwise, status MUST be `CensorshipStatus.UNSPECIFIED`.
+   - Otherwise, status MUST be `CensorshipStatus.UNSPECIFIED`. An absent marker stays `is_censored=None` / `unspecified` — it is never coerced to `uncensored` (see `derive_censorship_status` in each movie plugin).
+3. **SQLite round-trip (persistence requirement)**: search is served from `data/index.db` before scrapers run (`_collect_items` → `db.search` → `_rehydrate`), so the new fields MUST survive the db: `media_items` gains `imdb_rating REAL`, `censorship_status TEXT`, `source_access_tier TEXT` and `download_variants` gains `is_censored INT` (nullable) and `is_premium INT`. Pre-existing databases are upgraded via `_ADDED_COLUMNS` + `_migrate()` (PRAGMA table_info + idempotent `ALTER TABLE ADD COLUMN`) invoked from `connect()`; NULL columns rehydrate to the model defaults (`None` / `unspecified` / `free`).

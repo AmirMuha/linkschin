@@ -99,6 +99,16 @@ export default function Home() {
       setIsLoading(true)
       setErrorMessage(null)
       setHasSearched(true)
+      setQuery(q)
+
+      // Put the query in the URL so a refresh or a shared link replays it (FR-012).
+      const urlParams = new URLSearchParams(window.location.search)
+      urlParams.set('q', q)
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}?${urlParams.toString()}`
+      )
 
       // Reset filters on new search
       setFilters({ qualities: [], audioTracks: [], sources: [], accessTier: 'all', censorship: 'all' })
@@ -209,13 +219,23 @@ export default function Home() {
   }, [items, filters])
 
   // Seed tier/censorship from the URL once on mount so a shared or refreshed link
-  // restores the same filtered view (FR-012).
+  // restores the same filtered view (FR-012). The query string is restored too, so a
+  // reload replays the search instead of landing on an empty grid.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const tier = parseTierParam(params.get('tier'))
     const censorship = parseCensorshipParam(params.get('censorship'))
-    if (tier === 'all' && censorship === 'all') return
-    setFilters((prev) => ({ ...prev, accessTier: tier, censorship }))
+    const initialQuery = params.get('q')
+    if (initialQuery) {
+      setQuery(initialQuery)
+      handleSearch(initialQuery)
+    }
+    // Applied after handleSearch, which resets filters for a fresh query.
+    if (tier !== 'all' || censorship !== 'all') {
+      setFilters((prev) => ({ ...prev, accessTier: tier, censorship }))
+    }
+    // Runs once on mount; handleSearch is stable enough for this replay.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Mirror filter changes back to the URL without navigating (FR-011, FR-012).

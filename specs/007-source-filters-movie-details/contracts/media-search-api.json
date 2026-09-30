@@ -53,9 +53,9 @@
         }
       }
     },
-    "/api/sources/status": {
+    "/api/sources": {
       "get": {
-        "summary": "List configured scraper sources and their operational status",
+        "summary": "List configured scraper sources, their active base URLs, and access tiers",
         "responses": {
           "200": {
             "description": "Source statuses",
