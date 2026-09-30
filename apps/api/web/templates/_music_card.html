@@ -11,28 +11,42 @@
     </div>
   </div>
 
-  {% if item.stream_url %}
-    <div style="margin: 0.5rem 0;">
-      <audio controls preload="none">
-        <source src="{{ item.stream_url }}" type="audio/mpeg">
-        مرورگر شما از پخش مستقیم فایل صوتی پشتیبانی نمی‌کند.
-      </audio>
+  {% if item.source_kind == "reference" %}
+    {# Link-out card (SC-003): no <audio> element and no download control is
+       emitted at all — the player must be absent from the DOM, not hidden.
+       The link deliberately avoids class="btn-download": base.html's
+       "copy all links" bulk-copy selects every a.btn-download, and a page link
+       is not a file link. #}
+    <div class="media-source" style="margin-top: 0.5rem;">
+      🔗 <a href="{{ item.page_url }}" target="_blank" rel="noopener">گوش دادن در سایت منبع</a>
     </div>
-  {% endif %}
-
-  {% for track in item.music_tracks %}
-    {% if track.downloads %}
-      <div class="parts-list" style="margin-top: 0.5rem;">
-        {% for dl in track.downloads %}
-          <a href="{{ dl.download_url }}" class="btn-download" target="_blank" rel="noopener">
-            🎵 دانلود با کیفیت {{ dl.bitrate }}
-          </a>
-        {% endfor %}
+    <div class="media-source">
+      این منبع فقط لینک صفحه ارائه می‌دهد؛ فایل صوتی از طریق سایت خودش پخش می‌شود.
+    </div>
+  {% else %}
+    {% if item.stream_url %}
+      <div style="margin: 0.5rem 0;">
+        <audio controls preload="none">
+          <source src="{{ item.stream_url }}" type="audio/mpeg">
+          مرورگر شما از پخش مستقیم فایل صوتی پشتیبانی نمی‌کند.
+        </audio>
       </div>
     {% endif %}
-  {% else %}
-    {% if not item.stream_url %}
-      <div class="media-source">لینک دانلود مستقیمی یافت نشد.</div>
-    {% endif %}
-  {% endfor %}
+
+    {% for track in item.music_tracks %}
+      {% if track.downloads %}
+        <div class="parts-list" style="margin-top: 0.5rem;">
+          {% for dl in track.downloads %}
+            <a href="{{ dl.download_url }}" class="btn-download" target="_blank" rel="noopener">
+              🎵 دانلود با کیفیت {{ dl.bitrate }}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      {% if not item.stream_url %}
+        <div class="media-source">لینک مستقیمی یافت نشد.</div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 </div>

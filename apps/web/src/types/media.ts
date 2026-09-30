@@ -60,6 +60,8 @@ export interface MediaItem {
   movie_variants: MovieDownloadVariant[]
   game_releases: GameRelease[]
   music_tracks: MusicTrack[]
+  /** Absent on a pre-006 server; absence means "full" (search contract, client obligation 3). */
+  source_kind?: 'full' | 'reference'
 }
 
 export interface SearchApiResponse {
@@ -76,4 +78,11 @@ export interface SourceStatus {
   category: string
   base_url: string
   enabled: boolean
+  /** Optional so a pre-006 server response still typechecks (sources contract, G4). */
+  kind?: 'full' | 'reference'
+  /** Derived: inactive when not enabled, degraded at 3+ consecutive failures. */
+  status?: 'active' | 'degraded' | 'inactive'
+  /** Non-null and specific whenever status is not "active". */
+  inactive_reason?: string | null
+  consecutive_failures?: number
 }

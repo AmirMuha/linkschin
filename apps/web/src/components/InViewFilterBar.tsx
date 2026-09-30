@@ -1,12 +1,15 @@
 'use client'
 
 import React from 'react'
-import { Filter, X } from 'lucide-react'
+import type { SourceStatus } from '@/types/media'
+import { Filter, X, EyeOff, RotateCcw } from 'lucide-react'
 
 export interface FilterState {
   qualities: string[]
   audioTracks: string[]
   sources: string[]
+  /** Persisted per-user hidden set; sent as repeated `sources=` params. */
+  hiddenSources: string[]
 }
 
 interface InViewFilterBarProps {
@@ -15,6 +18,8 @@ interface InViewFilterBarProps {
   availableSources: { id: string; name: string }[]
   filters: FilterState
   onFilterChange: (filters: FilterState) => void
+  /** Full registry, so hide toggles can show status and refuse degraded/inactive. */
+  sourceRegistry?: SourceStatus[]
 }
 
 export function InViewFilterBar({
@@ -23,11 +28,14 @@ export function InViewFilterBar({
   availableSources,
   filters,
   onFilterChange,
+  sourceRegistry = [],
 }: InViewFilterBarProps) {
   const hasActiveFilters =
     filters.qualities.length > 0 ||
     filters.audioTracks.length > 0 ||
     filters.sources.length > 0
+  const hiddenSources = filters.hiddenSources ?? []
+  const hasHiddenSources = hiddenSources.length > 0
 
   function toggleQuality(q: string) {
     const exists = filters.qualities.includes(q)
@@ -53,11 +61,19 @@ export function InViewFilterBar({
     onFilterChange({ ...filters, sources: next })
   }
 
+  function toggleHidden(id: string) {
+    const next = hiddenSources.includes(id)
+      ? hiddenSources.filter((item) => item !== id)
+      : [...hiddenSources, id]
+    onFilterChange({ ...filters, hiddenSources: next })
+  }
+
   function handleReset() {
     onFilterChange({
       qualities: [],
       audioTracks: [],
       sources: [],
+      hiddenSources: [],
     })
   }
 
@@ -65,7 +81,8 @@ export function InViewFilterBar({
   if (
     availableQualities.length === 0 &&
     availableAudioTracks.length === 0 &&
-    availableSources.length <= 1
+    availableSources.length <= 1 &&
+    sourceRegistry.length === 0
   ) {
     return null
   }
@@ -82,16 +99,28 @@ export function InViewFilterBar({
           <span>فیلتر سریع نتایج</span>
         </div>
 
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={handleReset}
-            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-400 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            <span>حذف تمام فیلترها</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {hasHiddenSources && (
+            <button
+              type="button"
+              onClick={() => onFilterChange({ ...filters, hiddenSources: [] })}
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-cyan-400 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>بازگردانی همه منابع</span>
+            </button>
+          )}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-400 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>حذف تمام فیلترها</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center flex-wrap gap-4 text-xs">
@@ -167,6 +196,58 @@ export function InViewFilterBar({
           </div>
         )}
       </div>
+
+      {/* Per-source hide toggles (FR-029/FR-031). Real checkboxes: labelled,
+          keyboard-operable, focus order follows visual order. A hidden source
+          stays listed so it can be undone, and a source the system has marked
+          degraded/inactive is not offered a hide control at all. */}
+      {sourceRegistry.length > 0 && (
+        <fieldset className="flex flex-col gap-2 pt-3 border-t border-zinc-800/80">
+          <legend className="text-2xs font-semibold text-zinc-400 px-1">
+            پنهان‌کردن منابع در نتایج بعدی
+          </legend>
+
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {sourceRegistry.map((s) => {
+              const status = s.status ?? (s.enabled ? 'active' : 'inactive')
+              const blocked = status === 'degraded' || status === 'inactive'
+              const hidden = hiddenSources.includes(s.id)
+
+              if (blocked) {
+                return (
+                  <span
+                    key={s.id}
+                    className="flex items-center gap-1.5 text-2xs text-zinc-500"
+                    title={s.inactive_reason ?? undefined}
+                  >
+                    <span className="text-zinc-400 font-medium">{s.name}</span>
+                    <span>{status === 'degraded' ? 'افت کیفیت — قابل پنهان‌سازی نیست' : 'غیرفعال — قابل پنهان‌سازی نیست'}</span>
+                  </span>
+                )
+              }
+
+              return (
+                <label
+                  key={s.id}
+                  className="flex items-center gap-1.5 text-2xs text-zinc-400 cursor-pointer hover:text-zinc-200 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={hidden}
+                    onChange={() => toggleHidden(s.id)}
+                    className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1">
+                    <span className={hidden ? 'line-through' : undefined}>{s.name}</span>
+                    {s.kind === 'reference' && <span>ارجاعی</span>}
+                    {hidden && <EyeOff className="w-3 h-3" aria-hidden="true" />}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
+      )}
     </div>
   )
 }

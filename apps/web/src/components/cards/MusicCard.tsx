@@ -19,6 +19,9 @@ export function MusicCard({ item }: MusicCardProps) {
   const isCurrent = primaryTrack && currentTrack?.id === primaryTrack.id
   const isTrackPlaying = isCurrent && isPlaying
   const hasStream = Boolean(primaryTrack?.stream_url)
+  // A reference result is link-out only. SC-003: the player and the download
+  // row must be ABSENT from the DOM, not hidden — so they are never rendered.
+  const isReference = item.source_kind === 'reference'
 
   function handlePlayToggle() {
     if (!primaryTrack || !hasStream) return
@@ -54,31 +57,34 @@ export function MusicCard({ item }: MusicCardProps) {
           </div>
         )}
 
-        {/* Center Play Button Overlay */}
-        <button
-          type="button"
-          onClick={handlePlayToggle}
-          disabled={!hasStream}
-          title={hasStream ? (isTrackPlaying ? 'توقف پخش' : 'پخش آنلاین') : 'پیش‌نمایش آنلاین در دسترس نیست'}
-          aria-label={hasStream ? (isTrackPlaying ? 'توقف پخش' : 'پخش آنلاین') : 'پیش‌نمایش آنلاین در دسترس نیست'}
-          className={`absolute inset-0 m-auto w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all backdrop-blur-sm ${
-            hasStream
-              ? isTrackPlaying
-                ? 'bg-cyan-400 text-slate-950 scale-105'
-                : 'bg-cyan-500/90 hover:bg-cyan-400 text-slate-950 hover:scale-110 opacity-90 group-hover:opacity-100'
-              : 'bg-zinc-800/60 text-zinc-500 cursor-not-allowed opacity-40'
-          }`}
-        >
-          {isTrackPlaying ? (
-            <Pause className="w-6 h-6 fill-slate-950" />
-          ) : (
-            <Play className="w-6 h-6 fill-slate-950 ms-0.5" />
-          )}
-        </button>
+        {/* Center Play Button Overlay — omitted entirely for reference items */}
+        {!isReference && (
+          <button
+            type="button"
+            onClick={handlePlayToggle}
+            disabled={!hasStream}
+            title={hasStream ? (isTrackPlaying ? 'توقف پخش' : 'پخش آنلاین') : 'پیش‌نمایش آنلاین در دسترس نیست'}
+            aria-label={hasStream ? (isTrackPlaying ? 'توقف پخش' : 'پخش آنلاین') : 'پیش‌نمایش آنلاین در دسترس نیست'}
+            className={`absolute inset-0 m-auto w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all backdrop-blur-sm ${
+              hasStream
+                ? isTrackPlaying
+                  ? 'bg-cyan-400 text-slate-950 scale-105'
+                  : 'bg-cyan-500/90 hover:bg-cyan-400 text-slate-950 hover:scale-110 opacity-90 group-hover:opacity-100'
+                : 'bg-zinc-800/60 text-zinc-500 cursor-not-allowed opacity-40'
+            }`}
+          >
+            {isTrackPlaying ? (
+              <Pause className="w-6 h-6 fill-slate-950" />
+            ) : (
+              <Play className="w-6 h-6 fill-slate-950 ms-0.5" />
+            )}
+          </button>
+        )}
 
-        {/* Source Badge */}
+        {/* Source Badge — the kind is text, not colour alone */}
         <div className="absolute top-2.5 start-2.5 flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-950/80 border border-zinc-800/80 text-2xs text-zinc-300 font-medium backdrop-blur-md">
           <span>{item.source_id}</span>
+          {isReference && <span className="text-violet-300">ارجاعی</span>}
         </div>
       </div>
 
@@ -101,19 +107,23 @@ export function MusicCard({ item }: MusicCardProps) {
         )}
       </div>
 
-      {/* Source page link */}
+      {/* Source page link — the reference card's primary, deliberate action */}
       <a
         href={item.page_url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-2xs text-zinc-500 hover:text-cyan-400 transition-colors self-start mb-2"
+        className={`inline-flex items-center gap-1 text-2xs transition-colors self-start mb-2 ${
+          isReference
+            ? 'font-semibold text-violet-300 hover:text-violet-200'
+            : 'text-zinc-500 hover:text-cyan-400'
+        }`}
       >
-        <span>مشاهده در سایت مرجع</span>
+        <span>{isReference ? 'گوش دادن در سایت منبع' : 'مشاهده در سایت مرجع'}</span>
         <ExternalLink className="w-3 h-3" />
       </a>
 
-      {/* Bitrate Download Row */}
-      {primaryTrack && (
+      {/* Bitrate Download Row — reference items never get one (SC-003) */}
+      {!isReference && primaryTrack && (
         <div className="mt-auto border-t border-zinc-800/80 pt-2">
           <MusicDownloadRow downloads={primaryTrack.downloads} />
         </div>
