@@ -12,7 +12,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -35,3 +35,5 @@ node_modules/
 *.db-wal
 *.db-shm
 apps/api/data/
+
+.pipeline/
