@@ -39,3 +39,5 @@ apps/api/data/
 # worktree symlinks (see .worktrees/)
 .venv
 node_modules
+
+.pipeline/
