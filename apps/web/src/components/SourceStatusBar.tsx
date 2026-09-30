@@ -2,11 +2,15 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import type { SourceStatus } from '@/types/media'
-import { AlertTriangle, X, Radio, ChevronDown, Film, Gamepad2, Music } from 'lucide-react'
+import { AlertTriangle, X, Radio, ChevronDown, Film, Gamepad2, Music, Eye, EyeOff, RotateCcw } from 'lucide-react'
 
 interface SourceStatusBarProps {
   sources: SourceStatus[]
   warnings?: string[]
+  /** Per-user hidden set (persisted locally, never sent to the server). */
+  hiddenSources?: string[]
+  onToggleHidden?: (id: string) => void
+  onRestoreAllSources?: () => void
 }
 
 const CATEGORY_CONFIG: {
@@ -36,13 +40,20 @@ function describeSource(s: SourceStatus): {
   return { status, statusLabel, reason: s.inactive_reason ?? null }
 }
 
-export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps) {
+export function SourceStatusBar({
+  sources,
+  warnings = [],
+  hiddenSources = [],
+  onToggleHidden,
+  onRestoreAllSources,
+}: SourceStatusBarProps) {
   const [dismissedWarnings, setDismissedWarnings] = useState<Record<number, boolean>>({})
   const [showSourcesMenu, setShowSourcesMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeWarnings = warnings.filter((_, idx) => !dismissedWarnings[idx])
   const enabledCount = sources.filter((s) => s.enabled).length
+  const canHide = Boolean(onToggleHidden)
 
   // Auto-dismiss warnings; a new warning set restarts the timers from scratch.
   useEffect(() => {
@@ -124,21 +135,49 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
             <span>{enabledCount} منبع متصل</span>
+            {hiddenSources.length > 0 && (
+              <span
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-800 text-2xs text-zinc-300 border border-zinc-700"
+                title="منابع پنهان‌شده در نتایج"
+              >
+                <EyeOff className="w-3 h-3" aria-hidden="true" />
+                {hiddenSources.length}
+              </span>
+            )}
             <ChevronDown className={`w-3 h-3 text-zinc-500 transition-transform ${showSourcesMenu ? 'rotate-180' : ''}`} />
           </button>
 
           {showSourcesMenu && (
             <div
-              className="absolute end-0 top-full mt-2 w-64 max-h-96 overflow-y-auto p-2.5 rounded-2xl bg-zinc-950/95 border border-zinc-800 shadow-2xl z-50 flex flex-col gap-2.5 text-xs backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
-              role="menu"
+              className="absolute end-0 top-full mt-2 w-72 max-h-[26rem] overflow-y-auto p-2.5 rounded-2xl bg-zinc-950/95 border border-zinc-800 shadow-2xl z-50 flex flex-col gap-2.5 text-xs backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+              role="dialog"
+              aria-label="وضعیت و پنهان‌سازی منابع"
             >
-              <div className="px-2 py-1 text-2xs text-zinc-400 font-semibold border-b border-zinc-800/80 flex items-center justify-between">
+              <div className="px-2 py-1 text-2xs text-zinc-400 font-semibold border-b border-zinc-800/80 flex items-center justify-between gap-2 sticky top-0 bg-zinc-950/95">
                 <span>وضعیت منابع سایت‌ها</span>
-                <div className="flex items-center gap-1 text-emerald-400">
-                  <Radio className="w-3 h-3" />
-                  <span>{enabledCount} فعال</span>
+                <div className="flex items-center gap-2">
+                  {canHide && hiddenSources.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onRestoreAllSources}
+                      className="flex items-center gap-1 text-2xs text-zinc-400 hover:text-cyan-400 transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                      <span>بازگردانی همه</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1 text-emerald-400">
+                    <Radio className="w-3 h-3" />
+                    <span>{enabledCount} فعال</span>
+                  </div>
                 </div>
               </div>
+
+              {canHide && (
+                <p className="px-2 text-2xs text-zinc-500 leading-relaxed">
+                  با زدن آیکن چشم، نتایج آن منبع در جستجوهای بعدی پنهان می‌شود.
+                </p>
+              )}
 
               {/* Categorized Sources Sections */}
               {CATEGORY_CONFIG.map((cat) => {
@@ -165,21 +204,53 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
                       {catSources.map((s) => {
                         const { status, statusLabel, reason } = describeSource(s)
                         const isReference = s.kind === 'reference'
+                        const hidden = hiddenSources.includes(s.id)
+                        // A degraded/inactive source offers no hide control: hiding it
+                        // would not change the results the user is already missing.
+                        const blocked = status === 'degraded' || status === 'inactive'
                         return (
                           <div
                             key={s.id}
                             className="flex flex-col gap-0.5 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/60 transition-colors"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-zinc-200 text-xs font-medium truncate">
+                              <span
+                                className={`text-xs font-medium truncate ${
+                                  hidden ? 'text-zinc-500 line-through' : 'text-zinc-200'
+                                }`}
+                              >
                                 {s.name}
                               </span>
                               <span className="flex items-center gap-1 shrink-0">
+                                {canHide && !blocked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onToggleHidden?.(s.id)}
+                                    aria-pressed={hidden}
+                                    aria-label={
+                                      hidden
+                                        ? `نمایش نتایج ${s.name}`
+                                        : `پنهان‌کردن نتایج ${s.name}`
+                                    }
+                                    title={hidden ? 'نمایش در نتایج' : 'پنهان‌کردن از نتایج'}
+                                    className={`p-1 rounded-md transition-colors ${
+                                      hidden
+                                        ? 'text-zinc-500 hover:text-cyan-400 hover:bg-zinc-800'
+                                        : 'text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800'
+                                    }`}
+                                  >
+                                    {hidden ? (
+                                      <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
+                                    ) : (
+                                      <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+                                    )}
+                                  </button>
+                                )}
                                 <span
                                   className="text-2xs px-1.5 py-0.5 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800"
-                                  title={isReference ? 'ارجاعی — فقط لینک صفحه' : 'کامل — پخش و دانلود'}
+                                  title={isReference ? 'ارجاعی — فقط لینک صفحه' : 'مستقیم — پخش و دانلود'}
                                 >
-                                  {isReference ? 'ارجاعی' : 'کامل'}
+                                  {isReference ? 'ارجاعی' : 'مستقیم'}
                                 </span>
                                 {s.access_tier !== 'free' && (
                                   <span
@@ -189,7 +260,7 @@ export function SourceStatusBar({ sources, warnings = [] }: SourceStatusBarProps
                                         : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                                     }`}
                                   >
-                                    {s.access_tier === 'premium' ? 'VIP' : 'ترکیبی'}
+                                    {s.access_tier === 'premium' ? 'VIP' : 'رایگان و VIP'}
                                   </span>
                                 )}
                                 <span

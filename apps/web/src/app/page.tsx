@@ -23,7 +23,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { Sparkles, AlertCircle, Compass, Filter } from 'lucide-react'
+import { Sparkles, AlertCircle, Compass } from 'lucide-react'
 
 const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
 
@@ -334,7 +334,22 @@ export default function Home() {
             </div>
 
             <div>
-              <SourceStatusBar sources={sources} warnings={warnings} />
+              <SourceStatusBar
+                sources={sources}
+                warnings={warnings}
+                hiddenSources={filters.hiddenSources}
+                onToggleHidden={(id) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    hiddenSources: prev.hiddenSources.includes(id)
+                      ? prev.hiddenSources.filter((item) => item !== id)
+                      : [...prev.hiddenSources, id],
+                  }))
+                }
+                onRestoreAllSources={() =>
+                  setFilters((prev) => ({ ...prev, hiddenSources: [] }))
+                }
+              />
             </div>
           </div>
         </header>
@@ -377,7 +392,6 @@ export default function Home() {
                 availableSources={availableFilterOptions.sources}
                 filters={filters}
                 onFilterChange={setFilters}
-                sourceRegistry={sources}
                 showMovieFilters={category === 'movies'}
               />
             </div>
@@ -414,14 +428,20 @@ export default function Home() {
             <div className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8">
               <Compass className="w-12 h-12 text-zinc-600" />
               <h3 className="font-bold text-base text-zinc-200">
-                {items.length === 0 ? 'موردی یافت نشد' : 'نتیجه‌ای با این فیلترها نیست'}
+                {items.length === 0
+                  ? 'موردی یافت نشد'
+                  : filters.hiddenSources.length > 0
+                    ? 'همه نتایج پنهان شده‌اند'
+                    : 'نتیجه‌ای با این فیلترها نیست'}
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {items.length === 0
                   ? `عنوانی با مشخصات «${query}» در پایگاه‌ها پیدا نشد. املای کلمه را بررسی کرده یا نام انگلیسی/فارسی آن را جستجو کنید.`
-                  : 'فیلترهای انتخاب‌شده هیچ‌کدام از نتایج را پوشش نمی‌دهند. فیلترها را کم یا حذف کنید.'}
+                  : filters.hiddenSources.length > 0
+                    ? `${filters.hiddenSources.length} منبع در فهرست منابع بالا پنهان شده و همه نتایج از آن‌هاست. از آیکن چشم آن‌ها را دوباره نشان دهید.`
+                    : 'فیلترهای انتخاب‌شده هیچ‌کدام از نتایج را پوشش نمی‌دهند. فیلترها را کم یا حذف کنید.'}
               </p>
-              {items.length > 0 && (
+              {items.length > 0 && filters.hiddenSources.length === 0 && (
                 <button
                   type="button"
                   onClick={() => setFilters((prev) => ({
@@ -437,37 +457,6 @@ export default function Home() {
                   حذف تمام فیلترها
                 </button>
               )}
-            </div>
-          )}
-
-          {!isLoading && !errorMessage && hasSearched && items.length > 0 && filteredItems.length === 0 && (
-            <div
-              role="status"
-              className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8"
-            >
-              <Filter className="w-12 h-12 text-zinc-600" />
-              <h3 className="font-bold text-base text-zinc-200">
-                نتیجه‌ای با این فیلترها نیست
-              </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                هیچ موردی با فیلترهای انتخاب‌شده مطابقت ندارد. فیلترها را حذف یا گسترده‌تر کنید.
-              </p>
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters((prev) => ({
-                    qualities: [],
-                    audioTracks: [],
-                    sources: [],
-                    hiddenSources: prev.hiddenSources,
-                    accessTier: 'all',
-                    censorship: 'all',
-                  }))
-                }
-                className="mt-2 px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-xs font-semibold transition-colors"
-              >
-                حذف فیلترها
-              </button>
             </div>
           )}
 
