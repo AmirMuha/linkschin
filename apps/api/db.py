@@ -177,7 +177,7 @@ def _drop_misfiled_game_rows(conn: sqlite3.Connection) -> None:
 
 def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
     """Open (and initialize) the index database."""
-    raw = db_path or os.environ.get("MOVIE_FETCHER_DB") or DEFAULT_DB_PATH
+    raw = db_path or os.environ.get("LINKSCHIN_DB") or DEFAULT_DB_PATH
     path = Path(raw)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)

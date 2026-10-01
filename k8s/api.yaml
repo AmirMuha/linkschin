@@ -14,15 +14,15 @@ spec:
     spec:
       containers:
       - name: api
-        image: movie-fetcher-api:latest
+        image: linkschin-api:latest
         imagePullPolicy: Never # Use local image
         ports:
         - containerPort: 8000
         envFrom:
         - configMapRef:
-            name: movie-fetcher-config
+            name: linkschin-config
         - secretRef:
-            name: movie-fetcher-secret
+            name: linkschin-secret
         volumeMounts:
         - name: data-volume
           mountPath: /app/data

@@ -91,9 +91,9 @@ def test_api_search_empty_cache_entry_does_not_shadow_db(tmp_path, monkeypatch):
     GLOBAL_CACHE.set() used to run even with zero items, and a cache hit of []
     was treated as authoritative, so db.search() was never reached.
     """
-    monkeypatch.setenv("MOVIE_FETCHER_DB", str(tmp_path / "index.db"))
+    monkeypatch.setenv("LINKSCHIN_DB", str(tmp_path / "index.db"))
     # YasDL answers the same query; this check is about Downloadha, so silence it.
-    monkeypatch.setenv("MOVIE_FETCHER_ENABLE_YASDL", "false")
+    monkeypatch.setenv("LINKSCHIN_ENABLE_YASDL", "false")
     cat = Category.MOVIES
     query = "مرد عنکبوتی"
     GLOBAL_CACHE.set(cat, query, [])
@@ -150,9 +150,9 @@ def test_games_response_excludes_music_but_still_indexes_it(tmp_path, monkeypatc
     async def fake_search(self, query, client):
         return list(scraped)
 
-    monkeypatch.setenv("MOVIE_FETCHER_DB", str(tmp_path / "index.db"))
+    monkeypatch.setenv("LINKSCHIN_DB", str(tmp_path / "index.db"))
     # YasDL answers the same query; this check is about Downloadha, so silence it.
-    monkeypatch.setenv("MOVIE_FETCHER_ENABLE_YASDL", "false")
+    monkeypatch.setenv("LINKSCHIN_ENABLE_YASDL", "false")
     monkeypatch.setattr(DownloadhaPlugin, "search", fake_search)
     monkeypatch.setattr(DownloadhaPlugin, "extract_links",
                         lambda self, item, client: _identity(item))

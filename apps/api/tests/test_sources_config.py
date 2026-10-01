@@ -21,16 +21,16 @@ def test_registry_contains_all_spec_sources():
 
 
 def test_environment_variable_url_override(monkeypatch):
-    """Verify MOVIE_FETCHER_URL_<ID> overrides base URLs dynamically."""
-    monkeypatch.setenv("MOVIE_FETCHER_URL_DOWNLOADHA", "https://mirror2.downloadha.com")
+    """Verify LINKSCHIN_URL_<ID> overrides base URLs dynamically."""
+    monkeypatch.setenv("LINKSCHIN_URL_DOWNLOADHA", "https://mirror2.downloadha.com")
     game_plugins = get_sources_for_category(Category.GAMES)
     dlha = next(p for p in game_plugins if p.config.id == "downloadha")
     assert dlha.config.primary_base_url == "https://mirror2.downloadha.com"
 
 
 def test_environment_variable_enable_override(monkeypatch):
-    """Verify MOVIE_FETCHER_ENABLE_<ID> enables/disables sources."""
-    monkeypatch.setenv("MOVIE_FETCHER_ENABLE_FILM2MEDIA", "true")
+    """Verify LINKSCHIN_ENABLE_<ID> enables/disables sources."""
+    monkeypatch.setenv("LINKSCHIN_ENABLE_FILM2MEDIA", "true")
     all_configs = get_all_source_configs()
     f2m = next(c for c in all_configs if c.id == "film2media")
     assert f2m.enabled is True

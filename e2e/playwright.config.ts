@@ -19,7 +19,7 @@ const REPO = join(HERE, '..')
 //  2. Its CDN/media hosts are rewritten too, so validate_stream_url's HEAD resolves locally in
 //     ~1ms instead of taking 7-8s against the real web and breaching the 10s search deadline.
 const SOURCES = ['UPTVS', 'DOOSTIHAA', 'DOWNLOADHA', 'YASDL', 'POPMUSIC', 'NEX1MUSIC']
-const sourceUrlEnv = Object.fromEntries(SOURCES.map((id) => [`MOVIE_FETCHER_URL_${id}`, `${STUB}/${id.toLowerCase()}`]))
+const sourceUrlEnv = Object.fromEntries(SOURCES.map((id) => [`LINKSCHIN_URL_${id}`, `${STUB}/${id.toLowerCase()}`]))
 
 // Per-run SQLite, so no test reads another test's index.
 const dbPath = join(mkdtempSync(join(tmpdir(), 'mf-e2e-')), 'index.db')
@@ -36,7 +36,7 @@ const apiServer = {
   cwd: join(REPO, 'apps', 'api'),
   url: `${API}/health`,
   reuseExistingServer: false,
-  env: { MOVIE_FETCHER_DB: dbPath, ...sourceUrlEnv },
+  env: { LINKSCHIN_DB: dbPath, ...sourceUrlEnv },
 }
 
 // The live project is config-level, not project-level: `webServer` is not a project option,

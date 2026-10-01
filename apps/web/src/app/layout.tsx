@@ -10,7 +10,7 @@ const vazirmatn = Vazirmatn({
 })
 
 export const metadata: Metadata = {
-  title: 'موتور جستجوی چندرسانه‌ای | Iranian Multi-Media Aggregator',
+  title: 'Linkschin | موتور جستجوی چندرسانه‌ای',
   description: 'دریافت مستقیم لینک‌های دانلود فیلم، سریال، بازی و موسیقی بدون واسطه و تبلیغات',
 }
 

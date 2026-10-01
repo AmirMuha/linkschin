@@ -14,13 +14,13 @@ spec:
     spec:
       containers:
       - name: web
-        image: movie-fetcher-web:latest
+        image: linkschin-web:latest
         imagePullPolicy: Never # Use local image
         ports:
         - containerPort: 3000
         envFrom:
         - configMapRef:
-            name: movie-fetcher-config
+            name: linkschin-config
 ---
 apiVersion: v1
 kind: Service

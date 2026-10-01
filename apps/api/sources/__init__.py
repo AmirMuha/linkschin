@@ -75,14 +75,14 @@ INACTIVE_REASONS: dict[str, str] = {
 def apply_env_overrides(config: SourceConfig) -> SourceConfig:
     """
     Override source base URL via environment variable if present.
-    Format: MOVIE_FETCHER_URL_<SOURCE_ID_UPPER>
-    Example: MOVIE_FETCHER_URL_DOWNLOADHA=https://mirror2.downloadha.com
+    Format: LINKSCHIN_URL_<SOURCE_ID_UPPER>
+    Example: LINKSCHIN_URL_DOWNLOADHA=https://mirror2.downloadha.com
 
     Returns a copy: DEFAULT_CONFIGS holds shared module-level dataclasses, and
     mutating one in place would leak an env override into every later caller.
     """
-    env_var = f"MOVIE_FETCHER_URL_{config.id.upper()}"
-    enable_var = f"MOVIE_FETCHER_ENABLE_{config.id.upper()}"
+    env_var = f"LINKSCHIN_URL_{config.id.upper()}"
+    enable_var = f"LINKSCHIN_ENABLE_{config.id.upper()}"
 
     base_urls = list(config.base_urls)
     if override_url := os.environ.get(env_var):

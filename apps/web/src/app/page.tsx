@@ -29,7 +29,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { Sparkles, AlertCircle, Compass } from 'lucide-react'
+import { AlertCircle, Compass } from 'lucide-react'
 
 const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
 
@@ -343,11 +343,9 @@ export default function Home() {
         <header className="w-full border-b border-zinc-900 bg-zinc-950/70 backdrop-blur-xl sticky top-0 z-30 py-2.5 px-4 sm:px-6">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.2)]">
-                <Sparkles className="w-4 h-4" />
-              </div>
+              <img src="/logo.png" alt="" width={18} height={24} className="h-6 w-auto" />
               <span className="font-bold text-sm tracking-tight text-zinc-100">
-                MovieFetcher
+                Linkschin
               </span>
             </div>
 

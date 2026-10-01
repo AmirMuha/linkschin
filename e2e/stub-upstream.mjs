@@ -7,7 +7,7 @@
 // page.route intercepts them before the browser ever leaves the machine.
 //
 // Control surface. The stub is per-source by path prefix, so a test selects a source
-// with MOVIE_FETCHER_ENABLE_<ID>=false rather than a URL switch.
+// with LINKSCHIN_ENABLE_<ID>=false rather than a URL switch.
 //
 //   ?fail=1  on the source's base URL -> 503 for that source, producing the
 //            partial-failure warning pill while the other enabled sources still answer.
@@ -23,7 +23,7 @@ const FIXTURES = join(HERE, '..', 'apps', 'api', 'tests', 'fixtures')
 const PORT = Number(process.env.E2E_STUB_PORT ?? 8899)
 const SELF = `http://127.0.0.1:${PORT}`
 
-// All six enabled sources are pointed at SELF via MOVIE_FETCHER_URL_<ID>, so the stub
+// All six enabled sources are pointed at SELF via LINKSCHIN_URL_<ID>, so the stub
 // cannot tell them apart by host. Each gets its own path prefix instead.
 const SOURCES = {
   uptvs: { prefix: '/uptvs', host: 'https://www.uptvs.com' },

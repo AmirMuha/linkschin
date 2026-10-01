@@ -1,5 +1,5 @@
 {
-  "name": "movie-fetcher-monorepo",
+  "name": "linkschin",
   "private": true,
   "scripts": {
     "build": "turbo build",
