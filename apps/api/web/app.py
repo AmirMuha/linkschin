@@ -1,18 +1,19 @@
-import os
-"""FastAPI web application for Iranian Multi-Media Direct Link Aggregator."""
+"""FastAPI JSON API for Iranian Multi-Media Direct Link Aggregator.
+
+The UI is the Next.js app in ``apps/web``; this service only exposes JSON.
+"""
 
 from __future__ import annotations
 
+import os
+
 import asyncio
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import JSONResponse
 
 from cache import GLOBAL_CACHE, normalize_persian_text
 import db
@@ -23,10 +24,6 @@ from sources import health
 from sources.base import validate_stream_url
 
 DEGRADED_THRESHOLD = 3  # 3 consecutive failures → degraded, excluded from search (FR-018a)
-
-APP_DIR = Path(__file__).resolve().parent
-TEMPLATES_DIR = APP_DIR / "templates"
-STATIC_DIR = APP_DIR / "static"
 
 app = FastAPI(
     title="Iranian Multi-Media Direct Link Aggregator",
@@ -43,11 +40,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Mount static directory
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Re-scrape a stored row once it is this old, so renamed posts and rotated download
 # links surface without waiting for a user to hit refresh.
@@ -81,8 +73,8 @@ def _source_status(cfg) -> str:
 def _finalize(items: list[MediaItem]) -> list[MediaItem]:
     """Stamp item.source_kind, drop degraded sources, sort full-before-reference (FR-005a/018a, T012/T017).
 
-    Stamping the dataclass (not just the JSON dict) is what the Jinja templates
-    branch on: ``item.source_kind == "reference"`` reads the attribute. Applied
+    Stamping the dataclass (not just the JSON dict) is what the client
+    branches on: ``item.source_kind == "reference"`` reads the attribute. Applied
     on cache/DB paths too because rehydrated items default to "full" and come
     back in last_seen order. Degraded sources are also dropped here: their
     stale items can still live in the cache/DB from before they failed, and
@@ -302,65 +294,6 @@ async def _collect_items(
     return [], warnings, False
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index_page(
-    request: Request,
-    category: str = Query("movies", description="Default active tab category"),
-) -> HTMLResponse:
-    """Render landing page with active category and sources."""
-    cat_clean = category.lower()
-    if cat_clean not in ("movies", "games", "music"):
-        cat_clean = "movies"
-
-    all_sources = _source_display_rows()
-    return templates.TemplateResponse(
-        request=request,
-        name="base.html",
-        context={
-            "active_category": cat_clean,
-            "all_sources": all_sources,
-            "query": "",
-        },
-    )
-
-
-@app.get("/search", response_class=HTMLResponse)
-async def search_media(
-    request: Request,
-    q: str = Query(..., description="Search query string"),
-    category: str = Query("movies", description="Active media category"),
-    refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
-    sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
-    scope: str = Query("downloads", description="'all' to include streaming video platforms"),
-) -> HTMLResponse:
-    """Search enabled sources for the category, extract direct links, and render results."""
-    cat_clean = category.lower()
-    try:
-        cat_enum = Category(cat_clean)
-    except ValueError:
-        cat_enum = Category.MOVIES
-        cat_clean = "movies"
-
-    norm_query = normalize_persian_text(q)
-    items, warnings, is_cached = await _collect_items(
-        cat_enum, norm_query, q, refresh, exclude_ids=set(sources), scope=scope
-    )
-    all_sources = _source_display_rows()
-
-    return templates.TemplateResponse(
-        request=request,
-        name="results.html",
-        context={
-            "active_category": cat_clean,
-            "all_sources": all_sources,
-            "query": q,
-            "items": items,
-            "is_cached": is_cached,
-            "warnings": warnings,
-        },
-    )
-
-
 @app.get("/api/search", response_class=JSONResponse)
 async def api_search_media(
     q: str = Query(..., description="Search query string"),
@@ -456,10 +389,9 @@ def _source_health_rows() -> list[dict]:
 def _source_display_rows() -> list[dict]:
     """Build the display row for every registered source (FR-017, T080).
 
-    One derivation, two consumers: the ``/api/sources`` JSON and the Jinja
-    source list in ``base.html``. They MUST NOT diverge — the template previously
-    received raw ``SourceConfig`` objects, which have no ``status`` or
-    ``inactive_reason``, so every inactive source rendered with no reason.
+    One derivation, one consumer: the ``/api/sources`` JSON. A raw
+    ``SourceConfig`` has no ``status`` or ``inactive_reason``, so this build step
+    is what lets the client render why an inactive source is off.
 
     Derived at request time so a row never contradicts the DB or the registry.
 

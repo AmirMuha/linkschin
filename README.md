@@ -1,7 +1,7 @@
 # Linkschin — Iranian Multi-Media Direct Link Aggregator (Monorepo)
 
-A fast, server-rendered multi-media fetcher and aggregator targeting Iranian sources for **Movies, Games, and Music**.
-Extracts direct download links, split game archives with extraction passwords, and audio previews without server-side media proxying.
+A fast multi-media fetcher and aggregator targeting Iranian sources for **Movies, Games, and Music**.
+Extracts direct download links, split game archives with extraction passwords, and audio previews without server-side media proxying. The UI is a Next.js app; the Python service is a JSON API.
 
 ## Repository Structure
 
@@ -9,8 +9,8 @@ Managed with [Turborepo](https://turbo.build/) and `pnpm` workspaces:
 
 ```
 ├── apps/
-│   ├── api/          # Python aggregator service, CLI, and FastAPI web routes
-│   └── (web/)        # Reserved for upcoming standalone web interface
+│   ├── api/          # Python aggregator service, CLI, and FastAPI JSON API
+│   └── web/          # Next.js user interface
 ├── packages/         # Shared libraries (future)
 ├── package.json      # Monorepo root scripts & dev dependencies
 ├── pnpm-workspace.yaml

@@ -218,7 +218,7 @@ class MediaItem:
     game_releases: list[GameRelease] = field(default_factory=list)
     music_tracks: list[MusicTrack] = field(default_factory=list)
 
-    # Source health/kind for template branching (_music_card.html). Plain str, not
+    # Source health/kind for client-side branching. Plain str, not
     # SourceKind: every pre-006 constructor site and the DB rehydrate path default
     # to "full" without importing the enum. Set in _collect_items from config.kind.
     source_kind: str = "full"
