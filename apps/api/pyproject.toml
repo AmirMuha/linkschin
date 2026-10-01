@@ -29,8 +29,8 @@ dev = [
 ]
 
 [tool.poe.tasks]
-dev = "uvicorn main:app --host 127.0.0.1 --port 8000 --reload"
-start = "uvicorn main:app --host 127.0.0.1 --port 8000"
+dev = "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+start = "uvicorn main:app --host 0.0.0.0 --port 8000"
 test = "pytest tests"
 test-offline = "python tests/run_all.py"
 lint = "python -m compileall -q main.py models.py cache.py http_client.py cli_check.py sources web"
