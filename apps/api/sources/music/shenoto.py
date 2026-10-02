@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
-from models import SourceConfig
+from urllib.parse import quote_plus
+from models import SearchQuery, SourceConfig
 from sources.music.reference import ReferenceSourcePlugin
 
 
 class ShenotoPlugin(ReferenceSourcePlugin):
     """Shenoto reference plugin: link-out to the site's music search (subscription service, no media relayed)."""
+
+    def search_url(self, query: SearchQuery) -> str:
+        """Override default search URL."""
+        term = query.normalized_query or query.raw_query
+        return f"{self.base_url}/search?q={quote_plus(term)}"
+
