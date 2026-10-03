@@ -36,6 +36,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useFavorites } from '@/hooks/useFavorites'
 import { AlertCircle, Compass, Film, Gamepad2, Music } from 'lucide-react'
 
 const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
@@ -67,14 +68,10 @@ export default function Home() {
     title: '',
   })
 
-  // Design system drawer, assistant, and watchlist states
+  // Design system drawer and assistant states
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
-  const [watchlistIds, setWatchlistIds] = useState<string[]>([
-    'digger',
-    'baldurs-gate-3',
-    'sogand',
-  ])
+  const favorites = useFavorites()
   const [dynamicTrending, setDynamicTrending] = useState<any[]>([])
   const [dynamicLatest, setDynamicLatest] = useState<any[]>([])
 
@@ -104,33 +101,6 @@ export default function Home() {
     const cat = new URLSearchParams(window.location.search).get('cat')
     if (cat === 'movies' || cat === 'games' || cat === 'music') setCategory(cat)
   }, [])
-
-  // Restore saved watchlist
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem('linkschin:watchlist')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed)) setWatchlistIds(parsed)
-      }
-    } catch {}
-  }, [])
-
-  function handleToggleWatchlist(item: CatalogItem) {
-    setWatchlistIds((prev) => {
-      const next = prev.includes(item.id)
-        ? prev.filter((id) => id !== item.id)
-        : [...prev, item.id]
-      try {
-        window.localStorage.setItem('linkschin:watchlist', JSON.stringify(next))
-      } catch {}
-      return next
-    })
-  }
-
-  function isItemInWatchlist(id: string) {
-    return watchlistIds.includes(id)
-  }
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -443,8 +413,8 @@ export default function Home() {
             <HeroBanner
               category={category}
               onOpenDetails={setSelectedCatalogItem}
-              onToggleWatchlist={handleToggleWatchlist}
-              isItemInWatchlist={isItemInWatchlist}
+              onToggleFavorite={favorites.toggle}
+              isItemFavorite={favorites.isLiked}
             />
           )}
 
@@ -580,12 +550,13 @@ export default function Home() {
             </section>
           )}
 
-          {/* Idle Homepage Sections (Health, Trending, Shelf, Why, Watchlist, FAQ) */}
+          {/* Idle Homepage Sections (Health, Trending, Shelf, Why, FAQ) */}
           {!hasSearched && items.length === 0 && !isLoading && (
             <StaticSections
               category={category}
-              watchlistIds={watchlistIds}
               onOpenDetails={setSelectedCatalogItem}
+              onToggleFavorite={favorites.toggle}
+              isItemFavorite={favorites.isLiked}
               dynamicTrending={dynamicTrending}
               dynamicLatest={dynamicLatest}
             />
@@ -598,6 +569,9 @@ export default function Home() {
           isOpen={Boolean(selectedCatalogItem)}
           onClose={() => setSelectedCatalogItem(null)}
           onPlayStream={handleOpenVideo}
+          onToggleFavorite={favorites.toggle}
+          isItemFavorite={favorites.isLiked}
+          persistenceBlocked={favorites.persistenceBlocked}
         />
 
         {/* AI Assistant */}
