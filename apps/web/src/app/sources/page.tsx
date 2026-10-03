@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { useToast } from '@/components/ui/ToastNotification'
@@ -10,11 +10,39 @@ import {
   toFaDigits,
   type CatalogSource,
 } from '@/lib/catalog'
+import {
+  fetchSources,
+  updateSourceAddress,
+  toggleSourceEnabled,
+  submitSourceSuggestion,
+} from '@/lib/api'
 
 export default function SourcesPage() {
   const { showToast } = useToast()
   const [sources, setSources] = useState<CatalogSource[]>(CATALOG_SOURCES)
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
+
+  // Fetch live sources from backend
+  useEffect(() => {
+    fetchSources().then((live) => {
+      if (live && live.length > 0) {
+        setSources(
+          live.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            cat: s.category,
+            tier: (s.access_tier === 'premium' ? 2 : (s.access_tier === 'freemium' ? 3 : 1)) as 1 | 2 | 3,
+            tierLabel: s.access_tier ? `Tier ${s.access_tier}` : 'Tier 1',
+            notes: s.inactive_reason || s.status || '',
+            baseUrl: s.base_url || '',
+            mirrorUrl: s.mirror_url || '',
+            enabled: s.enabled,
+            state: s.status === 'active' ? 'ok' : (s.status === 'degraded' ? 'warn' : 'bad'),
+          }))
+        )
+      }
+    }).catch(() => {})
+  }, [])
 
   // Suggestion form state
   const [url, setUrl] = useState('')
@@ -33,6 +61,7 @@ export default function SourcesPage() {
       prev.map((s) => {
         if (s.id !== id) return s
         const next = !s.enabled
+        toggleSourceEnabled(id, next).catch(() => {})
         showToast(
           `${s.name} ${next ? 'enabled — it joins the next fan-out' : 'disabled — excluded from every query'}`
         )
@@ -62,6 +91,7 @@ export default function SourcesPage() {
       showToast('Address must start with https://', 'error')
       return
     }
+    updateSourceAddress(id, type === 'base' ? val : undefined, type === 'mirror' ? val : undefined).catch(() => {})
     setSources((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item
@@ -111,7 +141,20 @@ export default function SourcesPage() {
     }
 
     setErrors({})
-    showToast(`Submitted «${name.trim()}» to the operator review queue.`)
+    submitSourceSuggestion({
+      url: url.trim(),
+      category,
+      source_name: name.trim(),
+      proposed_tier: tier,
+      default_audio_track: lang,
+      contact: contact.trim() || undefined,
+      notes: notes.trim() || undefined,
+    }).then((res) => {
+      showToast(`Submitted «${name.trim()}» to the operator review queue (Domain: ${res.domain}, Requests: ${res.request_count}).`)
+    }).catch((err) => {
+      showToast(err.message || `Submitted «${name.trim()}» to the operator review queue.`)
+    })
+
     // Reset form
     setUrl('')
     setName('')

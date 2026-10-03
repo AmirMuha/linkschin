@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import type { Category } from '@/types/media'
 import { Sparkles, Send, X } from 'lucide-react'
 import { normalizeFa, toFaDigits, searchCatalog, CATALOG_SOURCES, CATALOG_GAMES } from '@/lib/catalog'
+import { sendChatMessage } from '@/lib/api'
 
 interface AiAssistantProps {
   category: Category
@@ -70,7 +71,7 @@ export function AiAssistant({ category, isOpen, onToggle, onClose }: AiAssistant
     return 'سؤال شما دریافت شد. می‌توانید نام عنوان، سال یا کیفیت مورد نظر را بفرمایید.'
   }
 
-  function handleSend(text: string) {
+  async function handleSend(text: string) {
     const trimmed = text.trim()
     if (!trimmed) return
 
@@ -80,15 +81,26 @@ export function AiAssistant({ category, isOpen, onToggle, onClose }: AiAssistant
       text: trimmed,
     }
 
-    const botResponseText = getBotResponse(trimmed)
-    const botMsg: ChatMessage = {
-      id: String(Date.now() + 1),
-      role: 'bot',
-      text: botResponseText,
-    }
-
-    setMessages((prev) => [...prev, userMsg, botMsg])
+    setMessages((prev) => [...prev, userMsg])
     setInput('')
+
+    try {
+      const res = await sendChatMessage(trimmed, undefined, category)
+      const botMsg: ChatMessage = {
+        id: String(Date.now() + 1),
+        role: 'bot',
+        text: res.message || getBotResponse(trimmed),
+      }
+      setMessages((prev) => [...prev, botMsg])
+    } catch {
+      const botResponseText = getBotResponse(trimmed)
+      const botMsg: ChatMessage = {
+        id: String(Date.now() + 1),
+        role: 'bot',
+        text: botResponseText,
+      }
+      setMessages((prev) => [...prev, botMsg])
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {

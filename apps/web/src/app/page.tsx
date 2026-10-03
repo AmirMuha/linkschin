@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Category, MediaItem, SourceStatus } from '@/types/media'
-import { searchMedia, fetchSources } from '@/lib/api'
+import { searchMedia, fetchSources, fetchTrending, fetchLatest } from '@/lib/api'
 import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
 import { SourceStatusBar } from '@/components/SourceStatusBar'
@@ -75,6 +75,22 @@ export default function Home() {
     'baldurs-gate-3',
     'sogand',
   ])
+  const [dynamicTrending, setDynamicTrending] = useState<any[]>([])
+  const [dynamicLatest, setDynamicLatest] = useState<any[]>([])
+
+  // Fetch live trending and latest items dynamically from catalog API
+  useEffect(() => {
+    let ignore = false
+    fetchTrending(category, 12).then((res) => {
+      if (!ignore && res && res.length > 0) setDynamicTrending(res)
+    })
+    fetchLatest(category, 14).then((res) => {
+      if (!ignore && res && res.length > 0) setDynamicLatest(res)
+    })
+    return () => {
+      ignore = true
+    }
+  }, [category])
 
   // Sync category to body dataset for CSS variables
   useEffect(() => {
@@ -570,6 +586,8 @@ export default function Home() {
               category={category}
               watchlistIds={watchlistIds}
               onOpenDetails={setSelectedCatalogItem}
+              dynamicTrending={dynamicTrending}
+              dynamicLatest={dynamicLatest}
             />
           )}
         </main>

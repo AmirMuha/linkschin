@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: Linkschin Intelligent Search Assistant API
+  version: 0.2.0
+  description: LangChain tool-calling conversational search assistant with SSE streaming.
+paths:
+  /api/chat:
+    post:
+      summary: Send a conversational message to the AI assistant
+      operationId: chatWithAssistant
+      parameters:
+        - name: Accept
+          in: header
+          required: false
+          schema:
+            type: string
+            enum: [text/event-stream, application/json]
+            default: text/event-stream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                session_id:
+                  type: string
+                  description: Optional client session ID for conversation continuity
+                category:
+                  type: string
+                  enum: [movies, games, music]
+                  default: movies
+                message:
+                  type: string
+                  description: User natural-language question
+      responses:
+        '200':
+          description: SSE event stream or full JSON response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Stream of events:
+                  - event: status (e.g. data: {"step": "Searching movie catalog..."})
+                  - event: delta (e.g. data: {"text": "Digger has 1080p FA-DUB..."})
+                  - event: media_card (e.g. data: {"item": {...MediaItem...}})
+                  - event: done (e.g. data: {"session_id": "sess_123"})
+            application/json:
+              schema:
+                type: object
+                required: [session_id, message, media_items]
+                properties:
+                  session_id:
+                    type: string
+                  message:
+                    type: string
+                  media_items:
+                    type: array
+                    items:
+                      type: object
+
+  /api/chat/session/{session_id}:
+    delete:
+      summary: Reset conversational session history
+      operationId: resetChatSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session cleared

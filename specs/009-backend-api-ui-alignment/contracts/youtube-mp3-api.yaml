@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: Linkschin YouTube to MP3 Converter API
+  version: 0.2.0
+  description: Asynchronous YouTube music video to MP3 extraction and immediate streaming delivery.
+paths:
+  /api/convert:
+    post:
+      summary: Start an asynchronous YouTube audio extraction job
+      operationId: startConversion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Public YouTube video or shorts URL
+                bitrate:
+                  type: integer
+                  enum: [128, 192, 256, 320]
+                  default: 320
+                sample_rate:
+                  type: integer
+                  enum: [44100, 48000]
+                  default: 44100
+                write_meta:
+                  type: boolean
+                  default: true
+                norm_filename:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Conversion task accepted and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [request_id, status, message]
+                properties:
+                  request_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [queued, processing]
+                  message:
+                    type: string
+        '400':
+          description: Invalid YouTube URL
+        '429':
+          description: Hourly rate limit exceeded (max 20 per hour per client IP)
+
+  /api/convert/{id}:
+    get:
+      summary: Poll conversion task progress and status
+      operationId: getConversionStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current job status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [request_id, status, progress]
+                properties:
+                  request_id:
+                    type: string
+                  status:
+                    type: string
+                    enum: [queued, processing, completed, failed]
+                  progress:
+                    type: integer
+                  current_step:
+                    type: string
+                  video_title:
+                    type: string
+                  download_url:
+                    type: string
+                  error_message:
+                    type: string
+        '404':
+          description: Job not found
+
+  /api/download/{id}:
+    get:
+      summary: Stream the converted MP3 file directly as binary attachment (zero persistent server storage)
+      operationId: downloadConvertedMp3
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Binary audio stream (temporary file deleted upon stream completion)
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="artist-track.mp3"
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found, already delivered, or expired
+
+  /api/convert/history:
+    get:
+      summary: Get client conversion history metadata
+      operationId: getConversionHistory
+      responses:
+        '200':
+          description: List of recent conversion job records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [history]
+                properties:
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      required: [request_id, youtube_url, status, created_at]
+                      properties:
+                        request_id:
+                          type: string
+                        youtube_url:
+                          type: string
+                        video_title:
+                          type: string
+                        bitrate:
+                          type: integer
+                        status:
+                          type: string
+                        created_at:
+                          type: number

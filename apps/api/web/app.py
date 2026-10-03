@@ -11,23 +11,39 @@ import asyncio
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Path, Body, Depends, HTTPException, Request, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 
 from cache import GLOBAL_CACHE, normalize_persian_text
 import db
 from http_client import AsyncHttpClient
-from models import Category, MediaItem, SearchQuery, SourceKind
+from models import (
+    Category,
+    MediaItem,
+    SearchQuery,
+    SourceKind,
+    LoginRequest,
+    SourceUpdateRequest,
+    SourceToggleRequest,
+    SuggestionCreateRequest,
+    ConvertCreateRequest,
+    ChatMessageRequest,
+)
 from sources import INACTIVE_REASONS, get_all_source_configs, get_sources_for_category
 from sources import health
 from sources.base import validate_stream_url
+import web.catalog as catalog
+import web.convert as convert
+import web.chat as chat
+from web.auth import authenticate_operator, create_access_token, get_current_operator
+import extraction.dead_letter as dlq
 
 DEGRADED_THRESHOLD = 3  # 3 consecutive failures → degraded, excluded from search (FR-018a)
 
 app = FastAPI(
     title="Iranian Multi-Media Direct Link Aggregator",
-    version="0.1.0",
+    version="0.2.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -35,7 +51,15 @@ app = FastAPI(
 # Enable CORS for frontend web client
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000"), "http://127.0.0.1:3000", "http://0.0.0.0:3000"],
+    allow_origins=[
+        os.environ.get("FRONTEND_URL", "http://localhost:3000"),
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://0.0.0.0:3000",
+        "http://0.0.0.0:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,6 +155,11 @@ async def _collect_items(
     refresh: bool = False,
     exclude_ids: set[str] | None = None,
     scope: str = "downloads",
+    quality: str | None = None,
+    censorship: str | None = None,
+    access_tier: str | None = None,
+    limit: int = 40,
+    offset: int = 0,
 ) -> tuple[list[MediaItem], list[str], bool]:
     """Fetch items from cache, persistent DB, or concurrent scraper plugins.
 
@@ -144,40 +173,40 @@ async def _collect_items(
     # the filtered result set is NEVER cached — the shared cache must never
     # leak one user's filter into another's response (FR-030).
     cat_clean = cat_enum.value
-    # Anything older than this is re-scraped on the next request, because portals
-    # rename posts and rotate download links (a cached uptvs title pointed at a
-    # different film's file than the page it was taken from).
     stale_db_items: list[MediaItem] = []
 
-    # 1. Check in-memory cache and persistent database.
-    #    A filtered (hidden-source) request MUST NOT read the shared cache:
-    #    cached results are the unfiltered set, so serving them to a user who
-    #    hid a source would re-introduce the hidden source (FR-030). Filtered
-    #    requests always scrape fresh and never write back to the cache.
+    # 1. Offline-First Check:
+    #    Query local SQLite database index first. If found, return sub-50ms immediately.
     if not refresh and not exclude_ids:
         cached_items = GLOBAL_CACHE.get(cat_enum, norm_query, scope)
-        # `if cached_items:` not `is not None` - a cached [] means an earlier scrape
-        # found nothing, and treating it as authoritative would shadow the DB below
-        # for the whole TTL, blanking out a query the index can still answer.
         if cached_items:
             return _finalize(cached_items), [], True
 
-        db_items = db.search(cat_enum, norm_query)
+        db_items = db.search(
+            category=cat_enum,
+            query=norm_query,
+            quality=quality,
+            censorship=censorship,
+            access_tier=access_tier,
+            exclude_sources=list(exclude_ids or ()),
+            limit=limit,
+            offset=offset,
+        )
         if db_items:
-            if db.search(cat_enum, norm_query, max_age_seconds=DB_STALE_TTL_SECONDS):
-                db_items = _finalize(db_items)
-                GLOBAL_CACHE.set(cat_enum, norm_query, db_items, scope)
-                return db_items, [], True
-            # Stale: fall through and re-scrape, but keep these as a floor so a failed
-            # or slow refresh can never reduce a result set to nothing.
-            stale_db_items = _finalize(db_items)
+            db_items = _finalize(db_items)
+            GLOBAL_CACHE.set(cat_enum, norm_query, db_items, scope)
+            return db_items, [], True
 
-    # 2. Get active scraper plugins, excluding degraded ones (FR-019) and the
-    #    user's hidden set (FR-029). Unknown ids in exclude_ids simply match
-    #    nothing, so a stale saved set can never break a search.
+    # 2. Category Routing:
+    #    Games and Music are served strictly offline-first from the database index for standard queries
+    #    unless an explicit refresh or custom source exclusion is requested.
+    if cat_enum in (Category.GAMES, Category.MUSIC) and not refresh and not exclude_ids:
+        warning = f"عنوانی با مشخصات «{raw_query}» در پایگاه داده محلی یافت نشد. خزنده‌های پس‌زمینه در حال ایندکس خودکار هستند."
+        return [], [warning], False
+
+    # 3. For Movies (or explicit refresh): Trigger on-demand live scraper query
     degraded = _degraded_ids()
     hidden = set(exclude_ids or ())
-    # Default scope excludes streaming platforms. scope='all' opts into them.
     plugins = [
         p for p in get_sources_for_category(
             cat_enum, include_disabled=False, exclude_streaming=(scope != "all")
@@ -186,12 +215,9 @@ async def _collect_items(
     ]
     if not plugins:
         warning = f"هیچ منبع فعالی برای دسته «{cat_clean}» در دسترس نیست. منابع در حال به‌روزرسانی هستند."
-        if stale_db_items:
-            GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items, scope)
-            return stale_db_items, [warning], False
         return [], [warning], False
 
-    # 3. Concurrent search with timeout budget (7s per source, 10s global deadline)
+    # 4. Concurrent search with timeout budget (7s per source, 10s global deadline)
     all_items: list[MediaItem] = []
     warnings: list[str] = []
     search_q = SearchQuery(raw_query=raw_query, normalized_query=norm_query, category=cat_enum)
@@ -227,17 +253,14 @@ async def _collect_items(
         except asyncio.TimeoutError:
             warnings.append("زمان جستجوی سراسری به پایان رسید. برخی نتایج ممکن است ناقص باشند.")
 
-    # 4. Record one failure/success per source per completed search (FR-018a, T020).
-    #    The counter moves once per SEARCH, not once per HTTP request.
-    #    sources/health.py is the richer record a maintainer reads: which state the
-    #    source is in, why, when it last worked, and which address served it (T080).
+    # 5. Record health per source
     for plugin in plugins:
         got_items = any(i.source_id == plugin.config.id for i in all_items)
         if got_items:
             try:
                 db.record_search_success(plugin.config.id)
             except Exception:
-                pass  # health tracking must not break the search
+                pass
             try:
                 health.record_success(
                     plugin.config.id,
@@ -251,45 +274,29 @@ async def _collect_items(
                 db.record_search_failure(plugin.config.id)
             except Exception:
                 pass
-            # An empty answer is its own signal: the site answered 200 with nothing
-            # parseable, which is how a silent markup change shows up (FR-019).
             try:
                 health.record_empty_response(plugin.config.id)
             except Exception:
                 pass
 
-    # 5. Discard unusable entries (FR-017, FR-018, T035): a movie carrying neither a
-    #    download nor a watch destination has nothing for the user to open, and one
-    #    source repeating a title must not fill the list with copies (T020).
+    # 6. Discard unusable entries
     all_items = _finalize(_discard_unusable(all_items))
 
-    # 6. Persist the whole scrape, not the filtered view: a portal answers a games
-    #    query from its soundtrack section too, and that item is correctly filed as
-    #    music -- it just must not appear in THIS tab. Dropping it before the upsert
-    #    would mean the music tab can never find it, since the index is the only way
-    #    a re-labelled item becomes searchable. Filtering after the write keeps both.
-    #    Only for unfiltered requests (FR-030): a filtered result set written under
-    #    the shared key would either re-introduce hidden sources for others (cache)
-    #    or persist an incomplete index for the query (db).
+    # 7. Persist ALL live search results to SQLite database for fast future searches
     if not exclude_ids and all_items:
         try:
             db.upsert_items(all_items)
         except Exception:
             pass
 
-    # 7. Filter to this tab, then cache. Only a non-empty result is cached: a
-    #    timed-out scrape must not overwrite a good answer with nothing.
+    # 8. Filter to this tab, then cache
     matching = [i for i in all_items if i.category == cat_enum]
     if not exclude_ids and matching:
         GLOBAL_CACHE.set(cat_enum, norm_query, matching, scope)
     if matching:
         return matching, warnings, False
 
-    # Nothing fresh: serve the stale index rather than claim the query has no results.
-    if stale_db_items:
-        GLOBAL_CACHE.set(cat_enum, norm_query, stale_db_items, scope)
-        warnings.append("نتایج ذخیره‌شده ممکن است به‌روز نباشند؛ منابع در دسترس نبودند.")
-        return stale_db_items, warnings, False
+    return [], warnings, False
 
     return [], warnings, False
 
@@ -301,6 +308,11 @@ async def api_search_media(
     refresh: bool = Query(False, description="Force fresh scrape and bypass cache"),
     sources: list[str] = Query(default=[], description="Source ids to exclude (per-user hidden set, FR-029)"),
     scope: str = Query("downloads", description="'all' to include streaming video platforms"),
+    quality: str | None = Query(None, description="Quality filter e.g. 1080p, 720p"),
+    censorship: str | None = Query(None, description="Censorship filter e.g. uncensored_only"),
+    access_tier: str | None = Query(None, description="Access tier e.g. free, premium"),
+    limit: int = Query(40, description="Max items"),
+    offset: int = Query(0, description="Offset items"),
 ) -> JSONResponse:
     """JSON API endpoint returning structured media search results."""
     cat_clean = category.lower()
@@ -312,16 +324,26 @@ async def api_search_media(
 
     norm_query = normalize_persian_text(q)
     items, warnings, is_cached = await _collect_items(
-        cat_enum, norm_query, q, refresh, exclude_ids=set(sources), scope=scope
+        cat_enum=cat_enum,
+        norm_query=norm_query,
+        raw_query=q,
+        refresh=refresh,
+        exclude_ids=set(sources),
+        scope=scope,
+        quality=quality,
+        censorship=censorship,
+        access_tier=access_tier,
+        limit=limit,
+        offset=offset,
     )
 
-    # source_kind ships via asdict(); _collect_items stamped it on the objects.
     return JSONResponse(
         {
             "query": q,
             "category": cat_clean,
             "is_cached": is_cached,
             "warnings": warnings,
+            "total": len(items),
             "items": [asdict(item) for item in items],
         }
     )
@@ -387,34 +409,30 @@ def _source_health_rows() -> list[dict]:
 
 
 def _source_display_rows() -> list[dict]:
-    """Build the display row for every registered source (FR-017, T080).
-
-    One derivation, one consumer: the ``/api/sources`` JSON. A raw
-    ``SourceConfig`` has no ``status`` or ``inactive_reason``, so this build step
-    is what lets the client render why an inactive source is off.
-
-    Derived at request time so a row never contradicts the DB or the registry.
-
-    ``id`` stays the bare source id even where a movie source and a music source
-    share one (aparat, namasha, fam, rubika). ``category`` disambiguates them for
-    any consumer that needs to address one specifically.
-    """
+    """Build the display row for every registered source, merging persistent DB overrides."""
     all_sources = get_all_source_configs()
+    db_configs = db.get_source_configs()
     reference_ids = {
         (c.category, c.id) for c in all_sources if c.kind is SourceKind.REFERENCE
     }
     degraded = _degraded_ids()
     rows: list[dict] = []
     for s in all_sources:
+        override = db_configs.get(s.id)
+        base_url = override["base_url"] if override and override.get("base_url") else s.primary_base_url
+        mirror_url = override["mirror_url"] if override else None
+        enabled = bool(override["enabled"]) if override else s.enabled
+
         row: dict = {
             "id": s.id,
             "name": s.name,
             "category": s.category.value,
-            "base_url": s.primary_base_url,
-            "enabled": s.enabled,
+            "base_url": base_url,
+            "mirror_url": mirror_url,
+            "enabled": enabled,
             "kind": "reference" if (s.category, s.id) in reference_ids else "full",
-            "status": "inactive" if not s.enabled else ("degraded" if s.id in degraded else "active"),
-            "inactive_reason": INACTIVE_REASONS.get(s.id) if not s.enabled else None,
+            "status": "inactive" if not enabled else ("degraded" if s.id in degraded else "active"),
+            "inactive_reason": INACTIVE_REASONS.get(s.id) if not enabled else None,
             "consecutive_failures": 0,
             "access_tier": s.access_tier.value,
             "provides_downloads": s.provides_downloads,
@@ -433,7 +451,7 @@ def _source_display_rows() -> list[dict]:
         row["active_address"] = h.active_address
         # FR-020: a source can be disabled in config yet still be reachable; the
         # registry reason is the authority for why it is off.
-        if not s.enabled and INACTIVE_REASONS.get(s.id):
+        if not enabled and INACTIVE_REASONS.get(s.id):
             row["inactive_reason"] = INACTIVE_REASONS[s.id]
         rows.append(row)
     return rows
@@ -441,10 +459,282 @@ def _source_display_rows() -> list[dict]:
 
 @app.get("/api/sources")
 async def list_sources() -> JSONResponse:
-    """Return full source listing with kind and health status per FR-017/T013.
-
-    Fields: id, name, category, base_url, enabled, kind, status, inactive_reason,
-    consecutive_failures, access_tier, provides_downloads, state,
-    last_reachable_at, active_address.
-    """
+    """Return full source listing with kind and health status per FR-017/T013."""
     return JSONResponse(_source_display_rows())
+
+
+# ============================================================================
+# Dynamic Catalog Feed Endpoints (User Story 1)
+# ============================================================================
+
+@app.get("/api/catalog/trending")
+async def api_get_trending(
+    category: str = Query("movies", description="Media category"),
+    limit: int = Query(12, description="Max items"),
+) -> JSONResponse:
+    """Dynamic trending items for home hero banner and top shelf."""
+    items = catalog.get_trending_items(category, limit)
+    return JSONResponse({"category": category, "items": items})
+
+
+@app.get("/api/catalog/latest")
+async def api_get_latest(
+    category: str = Query("movies", description="Media category"),
+    limit: int = Query(14, description="Max items"),
+) -> JSONResponse:
+    """Dynamic latest released items for shelf browsing."""
+    items = catalog.get_latest_items(category, limit)
+    return JSONResponse({"category": category, "items": items})
+
+
+@app.get("/api/items/{id}")
+async def api_get_item(id: str = Path(..., description="Media item ID")) -> JSONResponse:
+    """Retrieve detailed metadata and all download variants for a single item."""
+    item = catalog.get_item_detail(id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return JSONResponse(item)
+
+
+# ============================================================================
+# Operator Authentication & Source Administration (User Story 3)
+# ============================================================================
+
+@app.post("/api/auth/login")
+async def api_login(req: LoginRequest) -> JSONResponse:
+    """Authenticate operator and return signed JWT Bearer token."""
+    user = authenticate_operator(req.username, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid operator credentials")
+    token = create_access_token({"sub": user["username"], "role": user["role"]})
+    return JSONResponse({"access_token": token, "token_type": "bearer", "expires_in": 86400})
+
+
+@app.patch("/api/sources/{id}")
+async def api_update_source(
+    id: str = Path(...),
+    req: SourceUpdateRequest = Body(...),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """Update source primary base address or fallback mirror."""
+    all_cfgs = {s.id: s for s in get_all_source_configs()}
+    base_cfg = all_cfgs.get(id)
+    if not base_cfg:
+        raise HTTPException(status_code=404, detail=f"Source '{id}' not found")
+    res = db.upsert_source_config(
+        source_id=id,
+        category=base_cfg.category.value,
+        name=base_cfg.name,
+        base_url=req.base_url or base_cfg.primary_base_url,
+        mirror_url=req.mirror_url,
+    )
+    return JSONResponse(res)
+
+
+@app.patch("/api/sources/{id}/toggle")
+async def api_toggle_source(
+    id: str = Path(...),
+    req: SourceToggleRequest = Body(...),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """Toggle source enabled / disabled state."""
+    all_cfgs = {s.id: s for s in get_all_source_configs()}
+    base_cfg = all_cfgs.get(id)
+    if not base_cfg:
+        raise HTTPException(status_code=404, detail=f"Source '{id}' not found")
+    res = db.toggle_source_config(id, req.enabled)
+    if not res:
+        res = db.upsert_source_config(
+            source_id=id,
+            category=base_cfg.category.value,
+            name=base_cfg.name,
+            base_url=base_cfg.primary_base_url,
+            enabled=req.enabled,
+        )
+    return JSONResponse(res)
+
+
+@app.post("/api/sources/suggest", status_code=status.HTTP_201_CREATED)
+async def api_suggest_source(req: SuggestionCreateRequest) -> JSONResponse:
+    """Submit a portal suggestion to the operator review queue with domain deduplication."""
+    from urllib.parse import urlparse
+    domain = urlparse(req.url).netloc.lower().split(":")[0]
+    if not domain:
+        domain = req.url.lower().strip()
+    res = db.create_suggestion(
+        url=req.url,
+        domain=domain,
+        category=req.category,
+        source_name=req.source_name,
+        proposed_tier=req.proposed_tier,
+        default_audio_track=req.default_audio_track,
+        contact=req.contact,
+        notes=req.notes,
+    )
+    return JSONResponse(
+        {
+            "success": True,
+            "message": "پیشنهاد منبع با موفقیت در صف بررسی اپراتور ثبت شد",
+            "domain": res.get("domain", domain),
+            "request_count": res.get("request_count", 1),
+        },
+        status_code=201,
+    )
+
+
+@app.get("/api/admin/suggestions")
+async def api_admin_suggestions(
+    status: str = Query("pending"),
+    category: str | None = Query(None),
+    limit: int = Query(50),
+    offset: int = Query(0),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """List suggestions in the operator review queue."""
+    return JSONResponse(db.list_suggestions(status, category, limit, offset))
+
+
+@app.patch("/api/admin/suggestions/{id}")
+async def api_admin_update_suggestion(
+    id: int = Path(...),
+    body: dict = Body(...),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """Approve or reject a community portal suggestion."""
+    new_status = body.get("status")
+    if new_status not in ("approved", "rejected", "pending"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    ok = db.update_suggestion_status(id, new_status)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    return JSONResponse({"success": True, "id": id, "status": new_status})
+
+
+# ============================================================================
+# YouTube to MP3 Converter Utility (User Story 4)
+# ============================================================================
+
+@app.post("/api/convert", status_code=status.HTTP_202_ACCEPTED)
+async def api_start_convert(
+    req: ConvertCreateRequest,
+    request: Request,
+) -> JSONResponse:
+    """Start asynchronous YouTube audio extraction."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    try:
+        job = await convert.start_conversion_task(
+            url=req.url,
+            bitrate=req.bitrate,
+            sample_rate=req.sample_rate,
+            write_meta=req.write_meta,
+            client_ip=client_ip,
+        )
+        return JSONResponse(
+            {"request_id": job["id"], "status": job["status"], "message": "Conversion started"},
+            status_code=202,
+        )
+    except PermissionError as pe:
+        raise HTTPException(status_code=429, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+
+
+@app.get("/api/convert/{id}")
+async def api_get_convert_status(id: str = Path(...)) -> JSONResponse:
+    """Poll progress and state of a YouTube conversion job."""
+    job = db.get_conversion_job(id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    resp: dict[str, Any] = {
+        "request_id": job["id"],
+        "status": job["status"],
+        "progress": job["progress"],
+        "current_step": job["current_step"],
+        "video_title": job["video_title"],
+        "error_message": job["error_message"],
+    }
+    if job["status"] == "completed":
+        resp["download_url"] = f"/api/download/{id}"
+    return JSONResponse(resp)
+
+
+@app.get("/api/download/{id}")
+async def api_download_mp3(
+    id: str = Path(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+) -> FileResponse:
+    """Stream converted MP3 file directly and immediately purge temporary files."""
+    job = db.get_conversion_job(id)
+    if not job or job["status"] != "completed":
+        raise HTTPException(status_code=404, detail="Audio file not ready or job not found")
+    file_path = convert.get_job_mp3_path(id)
+    if not file_path or not file_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file already delivered or expired")
+
+    # Immediate single-use cleanup hook
+    background_tasks.add_task(convert.cleanup_job_files, id)
+    return FileResponse(
+        path=str(file_path),
+        media_type="audio/mpeg",
+        filename=file_path.name,
+    )
+
+
+@app.get("/api/convert/history")
+async def api_convert_history(request: Request) -> JSONResponse:
+    """Return recent conversion history for client IP."""
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    history = db.get_conversion_history(client_ip=client_ip)
+    return JSONResponse({"history": history})
+
+
+# ============================================================================
+# Conversational Search Assistant (User Story 5)
+# ============================================================================
+
+@app.post("/api/chat")
+async def api_chat(req: ChatMessageRequest, request: Request):
+    """Interact with AI assistant (supports JSON and SSE text/event-stream)."""
+    accept = request.headers.get("accept", "")
+    if "text/event-stream" in accept:
+        return StreamingResponse(
+            chat.generate_chat_events(req.message, req.session_id, req.category),
+            media_type="text/event-stream",
+        )
+    res = await chat.process_chat_message(req.message, req.session_id, req.category)
+    return JSONResponse(res)
+
+
+@app.delete("/api/chat/session/{id}")
+async def api_clear_chat(id: str = Path(...)) -> JSONResponse:
+    """Reset conversational session context."""
+    chat.clear_session(id)
+    return JSONResponse({"success": True, "session_id": id})
+
+
+# ============================================================================
+# Dead Letter Queue (DLQ, User Story 7)
+# ============================================================================
+
+@app.get("/api/admin/dlq")
+async def api_admin_dlq(
+    status: str = Query("pending"),
+    category: str | None = Query(None),
+    limit: int = Query(50),
+    offset: int = Query(0),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """Inspect dead-letter queue records for failed AI extractions."""
+    items = dlq.list_dead_letters(status, category, limit, offset)
+    return JSONResponse({"items": items, "total": len(items)})
+
+
+@app.post("/api/admin/dlq/{id}/retry")
+async def api_admin_retry_dlq(
+    id: int = Path(...),
+    operator: dict = Depends(get_current_operator),
+) -> JSONResponse:
+    """Trigger manual re-extraction for a specific DLQ item."""
+    res = await dlq.retry_dead_letter(id)
+    return JSONResponse(res)
+
