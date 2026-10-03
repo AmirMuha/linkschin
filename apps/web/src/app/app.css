@@ -45,6 +45,7 @@
 [data-cat="games"] { --accent: var(--accent-games); --accent-hover: var(--accent-games-hover); }
 [data-cat="music"] { --accent: var(--accent-music); --accent-hover: var(--accent-music-hover); }
 [data-cat="movies"] { --accent: var(--accent-movies); --accent-hover: var(--accent-movies-hover); }
+[dir="rtl"] { --sign: -1; }
 
 /* `clip`, not `hidden`: `overflow-x: hidden` is still programmatically
    scrollable, so a wide table inside a scroll container could pan the page. */
@@ -516,27 +517,17 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 .err { font-size: 12px; color: var(--bad); min-height: 16px; }
 .invalid .input, .invalid .select, .invalid .textarea { border-color: var(--bad); }
 
-/* Bidi. The document is dir="rtl" (Persian-first shell), but almost all of the
-   UI copy is English. Under a base RTL direction a trailing "." or "?" is a
-   neutral character, so it wraps to the *start* of the last line and reads as
-   `.still to onboard`. `plaintext` derives each paragraph's base direction from
-   its own first strong character, which fixes the punctuation and lets English
-   read left-to-right; Persian strings keep their own dir="rtl" and stay RTL. */
+/* Bidi. Shell is dir="rtl" with Persian UI copy. Text alignment defaults to
+   logical `start` so Persian sits on the right and any LTR isolates sit on the
+   left. Controls with explicit `dir="ltr"` (URLs, hashes, IDs) align to the left. */
 .hero-desc, .hint, .field label, .notice span, .switch span, .sec-head,
 .err, table.data td {
   unicode-bidi: plaintext;
-  text-align: left;
+  text-align: start;
 }
-/* `text-align` above is physical, so an element that carries its own direction
-   has to opt back into logical alignment or its text is pinned to the wrong
-   edge. */
 [dir="ltr"], [dir="rtl"] { text-align: start; }
-/* Form controls need real `direction`, not just `plaintext`: `plaintext` fixes
-   the punctuation but leaves the control's own base direction RTL, so a
-   <select> renders its arrow on the left while its text sits on the left too.
-   Forcing LTR puts the arrow and the text on the same edge, which is also where
-   a user expects them on a form whose values are English. */
-.input, .select, .textarea { direction: ltr; unicode-bidi: isolate; text-align: left; }
+.input, .select, .textarea { text-align: start; }
+.input[dir="ltr"], .select[dir="ltr"], .textarea[dir="ltr"] { direction: ltr; unicode-bidi: isolate; text-align: left; }
 .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; min-height: 44px; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .switch .track {

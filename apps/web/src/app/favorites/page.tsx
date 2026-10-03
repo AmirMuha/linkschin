@@ -13,9 +13,9 @@ import { Film, Gamepad2, Heart, Music, X } from 'lucide-react'
 
 /** Display order and copy per group; ids carry no category of their own. */
 const GROUPS = [
-  { key: 'movies', label: 'Movies', Icon: Film },
-  { key: 'games', label: 'Games', Icon: Gamepad2 },
-  { key: 'music', label: 'Music', Icon: Music },
+  { key: 'movies', label: 'فیلم و سریال', Icon: Film },
+  { key: 'games', label: 'بازی‌ها', Icon: Gamepad2 },
+  { key: 'music', label: 'موسیقی', Icon: Music },
 ] as const
 
 export default function FavoritesPage() {
@@ -28,7 +28,7 @@ export default function FavoritesPage() {
   const [reportedCorrupt, setReportedCorrupt] = useState(false)
   if (favorites.corrupted && !reportedCorrupt) {
     setReportedCorrupt(true)
-    showToast("Couldn't load favorites; starting fresh", 'info')
+    showToast('بارگذاری علاقه‌مندی‌ها ناموفق بود؛ شروع دوباره', 'info')
   }
 
   const entries = favorites.ids
@@ -45,8 +45,8 @@ export default function FavoritesPage() {
       <main id="main" className="wrap" style={{ paddingTop: 'calc(var(--hdr) + 34px)' }}>
         <section data-od-id="favorites-intro">
           <div className="eyebrow">
-            <span className="pill-red">Saved on this device</span>
-            <span className="pill-ghost">Spec 010 · FR-004</span>
+            <span className="pill-red">ذخیره‌شده در این دستگاه</span>
+            <span className="pill-ghost">سند 010 · FR-004</span>
           </div>
           <h1
             style={{
@@ -57,25 +57,24 @@ export default function FavoritesPage() {
               lineHeight: 1.02,
             }}
           >
-            Favorites
+            علاقه‌مندی‌ها
           </h1>
           <p className="hero-desc" style={{ marginTop: '14px' }}>
             {isEmpty
-              ? 'Nothing is saved yet.'
-              : `${toFaDigits(favorites.ids.length)} saved, stored in this browser only — no account, no server copy.`}
+              ? 'هنوز چیزی ذخیره نشده است.'
+              : `${toFaDigits(favorites.ids.length)} مورد ذخیره شده، فقط در این مرورگر — بدون حساب کاربری، بدون نسخه روی سرور.`}
           </p>
         </section>
 
         {isEmpty ? (
           <div className="empty" style={{ marginTop: '28px' }}>
             <Heart className="w-12 h-12" />
-            <strong>Nothing saved yet</strong>
+            <strong>هنوز چیزی ذخیره نشده است</strong>
             <span>
-              Tap the heart on any movie, game or album — here, on a card, or in the hero banner — and
-              it lands on this page.
+              روی هر فیلم، بازی یا آلبوم — روی کارت یا بنر اصلی — روی قلب ضربه بزنید تا به این صفحه افزوده شود.
             </span>
             <Link className="btn btn-primary" href="/">
-              Browse the catalog
+              مرور کاتالوگ
             </Link>
           </div>
         ) : (
@@ -98,7 +97,7 @@ export default function FavoritesPage() {
                       />
                       {label}
                     </h2>
-                    <span className="sub">{toFaDigits(items.length)} saved</span>
+                    <span className="sub">{toFaDigits(items.length)} مورد ذخیره شده</span>
                   </div>
                   <div className="grid grid-6">
                     {items.map(({ id, item }) => (
@@ -118,21 +117,20 @@ export default function FavoritesPage() {
             {staleIds.length > 0 && (
               <section className="sec" style={{ marginTop: '32px' }}>
                 <div className="sec-head">
-                  <h2>Unavailable</h2>
+                  <h2>ناموجود</h2>
                   <span className="sub">
-                    {toFaDigits(staleIds.length)} no longer in the catalog
+                    {toFaDigits(staleIds.length)} مورد دیگر در کاتالوگ نیست
                   </span>
                 </div>
                 <p className="hero-desc" style={{ marginBottom: '12px' }}>
-                  These saved ids are no longer in the catalog, so there is nothing to show. Removing
-                  one clears it for good.
+                  این شناسه‌های ذخیره‌شده دیگر در کاتالوگ نیستند، بنابراین چیزی برای نمایش وجود ندارد. حذف هرکدام، آن را برای همیشه پاک می‌کند.
                 </p>
                 <ul style={{ listStyle: 'none', display: 'grid', gap: '8px' }}>
                   {staleIds.map((id) => (
                     <li key={id} className="prov">
                       <span className="led warn"></span>
                       <strong style={{ color: '#e8e8e8' }}>{id}</strong>
-                      <span>Unavailable</span>
+                      <span>ناموجود</span>
                       <button
                         className="btn btn-ghost btn-sm"
                         type="button"
@@ -140,7 +138,7 @@ export default function FavoritesPage() {
                         onClick={() => favorites.remove(id)}
                       >
                         <X className="w-3.5 h-3.5" />
-                        <span>Remove</span>
+                        <span>حذف</span>
                       </button>
                     </li>
                   ))}
@@ -152,8 +150,7 @@ export default function FavoritesPage() {
               <div className="notice warn" style={{ marginTop: '28px' }}>
                 <span className="led warn"></span>
                 <span>
-                  This browser is not saving storage, so these likes are session-only and will be
-                  gone on reload.
+                  این مرورگر ذخیره‌سازی محلی را حفظ نمی‌کند، بنابراین علاقه‌مندی‌ها فقط برای این نشست هستند و پس از تازه‌سازی پاک می‌شوند.
                 </span>
               </div>
             )}

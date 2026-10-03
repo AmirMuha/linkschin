@@ -26,13 +26,13 @@ export function Footer() {
             <h3>کاوش</h3>
             <ul>
               <li>
-                <a href="#movies">فیلم و سریال</a>
+                <Link href="/movies">فیلم و سریال</Link>
               </li>
               <li>
-                <a href="#games">بازی‌ها</a>
+                <Link href="/games">بازی‌ها</Link>
               </li>
               <li>
-                <a href="#music">موسیقی</a>
+                <Link href="/music">موسیقی</Link>
               </li>
               <li>
                 <Link href="/favorites">علاقه‌مندی‌ها</Link>

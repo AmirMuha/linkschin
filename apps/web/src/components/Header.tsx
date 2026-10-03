@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import type { Category } from '@/types/media'
+import { resolveNavPage, type NavPage } from '@/lib/nav'
 import {
   Film,
   Gamepad2,
@@ -19,25 +21,20 @@ interface HeaderProps {
   category?: Category
   onCategoryChange?: (cat: Category) => void
   onOpenAi?: () => void
-  /** No 'home': the brand logo owns that destination, so nothing marks it current.
-   *  Home's own Movies/Games/Music tabs are tracked by `category` instead. */
-  activePage?: 'movies' | 'games' | 'music' | 'favorites' | 'sources' | 'mp3'
+  activePage?: NavPage
   rightSlot?: React.ReactNode
 }
 
 export function Header({
-  category = 'movies',
-  onCategoryChange,
+  category,
   onOpenAi,
   activePage,
   rightSlot,
 }: HeaderProps) {
   const [navOpen, setNavOpen] = useState(false)
+  const pathname = usePathname()
 
-  function handleNavClick(cat: Category) {
-    onCategoryChange?.(cat)
-    setNavOpen(false)
-  }
+  const current = activePage || resolveNavPage(pathname) || category
 
   return (
     <header className="hdr" data-od-id="site-header">
@@ -58,78 +55,40 @@ export function Header({
         id="primary-nav"
         aria-label="ناوبری اصلی"
       >
-        {/* No Home entry: the brand logo already links to `/`, so a tab for it
-            would be a duplicate control for the same destination. */}
-        {onCategoryChange ? (
-          <>
-            <button
-              type="button"
-              data-page="movies"
-              aria-current={category === 'movies' ? 'page' : undefined}
-              onClick={() => handleNavClick('movies')}
-            >
-              <Film className="w-4 h-4" />
-              <span>فیلم و سریال</span>
-            </button>
-            <button
-              type="button"
-              data-page="games"
-              aria-current={category === 'games' ? 'page' : undefined}
-              onClick={() => handleNavClick('games')}
-            >
-              <Gamepad2 className="w-4 h-4" />
-              <span>بازی‌ها</span>
-            </button>
-            <button
-              type="button"
-              data-page="music"
-              aria-current={category === 'music' ? 'page' : undefined}
-              onClick={() => handleNavClick('music')}
-            >
-              <Music className="w-4 h-4" />
-              <span>موسیقی</span>
-            </button>
-          </>
-        ) : (
-          <>
-            {/* These render on /sources and /youtube-to-mp3, where the home page's
-                category is client state, not an anchor. `?cat=` is what page.tsx
-                reads on mount, so it actually switches the tab; the old `/#movies`
-                was a dead fragment that left home on Movies. */}
-            <Link
-              href="/?cat=movies"
-              data-page="movies"
-              aria-current={activePage === 'movies' ? 'page' : undefined}
-              onClick={() => setNavOpen(false)}
-            >
-              <Film className="w-4 h-4" />
-              <span>فیلم و سریال</span>
-            </Link>
-            <Link
-              href="/?cat=games"
-              data-page="games"
-              aria-current={activePage === 'games' ? 'page' : undefined}
-              onClick={() => setNavOpen(false)}
-            >
-              <Gamepad2 className="w-4 h-4" />
-              <span>بازی‌ها</span>
-            </Link>
-            <Link
-              href="/?cat=music"
-              data-page="music"
-              aria-current={activePage === 'music' ? 'page' : undefined}
-              onClick={() => setNavOpen(false)}
-            >
-              <Music className="w-4 h-4" />
-              <span>موسیقی</span>
-            </Link>
-          </>
-        )}
+        <Link
+          href="/movies"
+          data-page="movies"
+          aria-current={current === 'movies' ? 'page' : undefined}
+          onClick={() => setNavOpen(false)}
+        >
+          <Film className="w-4 h-4" />
+          <span>فیلم و سریال</span>
+        </Link>
+
+        <Link
+          href="/games"
+          data-page="games"
+          aria-current={current === 'games' ? 'page' : undefined}
+          onClick={() => setNavOpen(false)}
+        >
+          <Gamepad2 className="w-4 h-4" />
+          <span>بازی‌ها</span>
+        </Link>
+
+        <Link
+          href="/music"
+          data-page="music"
+          aria-current={current === 'music' ? 'page' : undefined}
+          onClick={() => setNavOpen(false)}
+        >
+          <Music className="w-4 h-4" />
+          <span>موسیقی</span>
+        </Link>
 
         <Link
           href="/favorites"
           data-page="favorites"
-          aria-current={activePage === 'favorites' ? 'page' : undefined}
+          aria-current={current === 'favorites' ? 'page' : undefined}
           onClick={() => setNavOpen(false)}
         >
           <Heart className="w-4 h-4" />
@@ -139,7 +98,7 @@ export function Header({
         <Link
           href="/sources"
           data-page="sources"
-          aria-current={activePage === 'sources' ? 'page' : undefined}
+          aria-current={current === 'sources' ? 'page' : undefined}
           onClick={() => setNavOpen(false)}
         >
           <Server className="w-4 h-4" />
@@ -149,7 +108,7 @@ export function Header({
         <Link
           href="/youtube-to-mp3"
           data-page="mp3"
-          aria-current={activePage === 'mp3' ? 'page' : undefined}
+          aria-current={current === 'mp3' ? 'page' : undefined}
           onClick={() => setNavOpen(false)}
         >
           <Download className="w-4 h-4" />

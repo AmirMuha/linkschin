@@ -426,15 +426,6 @@ export default function YoutubeToMp3Page() {
 
         {/* Conversion History */}
         <section className="sec" data-od-id="mp3-history">
-          <div className="sec-head">
-            <h2>این نشست</h2>
-            <span className="sub" id="histCount">
-              {history.length > 0
-                ? `${toFaDigits(history.length)} تبدیل در این نشست`
-                : 'هنوز تبدیلی انجام نشده'}
-            </span>
-          </div>
-
           <div id="historySlot">
             {history.length === 0 ? (
               <div className="empty">
