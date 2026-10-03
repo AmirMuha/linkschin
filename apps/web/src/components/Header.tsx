@@ -7,7 +7,7 @@ import {
   Film,
   Gamepad2,
   Music,
-  Bookmark,
+  Heart,
   Server,
   Download,
   Sparkles,
@@ -21,7 +21,7 @@ interface HeaderProps {
   onOpenAi?: () => void
   /** No 'home': the brand logo owns that destination, so nothing marks it current.
    *  Home's own Movies/Games/Music tabs are tracked by `category` instead. */
-  activePage?: 'movies' | 'games' | 'music' | 'watchlist' | 'sources' | 'mp3'
+  activePage?: 'movies' | 'games' | 'music' | 'favorites' | 'sources' | 'mp3'
   rightSlot?: React.ReactNode
 }
 
@@ -124,15 +124,15 @@ export function Header({
           </>
         )}
 
-        <a
-          href="/#watchlist"
-          data-page="watchlist"
-          aria-current={activePage === 'watchlist' ? 'page' : undefined}
+        <Link
+          href="/favorites"
+          data-page="favorites"
+          aria-current={activePage === 'favorites' ? 'page' : undefined}
           onClick={() => setNavOpen(false)}
         >
-          <Bookmark className="w-4 h-4" />
-          <span>Watchlist</span>
-        </a>
+          <Heart className="w-4 h-4" />
+          <span>Favorites</span>
+        </Link>
 
         <Link
           href="/sources"

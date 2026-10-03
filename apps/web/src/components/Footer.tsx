@@ -35,7 +35,7 @@ export function Footer() {
                 <a href="#music">Music</a>
               </li>
               <li>
-                <a href="#watchlist">Watchlist</a>
+                <Link href="/favorites">Favorites</Link>
               </li>
               <li>
                 <Link href="/youtube-to-mp3">YouTube → MP3</Link>

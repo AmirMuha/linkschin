@@ -2,21 +2,38 @@
 
 import React, { useEffect } from 'react'
 import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib/catalog'
-import { toFaDigits, fmtMiB } from '@/lib/catalog'
+import { toFaDigits, fmtMiB, getCatalogItemById } from '@/lib/catalog'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useToast } from '@/components/ui/ToastNotification'
-import { X, Play, AlertTriangle, Lock, Download, Copy, Check } from 'lucide-react'
+import { X, Play, AlertTriangle, Lock, Download, Copy, Check, Heart, Undo2 } from 'lucide-react'
 
 interface DetailDrawerProps {
   item: CatalogItem | null
   isOpen: boolean
   onClose: () => void
   onPlayStream?: (url: string, title: string) => void
+  onToggleFavorite?: (item: CatalogItem) => void
+  isItemFavorite?: (id: string) => boolean
+  /** Set when the last write to storage was rejected — likes are session-only. */
+  persistenceBlocked?: boolean
 }
 
-export function DetailDrawer({ item, isOpen, onClose, onPlayStream }: DetailDrawerProps) {
+export function DetailDrawer({
+  item,
+  isOpen,
+  onClose,
+  onPlayStream,
+  onToggleFavorite,
+  isItemFavorite,
+  persistenceBlocked,
+}: DetailDrawerProps) {
   const { showToast } = useToast()
   const [copiedText, setCopiedText] = React.useState<string | null>(null)
+  // The last like/unlike, kept only long enough for the drawer to offer Undo.
+  const [lastAction, setLastAction] = React.useState<{
+    id: string
+    added: boolean
+  } | null>(null)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -52,6 +69,21 @@ export function DetailDrawer({ item, isOpen, onClose, onPlayStream }: DetailDraw
   function handleDownloadClick(e: React.MouseEvent, title: string) {
     e.preventDefault()
     showToast(`شروع دانلود برای «${title}»`, 'success')
+  }
+
+  function handleToggleFavorite() {
+    if (!item || !onToggleFavorite) return
+    const wasLiked = isItemFavorite?.(item.id) ?? false
+    onToggleFavorite(item)
+    setLastAction({ id: item.id, added: !wasLiked })
+    showToast(wasLiked ? 'Removed from favorites' : 'Added to favorites', 'success')
+  }
+
+  function handleUndo() {
+    if (!lastAction || !onToggleFavorite) return
+    const target = getCatalogItemById(lastAction.id)
+    if (target) onToggleFavorite(target)
+    setLastAction(null)
   }
 
   // Header image logic
@@ -508,6 +540,51 @@ export function DetailDrawer({ item, isOpen, onClose, onPlayStream }: DetailDraw
             </>
           )}
         </div>
+
+        {/* Footer action row: like/unlike plus the Undo window for that action. */}
+        {onToggleFavorite && (
+          <div className="drawer-foot">
+            <button
+              className="btn btn-ghost"
+              type="button"
+              aria-pressed={isItemFavorite?.(item.id) ?? false}
+              aria-label={
+                (isItemFavorite?.(item.id) ?? false)
+                  ? `Remove ${item.title} from favorites`
+                  : `Add ${item.title} to favorites`
+              }
+              onClick={handleToggleFavorite}
+            >
+              <Heart
+                className={`w-4 h-4 ${
+                  (isItemFavorite?.(item.id) ?? false) ? 'fill-current text-rose-400' : ''
+                }`}
+              />
+              <span>
+                {(isItemFavorite?.(item.id) ?? false)
+                  ? 'Remove from favorites'
+                  : 'Save to favorites'}
+              </span>
+            </button>
+
+            {lastAction && (
+              <button
+                className="btn btn-quiet btn-sm"
+                type="button"
+                onClick={handleUndo}
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span>Undo</span>
+              </button>
+            )}
+
+            {persistenceBlocked && (
+              <span className="hint" role="status">
+                Likes won&apos;t persist in private mode.
+              </span>
+            )}
+          </div>
+        )}
       </aside>
     </>
   )
