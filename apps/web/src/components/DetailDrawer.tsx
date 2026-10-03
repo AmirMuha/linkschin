@@ -5,6 +5,7 @@ import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib
 import { toFaDigits, fmtMiB, getCatalogItemById } from '@/lib/catalog'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useToast } from '@/components/ui/ToastNotification'
+import { TechnicalText } from '@/components/ui/TechnicalText'
 import { X, Play, AlertTriangle, Lock, Download, Copy, Check, Heart, Undo2 } from 'lucide-react'
 
 interface DetailDrawerProps {
@@ -76,7 +77,10 @@ export function DetailDrawer({
     const wasLiked = isItemFavorite?.(item.id) ?? false
     onToggleFavorite(item)
     setLastAction({ id: item.id, added: !wasLiked })
-    showToast(wasLiked ? 'Removed from favorites' : 'Added to favorites', 'success')
+    showToast(
+      wasLiked ? 'از علاقه‌مندی‌ها حذف شد' : 'به علاقه‌مندی‌ها افزوده شد',
+      'success'
+    )
   }
 
   function handleUndo() {
@@ -101,13 +105,13 @@ export function DetailDrawer({
         className={`drawer ${isOpen ? 'on' : ''}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Release details"
+        aria-label="جزئیات انتشار"
       >
         <div className="drawer-top">
           <button
             className="drawer-close"
             type="button"
-            aria-label="Close details"
+            aria-label="بستن جزئیات"
             onClick={onClose}
           >
             <X className="w-5 h-5 text-white" />
@@ -130,20 +134,20 @@ export function DetailDrawer({
                 {item.cat === 'games'
                   ? (item as CatalogGame).releaseGroup
                   : item.cat === 'music'
-                    ? 'Album'
+                    ? 'آلبوم'
                     : (item as CatalogMovie).kind === 'tv'
-                      ? 'Series'
-                      : 'Feature'}
+                      ? 'سریال'
+                      : 'فیلم سینمایی'}
               </span>
               <span className="pill-ghost">
                 {item.cat === 'movies'
-                  ? 'Movie'
+                  ? 'فیلم'
                   : item.cat === 'games'
-                    ? 'Game'
-                    : 'Track'}
+                    ? 'بازی'
+                    : 'آهنگ'}
               </span>
               {'censored' in item && item.censored && (
-                <span className="pill-ghost">Censored cut</span>
+                <span className="pill-ghost">نسخه بازبینی‌شده</span>
               )}
               {item.rating != null && (
                 <span className="pill-ghost">IMDb {item.rating.toFixed(1)}/10</span>
@@ -165,26 +169,32 @@ export function DetailDrawer({
           {item.cat === 'movies' && (
             <>
               <div className="drawer-sec">
-                <h3>Formats available</h3>
+                <h3>فرمت‌های موجود</h3>
                 <table className="vtable">
                   <thead>
                     <tr>
-                      <th>Quality</th>
-                      <th>Codec</th>
-                      <th>Audio</th>
-                      <th>Size</th>
+                      <th>کیفیت</th>
+                      <th>کدک</th>
+                      <th>صدا</th>
+                      <th>حجم</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {(item as CatalogMovie).variants.map((v, idx) => (
                       <tr key={idx}>
-                        <td className="res">{v.res}</td>
-                        <td>{v.codec}</td>
-                        <td>{v.audio}</td>
+                        <td className="res">
+                          <TechnicalText>{v.res}</TechnicalText>
+                        </td>
+                        <td>
+                          <TechnicalText>{v.codec}</TechnicalText>
+                        </td>
+                        <td>
+                          <TechnicalText>{v.audio}</TechnicalText>
+                        </td>
                         <td className="num">
-                          {fmtMiB(v.bytes)}{' '}
-                          <span style={{ color: 'var(--muted-2)' }}>(est.)</span>
+                          <TechnicalText>{fmtMiB(v.bytes)}</TechnicalText>{' '}
+                          <span style={{ color: 'var(--muted-2)' }}>(تخمینی)</span>
                         </td>
                         <td>
                           <a
@@ -198,7 +208,7 @@ export function DetailDrawer({
                             }
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>Download</span>
+                            <span>دانلود</span>
                           </a>
                         </td>
                       </tr>
@@ -210,8 +220,8 @@ export function DetailDrawer({
                   <div className="notice" style={{ marginTop: '14px' }}>
                     <Play className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>
-                      Upstream serves this title as a directly playable stream, so an in-browser player
-                      is offered next to the download links. Nothing is proxied.
+                      سایت منبع این عنوان را به‌صورت پخش‌کننده مستقیم ارائه می‌کند، بنابراین پخش‌کننده
+                      مرورگر در کنار لینک‌های دانلود نمایش داده می‌شود. هیچ فایلی از این سایت پروکسی نمی‌شود.
                     </span>
                     {onPlayStream && (
                       <button
@@ -225,7 +235,7 @@ export function DetailDrawer({
                         className="btn btn-primary btn-sm"
                         style={{ marginInlineStart: 'auto' }}
                       >
-                        Play in browser
+                        پخش در مرورگر
                       </button>
                     )}
                   </div>
@@ -233,49 +243,59 @@ export function DetailDrawer({
                   <div className="notice warn" style={{ marginTop: '14px' }}>
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>
-                      Upstream blocks hotlinking or requires a player token, so no player is shown here.
-                      Clean direct download links only — no error screen, no pop-ups.
+                      سایت منبع لینک‌دهی مستقیم را مسدود کرده یا توکن پخش‌کننده می‌خواهد، بنابراین
+                      پخش‌کننده‌ای نمایش داده نمی‌شود. تنها لینک‌های دانلود مستقیم و تمیز — بدون صفحه
+                      خطا و بدون پنجره تبلیغاتی.
                     </span>
                   </div>
                 )}
               </div>
 
               <div className="drawer-sec">
-                <h3>Details</h3>
+                <h3>جزئیات</h3>
                 <dl className="kv">
-                  <dt>Year</dt>
+                  <dt>سال انتشار</dt>
                   <dd>{toFaDigits(item.year)}</dd>
-                  <dt>Genre</dt>
+                  <dt>ژانر</dt>
                   <dd>{item.genres}</dd>
-                  <dt>Original audio</dt>
-                  <dd>{item.audio}</dd>
+                  <dt>صدای اصلی</dt>
+                  <dd>
+                    <TechnicalText>{item.audio}</TechnicalText>
+                  </dd>
                   {'censored' in item && item.censored && (
                     <>
-                      <dt>Cut</dt>
-                      <dd>Censored release — uncensored variants are filtered by Tier 2+ setting</dd>
+                      <dt>نسخه</dt>
+                      <dd>
+                        انتشار بازبینی‌شده — نسخه‌های بازبینی‌نشده بر اساس تنظیم سطح ۲ به بالا فیلتر
+                        می‌شوند
+                      </dd>
                     </>
                   )}
-                  <dt>Delivery</dt>
+                  <dt>روش تحویل</dt>
                   <dd>
-                    Direct link to the upstream CDN. This site stores, proxies and relays nothing
-                    (Constitution Principle III).
+                    لینک مستقیم به CDN سایت منبع. این سایت هیچ فایلی را ذخیره، پروکسی یا بازارسال
+                    نمی‌کند (بند ۳ منشور).
                   </dd>
                 </dl>
               </div>
 
               <div className="drawer-sec">
-                <h3>Resolved from 4 sources</h3>
+                <h3>منابع پشتیبان</h3>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>Film2Media</strong>
-                  <span>Tier 1</span>
-                  <span style={{ color: 'var(--muted-2)' }}>poster, dub + soft-sub variants, 4K</span>
+                  <span>سطح ۱</span>
+                  <span style={{ color: 'var(--muted-2)' }}>
+                    پوستر، نسخه دوبله و زیرنویس نرم، 4K
+                  </span>
                 </div>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>AvaMovie</strong>
-                  <span>Tier 1</span>
-                  <span style={{ color: 'var(--muted-2)' }}>largest movie mirror set</span>
+                  <span>سطح ۱</span>
+                  <span style={{ color: 'var(--muted-2)' }}>
+                    بزرگ‌ترین مجموعه آینه فیلم
+                  </span>
                 </div>
               </div>
             </>
@@ -285,26 +305,30 @@ export function DetailDrawer({
           {item.cat === 'games' && (
             <>
               <div className="drawer-sec">
-                <h3>Archive</h3>
+                <h3>آرشیو</h3>
                 <dl className="kv">
-                  <dt>Release group</dt>
-                  <dd>{(item as CatalogGame).releaseGroup}</dd>
-                  <dt>Version</dt>
-                  <dd>{(item as CatalogGame).version}</dd>
-                  <dt>Parts</dt>
+                  <dt>گروه انتشار</dt>
                   <dd>
-                    {toFaDigits((item as CatalogGame).parts.length)} parts
+                    <TechnicalText>{(item as CatalogGame).releaseGroup}</TechnicalText>
                   </dd>
-                  <dt>Total size</dt>
+                  <dt>نسخه</dt>
                   <dd>
-                    {fmtMiB((item as CatalogGame).totalBytes)}{' '}
-                    <span style={{ color: 'var(--muted-2)' }}>(est.)</span>
+                    <TechnicalText>{(item as CatalogGame).version}</TechnicalText>
+                  </dd>
+                  <dt>تعداد پارت</dt>
+                  <dd>{toFaDigits((item as CatalogGame).parts.length)} پارت</dd>
+                  <dt>حجم کل</dt>
+                  <dd>
+                    <TechnicalText>
+                      {fmtMiB((item as CatalogGame).totalBytes)}
+                    </TechnicalText>{' '}
+                    <span style={{ color: 'var(--muted-2)' }}>(تخمینی)</span>
                   </dd>
                 </dl>
               </div>
 
               <div className="drawer-sec">
-                <h3>Extraction</h3>
+                <h3>استخراج</h3>
                 {(item as CatalogGame).password ? (
                   <div className="pw">
                     <span
@@ -315,9 +339,11 @@ export function DetailDrawer({
                         color: 'var(--muted)',
                       }}
                     >
-                      Extraction password
+                      رمز استخراج آرشیو
                     </span>
-                    <code>{(item as CatalogGame).password}</code>
+                    <TechnicalText as="code">
+                      {(item as CatalogGame).password}
+                    </TechnicalText>
                     <button
                       className="btn btn-ghost btn-sm"
                       type="button"
@@ -333,24 +359,24 @@ export function DetailDrawer({
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
-                      <span>Copy password</span>
+                      <span>کپی رمز</span>
                     </button>
                   </div>
                 ) : (
                   <div className="notice">
                     <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>This release has no archive password.</span>
+                    <span>این انتشار رمز آرشیو ندارد.</span>
                   </div>
                 )}
               </div>
 
               <div className="drawer-sec">
-                <h3>Parts in order</h3>
+                <h3>پارت‌ها به ترتیب</h3>
                 <table className="vtable">
                   <thead>
                     <tr>
-                      <th>Segment</th>
-                      <th>Size</th>
+                      <th>بخش</th>
+                      <th>حجم</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -358,19 +384,19 @@ export function DetailDrawer({
                     {(item as CatalogGame).parts.map((p) => (
                       <tr key={p.n}>
                         <td className="num" style={{ width: '64px' }}>
-                          Part {toFaDigits(p.n)}
+                          پارت {toFaDigits(p.n)}
                         </td>
                         <td className="num">
-                          {fmtMiB(p.bytes)}{' '}
-                          <span style={{ color: 'var(--muted-2)' }}>(est.)</span>
+                          <TechnicalText>{fmtMiB(p.bytes)}</TechnicalText>{' '}
+                          <span style={{ color: 'var(--muted-2)' }}>(تخمینی)</span>
                         </td>
                         <td style={{ textAlign: 'end' }}>
                           <a
                             className="btn btn-ghost btn-sm"
                             href="#"
-                            onClick={(e) => handleDownloadClick(e, `Part ${p.n}`)}
+                            onClick={(e) => handleDownloadClick(e, `پارت ${p.n}`)}
                           >
-                            Get part
+                            دریافت پارت
                           </a>
                         </td>
                       </tr>
@@ -392,7 +418,7 @@ export function DetailDrawer({
                       handleCopy(batch, 'لینک تمام پارت‌ها')
                     }}
                   >
-                    Copy all links
+                    کپی همه لینک‌ها
                   </button>
                 </div>
                 <p
@@ -403,24 +429,26 @@ export function DetailDrawer({
                     fontSize: '12px',
                   }}
                 >
-                  Copied lines are one URL per line, ordered Part 1 → Part N — paste straight into
-                  Free Download Manager, JDownloader or wget.
+                  لینک‌های کپی‌شده هر کدام در یک خط و به ترتیب پارت ۱ تا پارت N هستند — مستقیماً در
+                  Free Download Manager، JDownloader یا wget بچسبانید.
                 </p>
               </div>
 
               <div className="drawer-sec">
-                <h3>Resolved from 4 sources</h3>
+                <h3>منابع پشتیبان</h3>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>YasDL</strong>
-                  <span>Tier 1</span>
-                  <span style={{ color: 'var(--muted-2)' }}>ordered parts + password on page</span>
+                  <span>سطح ۱</span>
+                  <span style={{ color: 'var(--muted-2)' }}>
+                    پارت‌های مرتب + رمز در صفحه
+                  </span>
                 </div>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>Downloadha</strong>
-                  <span>Tier 2</span>
-                  <span style={{ color: 'var(--muted-2)' }}>fallback mirror</span>
+                  <span>سطح ۲</span>
+                  <span style={{ color: 'var(--muted-2)' }}>آینه جایگزین</span>
                 </div>
               </div>
             </>
@@ -430,7 +458,7 @@ export function DetailDrawer({
           {item.cat === 'music' && (
             <>
               <div className="drawer-sec">
-                <h3>Preview</h3>
+                <h3>پیش‌نمایش</h3>
                 <div className="player">
                   <div className="player-row">
                     <img
@@ -465,22 +493,23 @@ export function DetailDrawer({
                     style={{ width: '100%', marginTop: '10px' }}
                   />
                   <div className="player-row" style={{ fontSize: '12px', color: 'var(--muted-2)' }}>
-                    MusicBrainz release {(item as CatalogMusic).mbid} · sizes computed from the
-                    real track duration, not stored.
+                    انتشار MusicBrainz{' '}
+                    <TechnicalText>{(item as CatalogMusic).mbid}</TechnicalText> · حجم‌ها
+                    بر اساس مدت‌زمان واقعی هر قطعه محاسبه می‌شود، نه ذخیره‌شده.
                   </div>
                 </div>
               </div>
 
               <div className="drawer-sec">
-                <h3>Tracks</h3>
+                <h3>قطعات</h3>
                 <table className="vtable">
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Title</th>
+                      <th>عنوان</th>
                       <th>128k</th>
                       <th>320k</th>
-                      <th>Get</th>
+                      <th>دریافت</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -492,13 +521,17 @@ export function DetailDrawer({
                         <td>
                           <strong>{t.title}</strong>
                           <br />
-                          <span className="num">
+                          <TechnicalText className="text-xs">
                             {Math.floor(t.sec / 60)}:
                             {String(t.sec % 60).padStart(2, '0')}
-                          </span>
+                          </TechnicalText>
                         </td>
-                        <td className="num">{fmtMiB(t.lo)}</td>
-                        <td className="num">{fmtMiB(t.hi)}</td>
+                        <td className="num">
+                          <TechnicalText>{fmtMiB(t.lo)}</TechnicalText>
+                        </td>
+                        <td className="num">
+                          <TechnicalText>{fmtMiB(t.hi)}</TechnicalText>
+                        </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <a
                             className="btn btn-ghost btn-sm"
@@ -523,18 +556,20 @@ export function DetailDrawer({
               </div>
 
               <div className="drawer-sec">
-                <h3>Resolved from 4 sources</h3>
+                <h3>منابع پشتیبان</h3>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>Nex1Music</strong>
-                  <span>Tier 1</span>
-                  <span style={{ color: 'var(--muted-2)' }}>128/320 tiers per track</span>
+                  <span>سطح ۱</span>
+                  <span style={{ color: 'var(--muted-2)' }}>
+                    کیفیت‌های 128/320 برای هر قطعه
+                  </span>
                 </div>
                 <div className="prov">
                   <span className="led ok"></span>
                   <strong style={{ color: '#e8e8e8' }}>Pop-Music</strong>
-                  <span>Tier 2</span>
-                  <span style={{ color: 'var(--muted-2)' }}>album-oriented</span>
+                  <span>سطح ۲</span>
+                  <span style={{ color: 'var(--muted-2)' }}>متمرکز بر آلبوم</span>
                 </div>
               </div>
             </>
@@ -550,8 +585,8 @@ export function DetailDrawer({
               aria-pressed={isItemFavorite?.(item.id) ?? false}
               aria-label={
                 (isItemFavorite?.(item.id) ?? false)
-                  ? `Remove ${item.title} from favorites`
-                  : `Add ${item.title} to favorites`
+                  ? `حذف ${item.title} از علاقه‌مندی‌ها`
+                  : `افزودن ${item.title} به علاقه‌مندی‌ها`
               }
               onClick={handleToggleFavorite}
             >
@@ -562,8 +597,8 @@ export function DetailDrawer({
               />
               <span>
                 {(isItemFavorite?.(item.id) ?? false)
-                  ? 'Remove from favorites'
-                  : 'Save to favorites'}
+                  ? 'حذف از علاقه‌مندی‌ها'
+                  : 'افزودن به علاقه‌مندی‌ها'}
               </span>
             </button>
 
@@ -574,13 +609,13 @@ export function DetailDrawer({
                 onClick={handleUndo}
               >
                 <Undo2 className="w-3.5 h-3.5" />
-                <span>Undo</span>
+                <span>بازگردانی</span>
               </button>
             )}
 
             {persistenceBlocked && (
               <span className="hint" role="status">
-                Likes won&apos;t persist in private mode.
+                علاقه‌مندی‌ها در حالت ناشناس ذخیره نمی‌شوند.
               </span>
             )}
           </div>

@@ -385,7 +385,6 @@ export default function Home() {
         <Header
           category={category}
           onCategoryChange={handleCategoryChange}
-          onOpenAi={() => setAiOpen(true)}
           rightSlot={
             <SourceStatusBar
               sources={sources}

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { useToast } from '@/components/ui/ToastNotification'
-import { fmtMiB } from '@/lib/catalog'
+import { fmtMiB, toFaDigits } from '@/lib/catalog'
 import { startConversion, pollConversion } from '@/lib/api'
 
 interface JobHistory {
@@ -19,11 +19,11 @@ interface JobHistory {
 }
 
 const STEPS = [
-  'Resolving video ID',
-  'Reading available audio streams',
-  'Extracting audio track',
-  'Encoding MP3',
-  'Finalising tags',
+  'شناسایی شناسهٔ ویدیو',
+  'خواندن جریان‌های صوتی موجود',
+  'استخراج ترک صوتی',
+  'کدگذاری MP3',
+  'نهایی‌سازی تگ‌ها',
 ]
 
 const ID_RE = /^[A-Za-z0-9_-]{11}$/
@@ -94,7 +94,7 @@ export default function YoutubeToMp3Page() {
     setProgress(0)
     setCurrentStep('')
     setActiveVid('')
-    showToast('Job cancelled — the partial file was discarded')
+    showToast('کار لغو شد — فایل ناقص دور ریخته شد')
   }
 
   // Finish job
@@ -121,7 +121,7 @@ export default function YoutubeToMp3Page() {
 
     setHistory((prev) => [newJob, ...prev])
     setLastCompletedNotice(
-      `Encoded ${bitrate} kbps / ${rate / 1000} kHz — audio extraction complete. File is ready for immediate stream download.`
+      `در ${bitrate} kbps / ${rate / 1000} kHz کدگذاری شد — استخراج صوت کامل شد. فایل آمادهٔ دانلود مستقیم است.`
     )
     showToast(`Conversion finished — ${title}`)
   }
@@ -130,26 +130,26 @@ export default function YoutubeToMp3Page() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (running) {
-      showToast('One job at a time — cancel the running job first', 'error')
+      showToast('هر بار یک کار — اول کار در حال اجرا را لغو کنید', 'error')
       return
     }
 
     const raw = url.trim() || videoId.trim()
     if (!raw) {
-      setErrors({ url: 'Paste a YouTube URL or an 11-character video ID.' })
+      setErrors({ url: 'آدرس یوتیوب یا شناسهٔ ۱۱ نویسه‌ای ویدیو را بچسبانید.' })
       return
     }
 
     const vid = extractVideoId(raw) || (ID_RE.test(raw) ? raw : '')
     if (!vid) {
       setErrors({
-        url: 'No 11-character video ID found in that address. Playlists and channel links are rejected.',
+        url: 'شناسهٔ ۱۱ نویسه‌ای ویدیو در این آدرس پیدا نشد. لینک پلی‌لیست و کانال پذیرفته نمی‌شود.',
       })
       return
     }
 
     if (!ID_RE.test(vid)) {
-      setErrors({ url: 'That video ID is not 11 characters.' })
+      setErrors({ url: 'این شناسهٔ ویدیو ۱۱ نویسه ندارد.' })
       return
     }
 
@@ -158,7 +158,7 @@ export default function YoutubeToMp3Page() {
     lastRunRef.current = Date.now()
     setActiveVid(vid)
     setProgress(10)
-    setCurrentStep('Starting extraction on server…')
+    setCurrentStep('آغاز استخراج روی سرور…')
     setLastCompletedNotice(null)
 
     try {
@@ -176,14 +176,14 @@ export default function YoutubeToMp3Page() {
           const pollRes = await pollConversion(reqId)
           if (pollRes.status === 'processing') {
             setProgress(pollRes.progress || 40)
-            setCurrentStep(pollRes.current_step || 'Processing audio track…')
+            setCurrentStep(pollRes.current_step || 'در حال پردازش ترک صوتی…')
           } else if (pollRes.status === 'completed') {
             if (timerRef.current) clearInterval(timerRef.current)
             finishJob(vid, pollRes.download_url, pollRes.video_title)
           } else if (pollRes.status === 'failed') {
             if (timerRef.current) clearInterval(timerRef.current)
             setRunning(false)
-            showToast(pollRes.error_message || 'Conversion failed', 'error')
+            showToast(pollRes.error_message || 'تبدیل ناموفق بود', 'error')
           }
         } catch {
           // ignore transient poll errors
@@ -191,17 +191,17 @@ export default function YoutubeToMp3Page() {
       }, 1000)
     } catch (err: any) {
       setRunning(false)
-      showToast(err.message || 'Error starting conversion', 'error')
+      showToast(err.message || 'خطا در شروع تبدیل', 'error')
     }
   }
 
   function handleClearHistory() {
     if (history.length === 0) {
-      showToast('History is already empty')
+      showToast('تاریخچه از قبل خالی است')
       return
     }
     setHistory([])
-    showToast('Session history cleared')
+    showToast('تاریخچهٔ نشست پاک شد')
   }
 
   useEffect(() => {
@@ -218,9 +218,9 @@ export default function YoutubeToMp3Page() {
         {/* Intro */}
         <section data-od-id="mp3-intro">
           <div className="eyebrow">
-            <span className="pill-red">Declared exception</span>
+            <span className="pill-red">استثنای اعلام‌شده</span>
             <span className="pill-ghost">
-              Spec 008 · FR relaxes Constitution Principle III for this tool only
+              سند 008 · این FR اصل سوم قانون اساسی را فقط برای همین ابزار کنار می‌گذارد
             </span>
           </div>
           <h1
@@ -232,19 +232,19 @@ export default function YoutubeToMp3Page() {
               lineHeight: 1.02,
             }}
           >
-            YouTube to MP3
+            یوتیوب به MP3
           </h1>
           <p className="hero-desc" style={{ marginTop: '14px' }}>
-            Everywhere else in this product the server links out and relays nothing. This tool is
-            the one declared exception: it fetches the audio stream, encodes it and hands you a
-            file. One video at a time, no playlists, no batch queue.
+            در تمام بخش‌های دیگر این محصول، سرور فقط لینک می‌دهد و چیزی را بازپخش نمی‌کند. این ابزار
+            تنها استثنای اعلام‌شده است: جریان صوتی را می‌گیرد، کدگذاری می‌کند و فایل را در اختیارتان
+            می‌گذارد. هر بار یک ویدیو، بدون پلی‌لیست و بدون صف دسته‌ای.
           </p>
           <div className="notice warn" style={{ marginTop: '20px' }}>
             <span className="led warn"></span>
             <span>
-              Only convert material you own or are licensed to download. This prototype runs the
-              full interface — validation, bitrate tiers, progress, history — without contacting
-              YouTube.
+              تنها محتوایی را تبدیل کنید که مالکش هستید یا مجوز دانلودش را دارید. این نمونهٔ اولیه تمام
+              رابط کاربری — اعتبارسنجی، سطوح بیت‌ریت، پیشرفت و تاریخچه — را اجرا می‌کند بدون آنکه با
+              یوتیوب تماس بگیرد.
             </span>
           </div>
         </section>
@@ -258,7 +258,7 @@ export default function YoutubeToMp3Page() {
             style={{ display: 'grid', gap: '20px', maxWidth: '760px' }}
           >
             <div className={`field ${errors.url ? 'invalid' : ''}`} data-field="url">
-              <label htmlFor="m-url">YouTube video URL</label>
+              <label htmlFor="m-url">آدرس ویدیوی یوتیوب</label>
               <input
                 className="input"
                 id="m-url"
@@ -275,7 +275,7 @@ export default function YoutubeToMp3Page() {
             </div>
 
             <div className="field" data-field="id">
-              <label htmlFor="m-id">…or paste just the video ID</label>
+              <label htmlFor="m-id">…یا فقط شناسهٔ ویدیو را بچسبانید</label>
               <input
                 className="input"
                 id="m-id"
@@ -288,14 +288,14 @@ export default function YoutubeToMp3Page() {
                 onChange={(e) => handleIdChange(e.target.value)}
               />
               <span className="hint">
-                11 characters. The two fields stay in sync — whichever you fill last wins.
+                ۱۱ نویسه. این دو فیلد با هم هماهنگ می‌مانند — هرکدام را آخر پر کنید، همان ملاک است.
               </span>
               <span className="err" id="e-id"></span>
             </div>
 
             <div className="field" data-field="bitrate">
-              <label>Output bitrate</label>
-              <div className="seg" id="bitrateSeg" role="group" aria-label="Output bitrate">
+              <label>بیت‌ریت خروجی</label>
+              <div className="seg" id="bitrateSeg" role="group" aria-label="بیت‌ریت خروجی">
                 {[128, 192, 256, 320].map((k) => (
                   <button
                     key={k}
@@ -309,14 +309,14 @@ export default function YoutubeToMp3Page() {
                 ))}
               </div>
               <span className="hint">
-                Higher bitrate keeps transients in live sets but the source stream rarely carries
-                more detail than 192 kbps.
+                بیت‌ریت بالاتر جزئیات ضربه‌ای در اجراهای زنده را حفظ می‌کند، اما جریان اصلی به‌ندرت جزئیاتی بیش از ۱۹۲
+                kbps دارد.
               </span>
             </div>
 
             <div className="field" data-field="rate">
-              <label>Sample rate</label>
-              <div className="seg" id="rateSeg" role="group" aria-label="Sample rate">
+              <label>نرخ نمونه‌برداری</label>
+              <div className="seg" id="rateSeg" role="group" aria-label="نرخ نمونه‌برداری">
                 {[44100, 48000].map((hz) => (
                   <button
                     key={hz}
@@ -348,7 +348,7 @@ export default function YoutubeToMp3Page() {
                     color: 'var(--muted)',
                   }}
                 >
-                  Write title, artist and cover art into the ID3 tags
+                  نوشتن عنوان، هنرمند و کاور در تگ‌های ID3
                 </span>
               </label>
               <label className="switch">
@@ -367,7 +367,7 @@ export default function YoutubeToMp3Page() {
                     color: 'var(--muted)',
                   }}
                 >
-                  Normalise the filename to Persian/Arabic conventions (ي → ی, ك → ک)
+                  یکسان‌سازی نام فایل با قراردادهای فارسی/عربی (ي → ی, ك → ک)
                 </span>
               </label>
             </div>
@@ -375,7 +375,7 @@ export default function YoutubeToMp3Page() {
             <div>
               {!running ? (
                 <button className="btn btn-primary" type="submit" id="go">
-                  Convert to MP3
+                  تبدیل به MP3
                 </button>
               ) : (
                 <button
@@ -384,7 +384,7 @@ export default function YoutubeToMp3Page() {
                   id="cancel"
                   onClick={handleCancel}
                 >
-                  Cancel
+                  لغو
                 </button>
               )}
             </div>
@@ -395,8 +395,8 @@ export default function YoutubeToMp3Page() {
             <div id="job" style={{ marginTop: '24px', maxWidth: '760px' }}>
               <div className="player">
                 <div className="player-row">
-                  <strong style={{ color: '#fff' }}>Converting {activeVid}</strong>
-                  <span>
+                  <strong style={{ color: '#fff' }}>در حال تبدیل <span dir="ltr">{activeVid}</span></strong>
+                  <span dir="ltr">
                     {bitrate} kbps · {rate / 1000} kHz
                   </span>
                 </div>
@@ -417,7 +417,7 @@ export default function YoutubeToMp3Page() {
               <div className="notice">
                 <span className="led ok"></span>
                 <span>
-                  <strong style={{ color: '#fff' }}>Done.</strong> {lastCompletedNotice}
+                  <strong style={{ color: '#fff' }}>انجام شد.</strong> {lastCompletedNotice}
                 </span>
               </div>
             </div>
@@ -427,21 +427,21 @@ export default function YoutubeToMp3Page() {
         {/* Conversion History */}
         <section className="sec" data-od-id="mp3-history">
           <div className="sec-head">
-            <h2>This session</h2>
+            <h2>این نشست</h2>
             <span className="sub" id="histCount">
               {history.length > 0
-                ? `${history.length} conversion${history.length > 1 ? 's' : ''} this session`
-                : 'no conversions yet'}
+                ? `${toFaDigits(history.length)} تبدیل در این نشست`
+                : 'هنوز تبدیلی انجام نشده'}
             </span>
           </div>
 
           <div id="historySlot">
             {history.length === 0 ? (
               <div className="empty">
-                <strong>Nothing converted yet</strong>
+                <strong>هنوز چیزی تبدیل نشده</strong>
                 <span>
-                  Jobs from this session appear here with their bitrate, sample rate and output
-                  size. They are not written to the catalogue.
+                  کارهای این نشست با بیت‌ریت، نرخ نمونه‌برداری و حجم خروجی اینجا نمایش داده می‌شوند.
+                  در کاتالوگ ثبت نمی‌شوند.
                 </span>
               </div>
             ) : (
@@ -449,11 +449,11 @@ export default function YoutubeToMp3Page() {
                 <table className="data">
                   <thead>
                     <tr>
-                      <th>Video</th>
-                      <th>Video ID</th>
-                      <th>Bitrate</th>
-                      <th>Sample</th>
-                      <th>Size (est.)</th>
+                      <th>ویدیو</th>
+                      <th>شناسهٔ ویدیو</th>
+                      <th>بیت‌ریت</th>
+                      <th>نرخ نمونه</th>
+                      <th>حجم (تخمینی)</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -464,16 +464,16 @@ export default function YoutubeToMp3Page() {
                           <strong>{h.title}</strong>
                           <br />
                           <span style={{ color: 'var(--muted-2)', fontSize: '12px' }}>
-                            {h.meta ? 'ID3 tags written' : 'no ID3 tags'}
-                            {h.norm ? ' · Persian filename' : ''}
+                            {h.meta ? 'تگ‌های ID3 نوشته شد' : 'بدون تگ ID3'}
+                            {h.norm ? ' · نام فایل فارسی' : ''}
                           </span>
                         </td>
-                        <td className="mono">{h.id}</td>
-                        <td className="mono">{h.bitrate} kbps</td>
-                        <td className="mono">
+                        <td className="mono" dir="ltr">{h.id}</td>
+                        <td className="mono" dir="ltr">{h.bitrate} kbps</td>
+                        <td className="mono" dir="ltr">
                           {(h.rate / 1000).toFixed(1).replace('.0', '')} kHz
                         </td>
-                        <td className="mono">{h.size}</td>
+                        <td className="mono" dir="ltr">{h.size}</td>
                         <td>
                           <button
                             className="btn btn-primary btn-sm"
@@ -487,7 +487,7 @@ export default function YoutubeToMp3Page() {
                               }
                             }}
                           >
-                            Download
+                            دانلود
                           </button>
                         </td>
                       </tr>
@@ -505,7 +505,7 @@ export default function YoutubeToMp3Page() {
               id="clearHist"
               onClick={handleClearHistory}
             >
-              Clear history
+              پاک‌کردن تاریخچه
             </button>
           </div>
         </section>
@@ -513,8 +513,8 @@ export default function YoutubeToMp3Page() {
         {/* Rules */}
         <section className="sec" data-od-id="mp3-rules">
           <div className="sec-head">
-            <h2>Rules this tool follows</h2>
-            <span className="sub">spec 008</span>
+            <h2>قواعدی که این ابزار رعایت می‌کند</h2>
+            <span className="sub">سند 008</span>
           </div>
           <div
             className="grid"
@@ -528,10 +528,10 @@ export default function YoutubeToMp3Page() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>One video per job</strong>
+              <strong style={{ color: '#fff' }}>هر کار، یک ویدیو</strong>
               <span>
-                No playlists, no channel dumps, no batch queue. A submitted URL is reduced to a
-                single video ID before anything else happens.
+                بدون پلی‌لیست، بدون درج کانال، بدون صف دسته‌ای. آدرس ارسال‌شده پیش از هر چیز دیگر به یک
+                شناسهٔ ویدیوی تکی تبدیل می‌شود.
               </span>
             </div>
             <div
@@ -542,10 +542,10 @@ export default function YoutubeToMp3Page() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Explicit consent per run</strong>
+              <strong style={{ color: '#fff' }}>رضایت آشکار در هر اجرا</strong>
               <span>
-                The interface states the ownership/licence requirement before conversion starts,
-                and records the acknowledgement with the job.
+                رابط کاربری پیش از شروع تبدیل، شرط مالکیت/مجوز را اعلام می‌کند و تأیید شما را همراه کار
+                ثبت می‌کند.
               </span>
             </div>
             <div
@@ -556,10 +556,10 @@ export default function YoutubeToMp3Page() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Transient files only</strong>
+              <strong style={{ color: '#fff' }}>تنها فایل‌های موقت</strong>
               <span>
-                The encoded file is held for the duration of the download and then discarded.
-                Nothing is added to the media catalogue.
+                فایل کدگذاری‌شده فقط به‌مدت دانلود نگه داشته و سپس حذف می‌شود. چیزی به کاتالوگ رسانه
+                افزوده نمی‌شود.
               </span>
             </div>
             <div
@@ -570,10 +570,10 @@ export default function YoutubeToMp3Page() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Rate limited</strong>
+              <strong style={{ color: '#fff' }}>محدودیت نرخ</strong>
               <span>
-                One job at a time per device, with a cooldown between jobs, so the tool cannot be
-                turned into a bulk scraper.
+                هر بار یک کار برای هر دستگاه، همراه با فاصلهٔ زمانی میان کارها، تا این ابزار به یک اسکرپر
+                انبوه تبدیل نشود.
               </span>
             </div>
           </div>

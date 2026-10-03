@@ -41,20 +41,22 @@ export function Header({
 
   return (
     <header className="hdr" data-od-id="site-header">
-      <Link className="brand" href="/" aria-label="Linkschin home">
+      <Link className="brand" href="/" aria-label="لینک‌چین، صفحه اصلی">
         <img
           src="/images/brand/logo.png"
-          alt="Linkschin"
+          alt="لوگوی لینک‌چین"
           width={32}
           height={32}
         />
-        <span className="brand-word">Linkschin</span>
+        {/* Brand name stays Latin; `dir="ltr"` keeps it and its letter-spacing
+            from being reordered inside the RTL shell. */}
+        <span className="brand-word" dir="ltr">Linkschin</span>
       </Link>
 
       <nav
         className={`nav ${navOpen ? 'on' : ''}`}
         id="primary-nav"
-        aria-label="Primary"
+        aria-label="ناوبری اصلی"
       >
         {/* No Home entry: the brand logo already links to `/`, so a tab for it
             would be a duplicate control for the same destination. */}
@@ -67,7 +69,7 @@ export function Header({
               onClick={() => handleNavClick('movies')}
             >
               <Film className="w-4 h-4" />
-              <span>Movies</span>
+              <span>فیلم و سریال</span>
             </button>
             <button
               type="button"
@@ -76,7 +78,7 @@ export function Header({
               onClick={() => handleNavClick('games')}
             >
               <Gamepad2 className="w-4 h-4" />
-              <span>Games</span>
+              <span>بازی‌ها</span>
             </button>
             <button
               type="button"
@@ -85,7 +87,7 @@ export function Header({
               onClick={() => handleNavClick('music')}
             >
               <Music className="w-4 h-4" />
-              <span>Music</span>
+              <span>موسیقی</span>
             </button>
           </>
         ) : (
@@ -101,7 +103,7 @@ export function Header({
               onClick={() => setNavOpen(false)}
             >
               <Film className="w-4 h-4" />
-              <span>Movies</span>
+              <span>فیلم و سریال</span>
             </Link>
             <Link
               href="/?cat=games"
@@ -110,7 +112,7 @@ export function Header({
               onClick={() => setNavOpen(false)}
             >
               <Gamepad2 className="w-4 h-4" />
-              <span>Games</span>
+              <span>بازی‌ها</span>
             </Link>
             <Link
               href="/?cat=music"
@@ -119,7 +121,7 @@ export function Header({
               onClick={() => setNavOpen(false)}
             >
               <Music className="w-4 h-4" />
-              <span>Music</span>
+              <span>موسیقی</span>
             </Link>
           </>
         )}
@@ -131,7 +133,7 @@ export function Header({
           onClick={() => setNavOpen(false)}
         >
           <Heart className="w-4 h-4" />
-          <span>Favorites</span>
+          <span>علاقه‌مندی‌ها</span>
         </Link>
 
         <Link
@@ -141,7 +143,7 @@ export function Header({
           onClick={() => setNavOpen(false)}
         >
           <Server className="w-4 h-4" />
-          <span>Sources</span>
+          <span>منابع</span>
         </Link>
 
         <Link
@@ -151,7 +153,7 @@ export function Header({
           onClick={() => setNavOpen(false)}
         >
           <Download className="w-4 h-4" />
-          <span>MP3</span>
+          <span dir="ltr">MP3</span>
         </Link>
       </nav>
 
@@ -165,13 +167,13 @@ export function Header({
             onClick={onOpenAi}
           >
             <Sparkles className="w-4 h-4" />
-            <span>Ask AI</span>
+            <span>پرسش از هوش مصنوعی</span>
           </button>
         )}
         <button
           className="burger"
           type="button"
-          aria-label="Menu"
+          aria-label="منو"
           aria-expanded={navOpen}
           onClick={() => setNavOpen((prev) => !prev)}
         >

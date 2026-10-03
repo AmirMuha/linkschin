@@ -32,7 +32,7 @@ export default function SourcesPage() {
             name: s.name,
             cat: s.category,
             tier: (s.access_tier === 'premium' ? 2 : (s.access_tier === 'freemium' ? 3 : 1)) as 1 | 2 | 3,
-            tierLabel: s.access_tier ? `Tier ${s.access_tier}` : 'Tier 1',
+            tierLabel: s.access_tier ? `سطح ${toFaDigits(s.access_tier)}` : 'سطح ۱',
             notes: s.inactive_reason || s.status || '',
             baseUrl: s.base_url || '',
             mirrorUrl: s.mirror_url || '',
@@ -63,7 +63,7 @@ export default function SourcesPage() {
         const next = !s.enabled
         toggleSourceEnabled(id, next).catch(() => {})
         showToast(
-          `${s.name} ${next ? 'enabled — it joins the next fan-out' : 'disabled — excluded from every query'}`
+          `${s.name} ${next ? 'فعال شد — در موج بعدی جستجو شرکت می‌کند' : 'غیرفعال شد — از همهٔ جستجوها کنار گذاشته می‌شود'}`
         )
         return { ...s, enabled: next }
       })
@@ -77,8 +77,8 @@ export default function SourcesPage() {
       const next = !prev[id]
       showToast(
         next
-          ? `${s?.name || id} hidden — every later query skips it on this device`
-          : `${s?.name || id} restored`
+          ? `${s?.name || id} پنهان شد — همهٔ جستجوهای بعدی روی این دستگاه آن را رد می‌کنند`
+          : `${s?.name || id} بازگردانده شد`
       )
       return { ...prev, [id]: next }
     })
@@ -88,7 +88,7 @@ export default function SourcesPage() {
   function handleAddressChange(id: string, type: 'base' | 'mirror', val: string) {
     const s = sources.find((x) => x.id === id)
     if (val.trim() && !/^https:\/\//i.test(val.trim())) {
-      showToast('Address must start with https://', 'error')
+      showToast('آدرس باید با https:// شروع شود', 'error')
       return
     }
     updateSourceAddress(id, type === 'base' ? val : undefined, type === 'mirror' ? val : undefined).catch(() => {})
@@ -101,7 +101,7 @@ export default function SourcesPage() {
       })
     )
     showToast(
-      `${s?.name || id}: ${type === 'base' ? 'primary' : 'fallback'} saved. Configuration only — no code change needed (FR-021).`
+      `${s?.name || id}: آدرس ${type === 'base' ? 'اصلی' : 'پشتیبان'} ذخیره شد. تنها پیکربندی — نیازی به تغییر کد نیست (FR-021).`
     )
   }
 
@@ -111,28 +111,28 @@ export default function SourcesPage() {
     const errs: Record<string, string> = {}
 
     if (!url.trim()) {
-      errs.url = 'Paste the portal address'
+      errs.url = 'آدرس پورتال را بچسبانید'
     } else {
       try {
         const u = new URL(url.trim())
         if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-          errs.url = 'Must be an HTTP(S) address'
+          errs.url = 'باید یک آدرس HTTP(S) باشد'
         }
       } catch {
-        errs.url = 'Not a valid URL'
+        errs.url = 'آدرس معتبر نیست'
       }
     }
 
     if (!name.trim()) {
-      errs.name = 'How does the portal brand itself?'
+      errs.name = 'پورتال خود را با چه نامی معرفی می‌کند؟'
     }
 
     if (contact.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim())) {
-      errs.contact = 'Not a valid email'
+      errs.contact = 'ایمیل معتبر نیست'
     }
 
     if (!agreed) {
-      errs.agreed = 'You must confirm the unauthenticated links policy'
+      errs.agreed = 'باید سیاست لینک‌های بدون احراز هویت را تأیید کنید'
     }
 
     if (Object.keys(errs).length > 0) {
@@ -150,9 +150,9 @@ export default function SourcesPage() {
       contact: contact.trim() || undefined,
       notes: notes.trim() || undefined,
     }).then((res) => {
-      showToast(`Submitted «${name.trim()}» to the operator review queue (Domain: ${res.domain}, Requests: ${res.request_count}).`)
+      showToast(`«${name.trim()}» به صف بررسی اپراتور ارسال شد (دامنه: ${res.domain}، درخواست‌ها: ${toFaDigits(res.request_count)}).`)
     }).catch((err) => {
-      showToast(err.message || `Submitted «${name.trim()}» to the operator review queue.`)
+      showToast(err.message || `«${name.trim()}» به صف بررسی اپراتور ارسال شد.`)
     })
 
     // Reset form
@@ -170,7 +170,7 @@ export default function SourcesPage() {
     setNotes('')
     setAgreed(false)
     setErrors({})
-    showToast('Form cleared')
+    showToast('فرم پاک شد')
   }
 
   const enabledCount = sources.filter((s) => s.enabled).length
@@ -183,8 +183,8 @@ export default function SourcesPage() {
         {/* Intro */}
         <section data-od-id="sources-intro">
           <div className="eyebrow">
-            <span className="pill-red">Operator console</span>
-            <span className="pill-ghost">Spec 001 US5 · FR-021 · 004 · 007</span>
+            <span className="pill-red">کنسول اپراتور</span>
+            <span className="pill-ghost">سند 001 · US5 · FR-021 · 004 · 007</span>
           </div>
           <h1
             style={{
@@ -195,21 +195,22 @@ export default function SourcesPage() {
               lineHeight: 1.02,
             }}
           >
-            Source registry
+            رجیستری منابع
           </h1>
           <p className="hero-desc" style={{ marginTop: '14px' }}>
-            Each portal is a decoupled module behind one search/extract interface. Adding a source
-            means a new module plus one row here — search, ranking and the interface stay untouched.
-            Domain shifts are handled by following 301/302, and the live base address lives in
-            configuration so a mirror change never needs a code change.
+            هر پورتال یک ماژول مستقل پشت یک رابط واحد برای جستجو و استخراج است. افزودن یک منبع یعنی
+            نوشتن یک ماژول جدید و اضافه‌شدن یک ردیف به همین جدول — جستجو، رتبه‌بندی و رابط کاربری
+            دست‌نخورده باقی می‌مانند. جابه‌جایی دامنه با دنبال‌کردن ریدایرکت‌های ۳۰۱/۳۰۲ مدیریت
+            می‌شود و آدرس پایه در پیکربندی نگهداری می‌گردد، بنابراین تغییر آینه هرگز نیاز به تغییر
+            کد ندارد.
           </p>
         </section>
 
         {/* Expansion Status */}
         <section className="sec" data-od-id="expansion-status">
           <div className="sec-head">
-            <h2>Expansion status</h2>
-            <span className="sub">spec 005 · 006 request 20 portals per media type</span>
+            <h2>وضعیت توسعه</h2>
+            <span className="sub">سند 005 · 006 — درخواست ۲۰ پورتال برای هر نوع رسانه</span>
           </div>
           <div
             className="grid"
@@ -221,10 +222,10 @@ export default function SourcesPage() {
               const pct = Math.round((exp.live / exp.target) * 100)
               const label =
                 catKey === 'movies'
-                  ? 'Movie portals'
+                  ? 'پورتال فیلم و سریال'
                   : catKey === 'games'
-                    ? 'Game portals'
-                    : 'Music portals'
+                    ? 'پورتال بازی'
+                    : 'پورتال موسیقی'
 
               return (
                 <div
@@ -251,14 +252,14 @@ export default function SourcesPage() {
                       {toFaDigits(exp.live)}
                     </span>
                     <span style={{ color: 'var(--muted-2)' }}>
-                      of {toFaDigits(exp.target)} onboarded
+                      از {toFaDigits(exp.target)} پورتال فعال
                     </span>
                   </div>
                   <div className="bar">
                     <i style={{ width: `${pct}%` }}></i>
                   </div>
                   <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                    {exp.target - exp.live} still to onboard — submit them below.
+                    {toFaDigits(exp.target - exp.live)} پورتال دیگر باقی‌مانده — آن‌ها را در فرم پایین ثبت کنید.
                   </span>
                 </div>
               )
@@ -269,23 +270,23 @@ export default function SourcesPage() {
         {/* Registry Table */}
         <section className="sec" data-od-id="registry-table">
           <div className="sec-head">
-            <h2>Registered sources</h2>
+            <h2>منابع ثبت‌شده</h2>
             <span className="sub" id="regCount">
-              {sources.length} sources · {enabledCount} enabled
+              {toFaDigits(sources.length)} منبع · {toFaDigits(enabledCount)} فعال
             </span>
           </div>
           <div className="tbl-wrap">
             <table className="data">
               <thead>
                 <tr>
-                  <th>Source</th>
-                  <th>Category</th>
-                  <th>Tier</th>
-                  <th>Health</th>
-                  <th>Primary address</th>
-                  <th>Fallback mirror</th>
-                  <th>Enabled</th>
-                  <th>Hidden for me</th>
+                  <th>منبع</th>
+                  <th>دسته</th>
+                  <th>سطح</th>
+                  <th>سلامت</th>
+                  <th>آدرس اصلی</th>
+                  <th>آینه پشتیبان</th>
+                  <th>فعال</th>
+                  <th>پنهان برای من</th>
                 </tr>
               </thead>
               <tbody id="regBody">
@@ -302,14 +303,18 @@ export default function SourcesPage() {
                           : 'bad'
                   const stateLabel =
                     stateKey === 'off'
-                      ? 'Disabled'
+                      ? 'غیرفعال'
                       : stateKey === 'warn'
-                        ? 'Degraded'
+                        ? 'دارای اختلال'
                         : stateKey === 'ok'
-                          ? 'Answering'
-                          : 'Failing'
+                          ? 'پاسخگو'
+                          : 'خطا'
                   const catLabel =
-                    s.cat === 'movies' ? 'Movies' : s.cat === 'games' ? 'Games' : 'Music'
+                    s.cat === 'movies'
+                      ? 'فیلم و سریال'
+                      : s.cat === 'games'
+                        ? 'بازی'
+                        : 'موسیقی'
 
                   return (
                     <tr key={s.id}>
@@ -342,7 +347,7 @@ export default function SourcesPage() {
                           defaultValue={s.baseUrl || ''}
                           placeholder="https://live-mirror…"
                           onBlur={(e) => handleAddressChange(s.id, 'base', e.target.value)}
-                          aria-label={`Primary address for ${s.name}`}
+                          aria-label={`آدرس اصلی ${s.name}`}
                         />
                       </td>
                       <td>
@@ -357,7 +362,7 @@ export default function SourcesPage() {
                           defaultValue={s.mirrorUrl || ''}
                           placeholder="https://fallback…"
                           onBlur={(e) => handleAddressChange(s.id, 'mirror', e.target.value)}
-                          aria-label={`Fallback mirror for ${s.name}`}
+                          aria-label={`آینه پشتیبان ${s.name}`}
                         />
                       </td>
                       <td>
@@ -368,7 +373,7 @@ export default function SourcesPage() {
                             onChange={() => handleToggleEnabled(s.id)}
                           />
                           <span className="track"></span>
-                          <span className="sr">Enable {s.name}</span>
+                          <span className="sr">فعال‌کردن {s.name}</span>
                         </label>
                       </td>
                       <td>
@@ -379,7 +384,7 @@ export default function SourcesPage() {
                             onChange={() => handleToggleHide(s.id)}
                           />
                           <span className="track"></span>
-                          <span className="sr">Hide {s.name} from my results</span>
+                          <span className="sr">پنهان‌کردن {s.name} از نتایج من</span>
                         </label>
                       </td>
                     </tr>
@@ -396,18 +401,18 @@ export default function SourcesPage() {
               maxWidth: '80ch',
             }}
           >
-            Addresses are intentionally left blank: portal domains rotate faster than any
-            configuration copy can keep up. The scraper follows 301/302 and captures the active
-            domain at request time, so paste the current mirror into Primary and a known-good
-            fallback into Fallback.
+            آدرس‌ها عمداً خالی گذاشته شده‌اند: دامنه پورتال‌ها سریع‌تر از آن دست‌آخوردنی است که یک نسخهٔ
+            پیکربندی بتواند با آن همگام بماند. اسکرپر ریدایرکت‌های ۳۰۱/۳۰۲ را دنبال می‌کند و دامنهٔ
+            فعال را هنگام درخواست ثبت می‌کند، بنابراین آینهٔ فعلی را در «آدرس اصلی» و یک آینهٔ پشتیبانِ
+            سالم را در «آینه پشتیبان» وارد کنید.
           </p>
         </section>
 
         {/* Suggest a source */}
         <section className="sec" data-od-id="suggest" id="suggest">
           <div className="sec-head">
-            <h2>Suggest a source</h2>
-            <span className="sub">spec 004 — operator review queue</span>
+            <h2>پیشنهاد منبع جدید</h2>
+            <span className="sub">سند 004 — صف بررسی اپراتور</span>
           </div>
           <form
             className="grid"
@@ -420,7 +425,7 @@ export default function SourcesPage() {
             noValidate
           >
             <div className={`field ${errors.url ? 'invalid' : ''}`} data-field="url">
-              <label htmlFor="f-url">Portal URL</label>
+              <label htmlFor="f-url">آدرس پورتال</label>
               <input
                 className="input"
                 id="f-url"
@@ -439,7 +444,7 @@ export default function SourcesPage() {
             </div>
 
             <div className="field" data-field="cat">
-              <label htmlFor="f-cat">Category</label>
+              <label htmlFor="f-cat">دسته</label>
               <select
                 className="select"
                 id="f-cat"
@@ -448,22 +453,22 @@ export default function SourcesPage() {
                   setCategory(e.target.value as 'movies' | 'games' | 'music')
                 }
               >
-                <option value="movies">Movies &amp; series</option>
-                <option value="games">Games</option>
-                <option value="music">Music</option>
+                <option value="movies">فیلم و سریال</option>
+                <option value="games">بازی</option>
+                <option value="music">موسیقی</option>
               </select>
               <span className="hint">
-                The scraper module is only instantiated for the categories you pick.
+                ماژول اسکرپر تنها برای دسته‌هایی که انتخاب می‌کنید ساخته می‌شود.
               </span>
             </div>
 
             <div className={`field ${errors.name ? 'invalid' : ''}`} data-field="name">
-              <label htmlFor="f-name">Portal name</label>
+              <label htmlFor="f-name">نام پورتال</label>
               <input
                 className="input"
                 id="f-name"
                 type="text"
-                placeholder="How the portal brands itself"
+                placeholder="نامی که پورتال خود را با آن معرفی می‌کند"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value)
@@ -476,38 +481,38 @@ export default function SourcesPage() {
             </div>
 
             <div className="field" data-field="tier">
-              <label htmlFor="f-tier">Proposed tier</label>
+              <label htmlFor="f-tier">سطح پیشنهادی</label>
               <select
                 className="select"
                 id="f-tier"
                 value={tier}
                 onChange={(e) => setTier(e.target.value)}
               >
-                <option value="1">Tier 1 — primary</option>
-                <option value="2">Tier 2 — fallback</option>
-                <option value="3">Tier 3 — experimental</option>
+                <option value="1">سطح ۱ — اصلی</option>
+                <option value="2">سطح ۲ — پشتیبان</option>
+                <option value="3">سطح ۳ — آزمایشی</option>
               </select>
               <span className="hint">
-                Tier decides merge priority and which sources survive when a category degrades.
+                سطح، اولویت ادغام و اینکه هنگام افت یک دسته کدام منابع باقی بمانند را تعیین می‌کند.
               </span>
             </div>
 
             <div className="field" data-field="lang">
-              <label htmlFor="f-lang">Default audio track</label>
+              <label htmlFor="f-lang">صدای پیش‌فرض</label>
               <select
                 className="select"
                 id="f-lang"
                 value={lang}
                 onChange={(e) => setLang(e.target.value)}
               >
-                <option value="EN">Original</option>
-                <option value="FA-DUB">Persian dubbed</option>
-                <option value="FA-SUB">Persian soft-sub</option>
+                <option value="EN">اصلی</option>
+                <option value="FA-DUB">دوبله فارسی</option>
+                <option value="FA-SUB">زیرنویس فارسی</option>
               </select>
             </div>
 
             <div className={`field ${errors.contact ? 'invalid' : ''}`} data-field="contact">
-              <label htmlFor="f-contact">Contact (optional)</label>
+              <label htmlFor="f-contact">راه تماس (اختیاری)</label>
               <input
                 className="input"
                 id="f-contact"
@@ -526,11 +531,11 @@ export default function SourcesPage() {
             </div>
 
             <div className="field" data-field="notes" style={{ gridColumn: '1 / -1' }}>
-              <label htmlFor="f-notes">What does it expose?</label>
+              <label htmlFor="f-notes">چه چیزی ارائه می‌دهد؟</label>
               <textarea
                 className="textarea"
                 id="f-notes"
-                placeholder="Direct links? multi-part archives? bitrate tiers? any password convention?"
+                placeholder="لینک مستقیم؟ آرشیو چندبخشی؟ سطح بیت‌ریت؟ قرارداد رمز عبور خاصی دارد؟"
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -561,8 +566,8 @@ export default function SourcesPage() {
                     color: 'var(--muted)',
                   }}
                 >
-                  I understand the aggregator only indexes publicly reachable, unauthenticated
-                  links and never bypasses a paywall or a login.
+                  درک می‌کنم که این تجمیع‌کننده تنها لینک‌های عمومی و بدون احراز هویت را نمایه می‌کند و هرگز
+                  از دیوار پولی یا صفحهٔ ورود عبور نمی‌کند.
                 </span>
               </label>
               {errors.agreed && <span className="err">{errors.agreed}</span>}
@@ -578,7 +583,7 @@ export default function SourcesPage() {
               }}
             >
               <button className="btn btn-primary" type="submit">
-                Send to review queue
+                ارسال به صف بررسی
               </button>
               <button
                 className="btn btn-quiet"
@@ -586,11 +591,11 @@ export default function SourcesPage() {
                 id="resetForm"
                 onClick={handleClearForm}
               >
-                Clear
+                پاک‌کردن
               </button>
               <span className="hint" style={{ color: 'var(--muted-2)' }}>
-                Submitted portals land in the operator queue — they stay out of every search until
-                a scraper module lands and this table gains a row.
+                پورتال‌های ارسال‌شده وارد صف اپراتور می‌شوند و تا زمانی که ماژول اسکرپرشان ساخته نشود و
+                این جدول ردیف تازه‌ای نگیرد، در هیچ جستجویی ظاهر نمی‌شوند.
               </span>
             </div>
           </form>
@@ -599,8 +604,8 @@ export default function SourcesPage() {
         {/* Tiers, censorship and IMDb */}
         <section className="sec" data-od-id="source-faq">
           <div className="sec-head">
-            <h2>Tiers, censorship and IMDb</h2>
-            <span className="sub">spec 007</span>
+            <h2>سطوح، سانسور و امتیاز IMDb</h2>
+            <span className="sub">سند 007</span>
           </div>
           <div
             className="grid"
@@ -614,9 +619,9 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Tier 1 — primary</strong>
+              <strong style={{ color: '#fff' }}>سطح ۱ — اصلی</strong>
               <span>
-                Highest merge priority. When a Tier 1 source answers, Tier 3 is not even queried.
+                بالاترین اولویت در ادغام. وقتی منبع سطح ۱ پاسخ می‌دهد، سطح ۳ اصلاً پرسیده نمی‌شود.
               </span>
             </div>
             <div
@@ -627,10 +632,10 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Tier 2 — fallback</strong>
+              <strong style={{ color: '#fff' }}>سطح ۲ — پشتیبان</strong>
               <span>
-                Queried in the same fan-out, ranked below Tier 1. Carries most of the catalog when
-                Tier 1 degrades.
+                در همان موج پرس‌وجو بررسی می‌شود اما رتبه‌ای پایین‌تر از سطح ۱ دارد. وقتی سطح ۱ دچار
+                افت می‌شود، عمدهٔ کاتالوگ را همین سطح پوشش می‌دهد.
               </span>
             </div>
             <div
@@ -641,9 +646,9 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Tier 3 — experimental</strong>
+              <strong style={{ color: '#fff' }}>سطح ۳ — آزمایشی</strong>
               <span>
-                Only queried when Tier 1 and 2 return nothing for the query.
+                تنها زمانی پرسیده می‌شود که سطح‌های ۱ و ۲ هیچ نتیجه‌ای برای این پرس‌وجو برنگردانند.
               </span>
             </div>
           </div>
@@ -651,42 +656,43 @@ export default function SourcesPage() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>Filter</th>
-                  <th>Default</th>
-                  <th>Effect on results</th>
+                  <th>فیلتر</th>
+                  <th>پیش‌فرض</th>
+                  <th>اثر روی نتایج</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>IMDb rating floor</td>
+                  <td>کف امتیاز IMDb</td>
                   <td className="mono">0.0</td>
                   <td>
-                    Anything below the floor is dimmed and sorted last; the score itself is never
-                    hidden.
+                    هر چیزی زیر این کف کم‌رنگ شده و در انتهای فهرست مرتب می‌شود؛ خودِ امتیاز هرگز پنهان
+                    نمی‌شود.
                   </td>
                 </tr>
                 <tr>
-                  <td>Censorship</td>
-                  <td className="mono">include</td>
+                  <td>سانسور</td>
+                  <td className="mono">شامل</td>
                   <td>
-                    Switch to <em>uncensored only</em> to drop releases flagged as censored cuts, or{' '}
-                    <em>exclude censored</em> to keep them out entirely.
+                    با انتخاب <em>فقط نسخهٔ بدون سانسور</em>، انتشارهایی که به‌عنوان نسخهٔ سانسورشده
+                    علامت خورده‌اند کنار گذاشته می‌شوند؛ یا با <em>حذف سانسورشده‌ها</em> کاملاً از نتایج
+                    کنار گذاشته می‌شوند.
                   </td>
                 </tr>
                 <tr>
-                  <td>Source tier</td>
-                  <td className="mono">1–3</td>
+                  <td>سطح منبع</td>
+                  <td className="mono">۱–۳</td>
                   <td>
-                    Raising the ceiling to Tier 1 cuts latency and hides fallbacks that would
-                    otherwise pad the list.
+                    بالا بردن سقف به سطح ۱، تأخیر را کم می‌کند و منابع پشتیبانی را که فقط فهرست را
+                    پر می‌کردند پنهان می‌سازد.
                   </td>
                 </tr>
                 <tr>
-                  <td>Per-user hiding</td>
-                  <td className="mono">off</td>
+                  <td>پنهان‌سازی برای هر کاربر</td>
+                  <td className="mono">خاموش</td>
                   <td>
-                    A hidden source is excluded from every later query on this device, not just the
-                    current one.
+                    منبع پنهان‌شده از همهٔ جستجوهای بعدی روی این دستگاه کنار گذاشته می‌شود، نه فقط از
+                    جستجوی فعلی.
                   </td>
                 </tr>
               </tbody>
@@ -697,8 +703,8 @@ export default function SourcesPage() {
         {/* Content Policy */}
         <section className="sec" data-od-id="legal" id="legal">
           <div className="sec-head">
-            <h2>Content policy</h2>
-            <span className="sub">what this prototype does and does not do</span>
+            <h2>سیاست محتوا</h2>
+            <span className="sub">این نمونهٔ اولیه چه کاری انجام می‌دهد و چه کاری نمی‌کند</span>
           </div>
           <div
             className="grid"
@@ -712,11 +718,11 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Implemented as a front end</strong>
+              <strong style={{ color: '#fff' }}>پیاده‌سازی‌شده در رابط کاربری</strong>
               <span>
-                Category isolation, Persian/Arabic normalisation, format segmentation, multi-part
-                archive listing with gap detection, password copy, bitrate tiers, source health,
-                tier filters, the assistant and this queue.
+                جداسازی دسته‌ها، نرمال‌سازی فارسی/عربی، دسته‌بندی فرمت‌ها، فهرست آرشیو چندبخشی همراه با
+                تشخیص بخش‌های جاافتاده، کپی رمز عبور، سطوح بیت‌ریت، سلامت منابع، فیلتر سطح، دستیار و همین
+                صف بررسی.
               </span>
             </div>
             <div
@@ -727,10 +733,11 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Not implemented here</strong>
+              <strong style={{ color: '#fff' }}>پیاده‌سازی‌نشده در اینجا</strong>
               <span>
-                No scraper module, no HTTP request to any portal, no scheduled crawl, no cache
-                store. Download controls resolve to the upstream URL they would open and say so.
+                هیچ ماژول اسکرپری، هیچ درخواست HTTP به پورتالی، هیچ خزید زمان‌بندی‌شده و هیچ ذخیرهٔ کشی
+                وجود ندارد. دکمه‌های دانلود به آدرس بالادستی که می‌توانستند باز کنند اشاره می‌کنند و همین
+                را اعلام می‌کنند.
               </span>
             </div>
             <div
@@ -741,10 +748,10 @@ export default function SourcesPage() {
                 gap: '8px',
               }}
             >
-              <strong style={{ color: '#fff' }}>Operator&apos;s responsibility</strong>
+              <strong style={{ color: '#fff' }}>مسئولیت اپراتور</strong>
               <span>
-                Standing up live indexers against third-party portals is a separate decision with
-                its own legal and ToS review. This repository stops at the interface.
+                راه‌اندازی نمایه‌سازهای زنده روی پورتال‌های شخص‌ثالث تصمیمی جداگانه با بازبینی حقوقی و
+                شرایط استفادهٔ خودش است. این مخزن در همین‌جا، روی رابط کاربری، متوقف می‌شود.
               </span>
             </div>
           </div>

@@ -2,6 +2,7 @@ import React from 'react'
 import type { CatalogItem, CatalogGame, CatalogMusic } from '@/lib/catalog'
 import { toFaDigits } from '@/lib/catalog'
 import { Heart } from 'lucide-react'
+import { TechnicalText } from '@/components/ui/TechnicalText'
 
 interface CatalogCardProps {
   item: CatalogItem
@@ -22,7 +23,7 @@ export function CatalogCard({
   const metaText = isMusic
     ? `${(item as CatalogMusic).artist} · ${toFaDigits(item.year)}`
     : `${toFaDigits(item.year)} · ${
-        item.kind === 'tv' ? 'TV' : item.kind === 'game' ? 'Game' : 'Movie'
+        item.kind === 'tv' ? 'سریال' : item.kind === 'game' ? 'بازی' : 'فیلم'
       }`
 
   return (
@@ -30,7 +31,7 @@ export function CatalogCard({
       <div className={`card-art ${isMusic ? 'square' : ''}`}>
         <img
           src={item.art}
-          alt={`${item.title} poster`}
+          alt={`پوستر ${item.title}`}
           loading="lazy"
           width={500}
           height={isMusic ? 500 : 750}
@@ -47,8 +48,8 @@ export function CatalogCard({
             aria-pressed={isLiked}
             aria-label={
               isLiked
-                ? `Remove ${item.title} from favorites`
-                : `Add ${item.title} to favorites`
+                ? `حذف ${item.title} از علاقه‌مندی‌ها`
+                : `افزودن ${item.title} به علاقه‌مندی‌ها`
             }
             onClick={(e) => {
               e.stopPropagation()
@@ -68,14 +69,16 @@ export function CatalogCard({
         )}
         <span className="card-fa">
           {item.cat === 'games' && (
-            <span className="tag">{(item as CatalogGame).releaseGroup}</span>
+            <span className="tag">
+              <TechnicalText>{(item as CatalogGame).releaseGroup}</TechnicalText>
+            </span>
           )}
           {'censored' in item && item.censored && (
-            <span className="tag">Censored</span>
+            <span className="tag">بازبینی‌شده</span>
           )}
           {isMusic && (
             <span className="tag">
-              {(item as CatalogMusic).tracks.length} tracks
+              {toFaDigits((item as CatalogMusic).tracks.length)} قطعه
             </span>
           )}
         </span>
@@ -87,7 +90,7 @@ export function CatalogCard({
           {item.rating != null ? (
             <span className="rating">{item.rating.toFixed(1)}</span>
           ) : (
-            <span className="rating none">N/A</span>
+            <span className="rating none">—</span>
           )}
         </span>
       </div>

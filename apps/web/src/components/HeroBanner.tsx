@@ -53,26 +53,32 @@ export function HeroBanner({
     category === 'games'
       ? (it as CatalogGame).releaseGroup
       : category === 'music'
-        ? 'Album'
+        ? 'آلبوم'
         : (it as CatalogMovie).kind === 'tv'
-          ? 'Series'
-          : 'Feature'
+          ? 'سریال'
+          : 'فیلم سینمایی'
 
   const metaText =
     category === 'music'
       ? `${it.title} · ${toFaDigits(it.year)}`
       : `${
           (it as CatalogMovie | CatalogGame).kind === 'game'
-            ? 'Repack'
+            ? 'ریپک'
             : (it as CatalogMovie).kind === 'tv'
-              ? 'TV'
-              : 'Movie'
+              ? 'تلویزیونی'
+              : 'فیلم'
         } · ${toFaDigits(it.year)}`
 
   const descText =
-    category === 'music'
-      ? `${toFaDigits((it as CatalogMusic).tracks.length)} tracks with real runtimes. Preview inline, then take the 128 or 320 kbps MP3 straight from the upstream CDN.`
-      : it.blurb
+    category === 'music' ? (
+      <>
+        {toFaDigits((it as CatalogMusic).tracks.length)} قطعه با زمان‌بندی واقعی. ابتدا پیش‌نمایش را
+        در همین صفحه ببینید، سپس فایل MP3 را با کیفیت <bdi dir="ltr">128</bdi> یا{' '}
+        <bdi dir="ltr">320 kbps</bdi> مستقیم از CDN منبع بگیرید.
+      </>
+    ) : (
+      it.blurb
+    )
 
   const titleText =
     category === 'music'
@@ -80,13 +86,13 @@ export function HeroBanner({
       : it.title.toUpperCase()
 
   return (
-    <section className="wrap" data-od-id="hero-section" aria-label="Featured release">
+    <section className="wrap" data-od-id="hero-section" aria-label="اثر شاخص">
       <div className={`hero ${isMusic ? 'cover' : ''}`} id="hero">
         {!isMusic && (
           <img
             className="hero-shot"
             src={backdropSrc}
-            alt={`${it.title} key art`}
+            alt={`تصویر شاخص ${it.title}`}
             width={3840}
             height={2160}
             onError={(e) => {
@@ -97,11 +103,11 @@ export function HeroBanner({
 
         {isMusic && (
           <div className="cover-cell">
-            <img src={it.art} alt={`${it.title} cover art`} />
+            <img src={it.art} alt={`کاور ${it.title}`} />
           </div>
         )}
 
-        <div className="hero-rail" id="heroRail" aria-label="Featured releases">
+        <div className="hero-rail" id="heroRail" aria-label="اثرهای شاخص">
           {list.map((item, n) => {
             const isCurrent = n === activeIndex
             return (
@@ -110,7 +116,7 @@ export function HeroBanner({
                 type="button"
                 className={item.cat === 'music' ? 'sq' : ''}
                 aria-current={isCurrent}
-                aria-label={`Show ${item.title}`}
+                aria-label={`نمایش ${item.title}`}
                 onClick={() => setIndex(n)}
               >
                 <img src={item.art} alt="" loading="lazy" />
@@ -142,7 +148,7 @@ export function HeroBanner({
               onClick={() => onOpenDetails(it)}
             >
               <Download className="w-4 h-4" />
-              <span>{isMusic ? 'View tracks' : 'View formats'}</span>
+              <span>{isMusic ? 'مشاهده قطعات' : 'مشاهده کیفیت‌ها'}</span>
             </button>
             <button
               className="btn btn-ghost"
@@ -151,15 +157,15 @@ export function HeroBanner({
               aria-pressed={isSaved}
               aria-label={
                 isSaved
-                  ? `Remove ${it.title} from favorites`
-                  : `Add ${it.title} to favorites`
+                  ? `حذف ${it.title} از علاقه‌مندی‌ها`
+                  : `افزودن ${it.title} به علاقه‌مندی‌ها`
               }
               onClick={() => onToggleFavorite(it)}
             >
               <Heart
                 className={`w-4 h-4 ${isSaved ? 'fill-current text-rose-400' : ''}`}
               />
-              <span>{isSaved ? 'Remove from favorites' : 'Add to favorites'}</span>
+              <span>{isSaved ? 'حذف از علاقه‌مندی‌ها' : 'افزودن به علاقه‌مندی‌ها'}</span>
             </button>
           </div>
         </div>
@@ -169,7 +175,7 @@ export function HeroBanner({
         className="dots"
         id="heroDots"
         role="tablist"
-        aria-label="Featured release navigation"
+        aria-label="ناوبری اثرهای شاخص"
       >
         {list.map((item, n) => {
           const on = n === activeIndex
