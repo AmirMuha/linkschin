@@ -4,13 +4,13 @@ import React, { useState, useEffect } from 'react'
 import type { Category } from '@/types/media'
 import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib/catalog'
 import { toFaDigits, getCatalogItemById } from '@/lib/catalog'
-import { Download, Bookmark } from 'lucide-react'
+import { Download, Heart } from 'lucide-react'
 
 interface HeroBannerProps {
   category: Category
   onOpenDetails: (item: CatalogItem) => void
-  onToggleWatchlist: (item: CatalogItem) => void
-  isItemInWatchlist: (id: string) => boolean
+  onToggleFavorite: (item: CatalogItem) => void
+  isItemFavorite: (id: string) => boolean
 }
 
 const HERO_POOLS: Record<Category, string[]> = {
@@ -22,8 +22,8 @@ const HERO_POOLS: Record<Category, string[]> = {
 export function HeroBanner({
   category,
   onOpenDetails,
-  onToggleWatchlist,
-  isItemInWatchlist,
+  onToggleFavorite,
+  isItemFavorite,
 }: HeroBannerProps) {
   const [index, setIndex] = useState(0)
 
@@ -42,7 +42,7 @@ export function HeroBanner({
   const activeIndex = index % list.length
   const it = list[activeIndex]
   const isMusic = category === 'music'
-  const isSaved = isItemInWatchlist(it.id)
+  const isSaved = isItemFavorite(it.id)
 
   const backdropSrc =
     category === 'games'
@@ -148,12 +148,18 @@ export function HeroBanner({
               className="btn btn-ghost"
               type="button"
               id="heroSecondary"
-              onClick={() => onToggleWatchlist(it)}
+              aria-pressed={isSaved}
+              aria-label={
+                isSaved
+                  ? `Remove ${it.title} from favorites`
+                  : `Add ${it.title} to favorites`
+              }
+              onClick={() => onToggleFavorite(it)}
             >
-              <Bookmark
-                className={`w-4 h-4 ${isSaved ? 'fill-current text-amber-400' : ''}`}
+              <Heart
+                className={`w-4 h-4 ${isSaved ? 'fill-current text-rose-400' : ''}`}
               />
-              <span>{isSaved ? 'In watchlist' : 'Add to watchlist'}</span>
+              <span>{isSaved ? 'Remove from favorites' : 'Add to favorites'}</span>
             </button>
           </div>
         </div>

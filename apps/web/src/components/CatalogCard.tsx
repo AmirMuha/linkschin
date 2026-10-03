@@ -1,14 +1,23 @@
 import React from 'react'
 import type { CatalogItem, CatalogGame, CatalogMusic } from '@/lib/catalog'
 import { toFaDigits } from '@/lib/catalog'
+import { Heart } from 'lucide-react'
 
 interface CatalogCardProps {
   item: CatalogItem
   onClick: () => void
+  onToggleFavorite?: (item: CatalogItem) => void
+  isItemFavorite?: (id: string) => boolean
 }
 
-export function CatalogCard({ item, onClick }: CatalogCardProps) {
+export function CatalogCard({
+  item,
+  onClick,
+  onToggleFavorite,
+  isItemFavorite,
+}: CatalogCardProps) {
   const isMusic = item.cat === 'music'
+  const isLiked = isItemFavorite?.(item.id) ?? false
 
   const metaText = isMusic
     ? `${(item as CatalogMusic).artist} · ${toFaDigits(item.year)}`
@@ -26,6 +35,37 @@ export function CatalogCard({ item, onClick }: CatalogCardProps) {
           width={500}
           height={isMusic ? 500 : 750}
         />
+        {onToggleFavorite && (
+          <span
+            className="card-fav"
+            // The heart is a sibling <span> rather than a nested <button>: nesting
+            // interactive controls inside the card's button is invalid HTML and
+            // breaks keyboard activation. stopPropagation keeps a click here from
+            // also firing the card (which opens the details drawer).
+            role="button"
+            tabIndex={0}
+            aria-pressed={isLiked}
+            aria-label={
+              isLiked
+                ? `Remove ${item.title} from favorites`
+                : `Add ${item.title} to favorites`
+            }
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite(item)
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              e.preventDefault()
+              e.stopPropagation()
+              onToggleFavorite(item)
+            }}
+          >
+            <Heart
+              className={`w-4 h-4 ${isLiked ? 'fill-current text-rose-400' : ''}`}
+            />
+          </span>
+        )}
         <span className="card-fa">
           {item.cat === 'games' && (
             <span className="tag">{(item as CatalogGame).releaseGroup}</span>
