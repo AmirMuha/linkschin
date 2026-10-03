@@ -18,8 +18,8 @@
 
 **Purpose**: Branch and baseline verification
 
-- [ ] T001 Verify clean tree on current branch via `git status --short --branch` in /run/media/amirmuha/0C944DAF23695833/projects/linkschin
-- [ ] T002 Confirm `Heart` icon exists in installed lucide-react in apps/web/package.json
+- [X] T001 Verify clean tree on current branch via `git status --short --branch` in /run/media/amirmuha/0C944DAF23695833/projects/linkschin
+- [X] T002 Confirm `Heart` icon exists in installed lucide-react in apps/web/package.json
 
 ---
 
@@ -29,9 +29,9 @@
 
 **⚠️ CRITICAL**: No user story work until this phase complete.
 
-- [ ] T003 Create `useFavorites` hook in apps/web/src/hooks/useFavorites.ts with like/unlike/isLiked ids state, localStorage read/write under key `linkschin:favorites` shape `{ items: string[], metadata: {...} }` per data-model.md, corrupt-JSON→empty fallback, quota-failure→in-memory-only fallback
-- [ ] T004 Implement one-way watchlist migration in apps/web/src/hooks/useFavorites.ts: on first load copy `linkschin:watchlist` string[] into favorites items, set `metadata.migratedFromWatchlist=true`, delete old key, corrupt watchlist→start empty
-- [ ] T005 Wire `useFavorites` into apps/web/src/app/page.tsx replacing `watchlistIds`/`handleToggleWatchlist`/`isItemInWatchlist` state, keeping same component prop flow to HeroBanner and StaticSections
+- [X] T003 Create `useFavorites` hook in apps/web/src/hooks/useFavorites.ts with like/unlike/isLiked ids state, localStorage read/write under key `linkschin:favorites` shape `{ items: string[], metadata: {...} }` per data-model.md, corrupt-JSON→empty fallback, quota-failure→in-memory-only fallback
+- [X] T004 Implement one-way watchlist migration in apps/web/src/hooks/useFavorites.ts: on first load copy `linkschin:watchlist` string[] into favorites items, set `metadata.migratedFromWatchlist=true`, delete old key, corrupt watchlist→start empty
+- [X] T005 Wire `useFavorites` into apps/web/src/app/page.tsx replacing `watchlistIds`/`handleToggleWatchlist`/`isItemInWatchlist` state, keeping same component prop flow to HeroBanner and StaticSections
 
 **Checkpoint**: Like/unlike an item on home, reload, state persists. Foundation ready.
 
@@ -43,10 +43,10 @@
 
 **Independent Test**: Like item from card/hero/detail, confirm filled heart; unlike, confirm cleared; reload, confirm persistence (quickstart.md Scenarios 1–2).
 
-- [ ] T006 [P] [US1] Swap Bookmark→Heart toggle in apps/web/src/components/HeroBanner.tsx: outline heart + "Add to favorites" unliked, filled rose heart + "Remove from favorites" liked, aria-labels per contracts/heart-toggles.md
-- [ ] T007 [P] [US1] Add heart toggle button to apps/web/src/components/CatalogCard.tsx: corner overlay, `aria-pressed={isLiked}`, no navigation on click
-- [ ] T008 [US1] Add like/unlike action with toast + Undo to apps/web/src/components/DetailDrawer.tsx footer row per contracts/heart-toggles.md (depends on T003)
-- [ ] T009 [US1] Sync liked state across all visible instances in apps/web/src/app/page.tsx via shared hook (no per-component local copies)
+- [X] T006 [P] [US1] Swap Bookmark→Heart toggle in apps/web/src/components/HeroBanner.tsx: outline heart + "Add to favorites" unliked, filled rose heart + "Remove from favorites" liked, aria-labels per contracts/heart-toggles.md
+- [X] T007 [P] [US1] Add heart toggle button to apps/web/src/components/CatalogCard.tsx: corner overlay, `aria-pressed={isLiked}`, no navigation on click
+- [X] T008 [US1] Add like/unlike action with toast + Undo to apps/web/src/components/DetailDrawer.tsx footer row per contracts/heart-toggles.md (depends on T003)
+- [X] T009 [US1] Sync liked state across all visible instances in apps/web/src/app/page.tsx via shared hook (no per-component local copies)
 
 **Checkpoint**: US1 fully functional standalone. MVP shippable.
 
@@ -58,9 +58,9 @@
 
 **Independent Test**: Like item, click header Favorites, land on own-address page; Back returns (quickstart.md Scenario 3).
 
-- [ ] T010 [US2] Replace watchlist anchor with Favorites link in apps/web/src/components/Header.tsx: `Heart` icon + "Favorites" label, `href="/favorites"`, `activePage` gains `'favorites'` value replacing `'watchlist'`
-- [ ] T011 [US2] Create standalone page shell in apps/web/src/app/favorites/page.tsx rendering Header (activePage favorites) + Footer + empty/grouped content slot
-- [ ] T012 [US2] Update footer watchlist link in apps/web/src/components/Footer.tsx: `#watchlist` → `/favorites`, label "Favorites"
+- [X] T010 [US2] Replace watchlist anchor with Favorites link in apps/web/src/components/Header.tsx: `Heart` icon + "Favorites" label, `href="/favorites"`, `activePage` gains `'favorites'` value replacing `'watchlist'`
+- [X] T011 [US2] Create standalone page shell in apps/web/src/app/favorites/page.tsx rendering Header (activePage favorites) + Footer + empty/grouped content slot
+- [X] T012 [US2] Update footer watchlist link in apps/web/src/components/Footer.tsx: `#watchlist` → `/favorites`, label "Favorites"
 
 **Checkpoint**: US1 + US2 work; header reaches empty favorites page.
 
@@ -72,9 +72,9 @@
 
 **Independent Test**: Like one of each category, confirm three correct groups; open details from group; unlike updates instantly (quickstart.md Scenarios 4–5).
 
-- [ ] T013 [US3] Render Movies/Games/Music groups with per-group counts in apps/web/src/app/favorites/page.tsx via `getCatalogItemById` lookup from apps/web/src/lib/catalog.ts
-- [ ] T014 [US3] Wire item→DetailDrawer opening and unlike-from-group/page refresh in apps/web/src/app/favorites/page.tsx (depends on T011)
-- [ ] T015 [US3] Render stale-id entries as unavailable-with-remove in apps/web/src/app/favorites/page.tsx per FR-010 (depends on T013)
+- [X] T013 [US3] Render Movies/Games/Music groups with per-group counts in apps/web/src/app/favorites/page.tsx via `getCatalogItemById` lookup from apps/web/src/lib/catalog.ts
+- [X] T014 [US3] Wire item→DetailDrawer opening and unlike-from-group/page refresh in apps/web/src/app/favorites/page.tsx (depends on T011)
+- [X] T015 [US3] Render stale-id entries as unavailable-with-remove in apps/web/src/app/favorites/page.tsx per FR-010 (depends on T013)
 
 **Checkpoint**: US1+US2+US3 work independently.
 
@@ -86,7 +86,7 @@
 
 **Independent Test**: Clear storage, open `/favorites`, confirm guidance + home link, no errors (quickstart.md Scenario 6).
 
-- [ ] T016 [US4] Render empty-state card with guidance + browse link in apps/web/src/app/favorites/page.tsx when items list empty
+- [X] T016 [US4] Render empty-state card with guidance + browse link in apps/web/src/app/favorites/page.tsx when items list empty
 
 **Checkpoint**: All stories independently functional.
 
@@ -96,10 +96,10 @@
 
 **Purpose**: Remove watchlist remnants, validate end to end.
 
-- [ ] T017 Remove watchlist section + `watchlistIds` prop from apps/web/src/components/StaticSections.tsx, keep remaining sections intact
-- [ ] T018 Remove watchlist copy ("Add to watchlist"/"In watchlist"/"Nothing saved yet" session text) in apps/web/src/components/HeroBanner.tsx and apps/web/src/components/StaticSections.tsx, replace with favorites wording per FR-008
-- [ ] T019 [P] Keyboard/ARIA pass on heart controls in apps/web/src/components/HeroBanner.tsx, apps/web/src/components/CatalogCard.tsx, apps/web/src/components/DetailDrawer.tsx, apps/web/src/app/favorites/page.tsx (focus ring, labels, `aria-pressed`)
-- [ ] T020 Run quickstart.md Scenarios 1–10 validation, fix failures before close
+- [X] T017 Remove watchlist section + `watchlistIds` prop from apps/web/src/components/StaticSections.tsx, keep remaining sections intact
+- [X] T018 Remove watchlist copy ("Add to watchlist"/"In watchlist"/"Nothing saved yet" session text) in apps/web/src/components/HeroBanner.tsx and apps/web/src/components/StaticSections.tsx, replace with favorites wording per FR-008
+- [X] T019 [P] Keyboard/ARIA pass on heart controls in apps/web/src/components/HeroBanner.tsx, apps/web/src/components/CatalogCard.tsx, apps/web/src/components/DetailDrawer.tsx, apps/web/src/app/favorites/page.tsx (focus ring, labels, `aria-pressed`)
+- [X] T020 Run quickstart.md Scenarios 1–10 validation, fix failures before close
 
 ---
 
