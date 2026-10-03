@@ -48,7 +48,7 @@
 
 /* `clip`, not `hidden`: `overflow-x: hidden` is still programmatically
    scrollable, so a wide table inside a scroll container could pan the page. */
-/* The header is `position: fixed` 80px tall, so any in-page anchor (#watchlist)
+/* The header is `position: fixed` 80px tall, so any in-page anchor (#faq, #latest)
    would scroll its target flush to the viewport top and park the heading
    underneath. Reserve the header's height as scroll margin. */
 [id] { scroll-margin-top: calc(var(--hdr) + 16px); }
@@ -306,6 +306,22 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 .rating.none { background: rgba(255, 255, 255, 0.16); color: var(--muted); }
 .card-fa { position: absolute; inset-inline-start: 6px; bottom: 6px; display: flex; gap: 4px; }
 
+/* Favorite heart overlay. `.card` is a button, so the heart is a focusable span
+   (role="button") rather than a nested control; it sits above the tags so a click
+   never reaches the card underneath. */
+.card-fav {
+  position: absolute; inset-inline-end: 6px; top: 6px; z-index: 1;
+  display: grid; place-items: center; width: 32px; height: 32px;
+  border-radius: 50%; background: rgba(8, 8, 8, 0.72); color: #fff;
+  border: 1px solid var(--border); backdrop-filter: blur(6px); cursor: pointer;
+  opacity: 0; transition: opacity .18s var(--ease), background .18s var(--ease);
+}
+.card:hover .card-fav,
+.card-fav:focus-visible,
+.card-fav[aria-pressed="true"] { opacity: 1; }
+.card-fav:hover { background: rgba(8, 8, 8, 0.9); }
+@media (hover: none) { .card-fav { opacity: 1; } }
+
 .tag {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);
@@ -366,7 +382,7 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   position: fixed; z-index: 200; top: 0; inset-inline-end: 0; bottom: 0; width: min(680px, 100%);
   background: #0d0d0d; border-inset-inline-start: 1px solid var(--border);
   transform: translateX(calc(100% * var(--sign, 1))); transition: transform .26s var(--ease);
-  display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
 }
 .drawer.on { transform: none; }
 .drawer-top { position: relative; overflow: hidden; background: #080808; }
@@ -383,6 +399,11 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 }
 .drawer-close:hover { background: #1f1f1f; }
 .drawer-body { overflow-y: auto; padding: 0 clamp(18px, 3vw, 32px) 40px; }
+.drawer-foot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px clamp(18px, 3vw, 32px); border-top: 1px solid var(--border);
+  background: #0a0a0a;
+}
 .drawer-head { display: grid; gap: 10px; padding: 4px 0 18px; }
 .drawer-head h2 { font-size: clamp(24px, 3vw, 34px); font-weight: 800; line-height: 1.08; letter-spacing: -0.02em; }
 .drawer-sec { padding-top: 22px; border-top: 1px solid var(--border-soft); margin-top: 22px; }
