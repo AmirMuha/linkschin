@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: Linkschin Operator Authentication API
+  version: 0.2.0
+  description: JWT authentication for operator console and administrative endpoints.
+paths:
+  /api/auth/login:
+    post:
+      summary: Authenticate operator and receive JWT Bearer token
+      operationId: loginOperator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in]
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: bearer
+                  expires_in:
+                    type: integer
+                    example: 86400
+        '401':
+          description: Invalid operator credentials

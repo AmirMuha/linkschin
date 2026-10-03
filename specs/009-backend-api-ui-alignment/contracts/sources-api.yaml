@@ -1,0 +1,286 @@
+openapi: 3.0.3
+info:
+  title: Linkschin Sources & Suggestions API
+  version: 0.2.0
+  description: Endpoints for portal health, mirror/address management, and community suggestions.
+paths:
+  /api/sources:
+    get:
+      summary: List all registered sources and operational health
+      operationId: listSources
+      responses:
+        '200':
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceStatus'
+
+  /api/sources/{id}:
+    patch:
+      summary: Update source base address or fallback mirror (Operator Auth)
+      operationId: updateSourceAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                base_url:
+                  type: string
+                mirror_url:
+                  type: string
+      responses:
+        '200':
+          description: Source updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceStatus'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Source not found
+
+  /api/sources/{id}/toggle:
+    patch:
+      summary: Toggle source enabled / disabled state (Operator Auth)
+      operationId: toggleSource
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Source state toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceStatus'
+        '401':
+          description: Unauthorized
+
+  /api/sources/suggest:
+    post:
+      summary: Submit a new portal suggestion to the operator review queue
+      operationId: suggestSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceSuggestionInput'
+      responses:
+        '201':
+          description: Suggestion recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, message, domain, request_count]
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  domain:
+                    type: string
+                  request_count:
+                    type: integer
+
+  /api/admin/suggestions:
+    get:
+      summary: List suggestions in the review queue (Operator Auth)
+      operationId: listSuggestions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+            default: pending
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [movies, games, music]
+      responses:
+        '200':
+          description: List of suggestions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SourceSuggestionItem'
+        '401':
+          description: Unauthorized
+
+  /api/admin/suggestions/{id}:
+    patch:
+      summary: Update suggestion review status (Operator Auth)
+      operationId: updateSuggestionStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+      responses:
+        '200':
+          description: Status updated
+        '401':
+          description: Unauthorized
+        '404':
+          description: Suggestion not found
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SourceStatus:
+      type: object
+      required: [id, name, category, base_url, enabled, access_tier]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        base_url:
+          type: string
+        mirror_url:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        kind:
+          type: string
+          enum: [full, reference]
+        status:
+          type: string
+          enum: [active, degraded, inactive]
+        state:
+          type: string
+        inactive_reason:
+          type: string
+          nullable: true
+        consecutive_failures:
+          type: integer
+        access_tier:
+          type: string
+          enum: [free, premium, freemium]
+        provides_downloads:
+          type: boolean
+        is_streaming:
+          type: boolean
+        last_reachable_at:
+          type: string
+          nullable: true
+        active_address:
+          type: string
+          nullable: true
+
+    SourceSuggestionInput:
+      type: object
+      required: [url, category, source_name]
+      properties:
+        url:
+          type: string
+          format: uri
+        category:
+          type: string
+          enum: [movies, games, music]
+        source_name:
+          type: string
+        proposed_tier:
+          type: string
+          default: "1"
+        default_audio_track:
+          type: string
+          default: "EN"
+        contact:
+          type: string
+        notes:
+          type: string
+
+    SourceSuggestionItem:
+      type: object
+      required: [id, url, domain, category, source_name, status, request_count, created_at]
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        domain:
+          type: string
+        category:
+          type: string
+        source_name:
+          type: string
+        proposed_tier:
+          type: string
+        default_audio_track:
+          type: string
+        contact:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        request_count:
+          type: integer
+        created_at:
+          type: number
+        updated_at:
+          type: number

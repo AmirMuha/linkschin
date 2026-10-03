@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: Linkschin Search & Catalog API
+  version: 0.2.0
+  description: Endpoints for media search, catalog browsing, and item details.
+paths:
+  /api/search:
+    get:
+      summary: Search media items across categories
+      operationId: searchMedia
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query string (automatically normalized)
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [movies, games, music]
+            default: movies
+        - name: refresh
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Force fresh scraper query bypassing local index
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [downloads, all]
+            default: downloads
+        - name: sources
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: Source IDs to exclude (per-user hidden list)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [query, category, is_cached, warnings, items]
+                properties:
+                  query:
+                    type: string
+                  category:
+                    type: string
+                  is_cached:
+                    type: boolean
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MediaItem'
+
+  /api/items/{id}:
+    get:
+      summary: Retrieve detailed metadata and all download variants for a single item
+      operationId: getItemDetail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaItem'
+        '404':
+          description: Item not found
+
+  /api/catalog/trending:
+    get:
+      summary: Retrieve trending items for home hero banner and top shelf
+      operationId: getTrendingCatalog
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [movies, games, music]
+            default: movies
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 12
+      responses:
+        '200':
+          description: Trending items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category, items]
+                properties:
+                  category:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MediaItem'
+
+  /api/catalog/latest:
+    get:
+      summary: Retrieve latest released items for shelf browsing
+      operationId: getLatestCatalog
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [movies, games, music]
+            default: movies
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 14
+      responses:
+        '200':
+          description: Latest releases
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [category, items]
+                properties:
+                  category:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MediaItem'
+
+components:
+  schemas:
+    MediaItem:
+      type: object
+      required: [id, title, category, source_id, page_url]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        original_title:
+          type: string
+          nullable: true
+        category:
+          type: string
+          enum: [movies, games, music]
+        source_id:
+          type: string
+        page_url:
+          type: string
+        poster_url:
+          type: string
+          nullable: true
+        release_year:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        imdb_rating:
+          type: number
+          nullable: true
+        censorship_status:
+          type: string
+          enum: [uncensored, censored, mixed, unspecified]
+        source_access_tier:
+          type: string
+          enum: [free, premium, freemium]
+        movie_variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/MovieDownloadVariant'
+        game_releases:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameRelease'
+        music_tracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/MusicTrack'
+
+    MovieDownloadVariant:
+      type: object
+      required: [id, quality, codec, audio_track, download_url]
+      properties:
+        id:
+          type: string
+        quality:
+          type: string
+        codec:
+          type: string
+        audio_track:
+          type: string
+        download_url:
+          type: string
+        file_size_mb:
+          type: number
+          nullable: true
+        is_censored:
+          type: boolean
+          nullable: true
+        is_premium:
+          type: boolean
+
+    GameRelease:
+      type: object
+      required: [id, parts]
+      properties:
+        id:
+          type: string
+        source_name:
+          type: string
+        release_group:
+          type: string
+        version:
+          type: string
+        total_size:
+          type: string
+        archive_password:
+          type: string
+        has_missing_parts:
+          type: boolean
+        missing_part_numbers:
+          type: array
+          items:
+            type: integer
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/GamePartLink'
+
+    GamePartLink:
+      type: object
+      required: [part_number, part_label, download_url]
+      properties:
+        part_number:
+          type: integer
+        part_label:
+          type: string
+        download_url:
+          type: string
+        file_size:
+          type: string
+          nullable: true
+
+    MusicTrack:
+      type: object
+      required: [id, title, artist]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        artist:
+          type: string
+        stream_url:
+          type: string
+          nullable: true
+        downloads:
+          type: array
+          items:
+            $ref: '#/components/schemas/MusicDownloadVariant'
+
+    MusicDownloadVariant:
+      type: object
+      required: [bitrate, download_url]
+      properties:
+        bitrate:
+          type: string
+        download_url:
+          type: string
+        file_size:
+          type: string
+          nullable: true
