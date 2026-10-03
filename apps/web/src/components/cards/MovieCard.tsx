@@ -57,10 +57,11 @@ export function MovieCard({
 
   return (
     <article
-      className="group relative flex flex-col rounded-3xl bg-zinc-900/70 border border-zinc-800/80 hover:border-zinc-700/80 p-4 transition-all hover:shadow-2xl hover:shadow-cyan-950/20 backdrop-blur-md overflow-hidden"
+      className="card"
+      style={{ cursor: 'default' }}
     >
       {/* Poster Image / Header */}
-      <div className="relative w-full aspect-[2/3] rounded-2xl overflow-hidden bg-zinc-800/80 mb-4">
+      <div className="card-art mb-4">
         {item.poster_url && !imageError ? (
           <img
             src={item.poster_url}
@@ -127,8 +128,8 @@ export function MovieCard({
       </div>
 
       {/* Title & Metadata */}
-      <div className="flex flex-col gap-1 mb-2">
-        <h3 className="font-bold text-base text-zinc-100 line-clamp-1" title={item.title}>
+      <div className="card-body mb-2">
+        <h3 className="card-title" title={item.title}>
           {item.title}
         </h3>
 

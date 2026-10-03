@@ -21,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fa" dir="rtl" className={vazirmatn.variable}>
-      <body className="font-sans bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+      <body className="font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

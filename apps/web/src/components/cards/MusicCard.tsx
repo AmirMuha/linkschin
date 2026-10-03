@@ -34,14 +34,11 @@ export function MusicCard({ item }: MusicCardProps) {
 
   return (
     <article
-      className={`group relative flex flex-col rounded-3xl bg-zinc-900/70 border p-4 transition-all hover:shadow-2xl hover:shadow-cyan-950/20 backdrop-blur-md overflow-hidden ${
-        isCurrent
-          ? 'border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
-          : 'border-zinc-800/80 hover:border-zinc-700/80'
-      }`}
+      className={`card ${isCurrent ? 'playing' : ''}`}
+      style={{ cursor: 'default' }}
     >
       {/* Cover / Track Image */}
-      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-zinc-800/80 mb-4">
+      <div className="card-art square mb-4">
         {item.poster_url && !imageError ? (
           <img
             src={item.poster_url}
@@ -89,8 +86,8 @@ export function MusicCard({ item }: MusicCardProps) {
       </div>
 
       {/* Title & Artist */}
-      <div className="flex flex-col gap-1 mb-2">
-        <h3 className="font-bold text-base text-zinc-100 line-clamp-1" title={item.title}>
+      <div className="card-body mb-2">
+        <h3 className="card-title" title={item.title}>
           {item.title}
         </h3>
 

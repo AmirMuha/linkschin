@@ -61,97 +61,61 @@ export function MovieDownloadMatrix({
   return (
     <div className="flex flex-col gap-2 w-full pt-2">
       <div className="text-xs font-semibold text-zinc-400">لینک‌های دانلود مستقیم:</div>
-      <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto pe-1">
-        {visible.map((v) => {
-          const isCopied = copiedId === v.id
-          const sizeStr = v.file_size_mb
-            ? v.file_size_mb > 1024
-              ? `${(v.file_size_mb / 1024).toFixed(1)} GB`
-              : `${Math.round(v.file_size_mb)} MB`
-            : null
+      <div className="max-h-60 overflow-y-auto pe-1">
+        <table className="vtable">
+          <tbody>
+            {visible.map((v) => {
+              const isCopied = copiedId === v.id
+              const sizeStr = v.file_size_mb
+                ? v.file_size_mb > 1024
+                  ? `${(v.file_size_mb / 1024).toFixed(1)} GB`
+                  : `${Math.round(v.file_size_mb)} MB`
+                : null
 
-          return (
-            <div
-              key={v.id}
-              className="flex items-center justify-between gap-3 p-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors text-xs"
-            >
-              {/* Quality & Specs. Empty strings mean the source never stated them,
-                  so nothing is rendered rather than a guessed value. */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {v.quality && (
-                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold font-mono">
-                    {v.quality}
-                  </span>
-                )}
+              return (
+                <tr key={v.id}>
+                  <td className="res">{v.quality}</td>
+                  <td>
+                    {v.codec && <span className="tag tech-text">{v.codec}</span>}{' '}
+                    {v.audio_track && <span className="tag">{v.audio_track}</span>}{' '}
+                    {v.is_censored === true && <span className="tag" style={{ color: 'var(--warn)' }}>سانسور</span>}{' '}
+                    {v.is_censored === false && <span className="tag" style={{ color: 'var(--ok)' }}>کامل</span>}{' '}
+                    {v.is_premium && <span className="tag" style={{ color: 'var(--warn)' }}>VIP</span>}
+                    <AccessBadge access={v.access} />
+                  </td>
+                  <td className="num tech-text">{sizeStr}</td>
+                  <td style={{ textAlign: 'end', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(v.download_url, v.id)}
+                      title="کپی لینک مستقیم"
+                      aria-label="کپی لینک مستقیم"
+                      className="btn btn-quiet btn-sm"
+                      style={{ padding: '0 10px', minHeight: '32px' }}
+                    >
+                      {isCopied ? (
+                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
 
-                {v.codec && (
-                  <TechnicalText className="text-zinc-400 text-2xs">
-                    {v.codec}
-                  </TechnicalText>
-                )}
-
-                {v.audio_track && (
-                  <span className="text-zinc-300 bg-zinc-700/40 px-1.5 py-0.5 rounded">
-                    {v.audio_track}
-                  </span>
-                )}
-
-                {sizeStr && (
-                  <TechnicalText className="text-zinc-500 text-2xs">
-                    {sizeStr}
-                  </TechnicalText>
-                )}
-
-                <AccessBadge access={v.access} />
-
-                {v.is_censored === true && (
-                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
-                    سانسور شده
-                  </span>
-                )}
-
-                {v.is_censored === false && (
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                    بدون سانسور
-                  </span>
-                )}
-
-                {v.is_premium && (
-                  <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
-                    VIP
-                  </span>
-                )}
-              </div>
-
-              {/* Action buttons: Copy & Direct Download */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleCopy(v.download_url, v.id)}
-                  title="کپی لینک مستقیم"
-                  aria-label="کپی لینک مستقیم"
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60 transition-colors"
-                >
-                  {isCopied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-
-                <a
-                  href={v.download_url}
-                  download
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-slate-950 font-medium transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>دانلود</span>
-                </a>
-              </div>
-            </div>
-          )
-        })}
+                    <a
+                      href={v.download_url}
+                      download
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm"
+                      style={{ padding: '0 10px', minHeight: '32px' }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>دریافت</span>
+                    </a>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

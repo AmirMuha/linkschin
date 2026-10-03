@@ -7,6 +7,13 @@ import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
 import { SourceStatusBar } from '@/components/SourceStatusBar'
 import { InViewFilterBar, EMPTY_FILTERS, type FilterState } from '@/components/InViewFilterBar'
+import { Header } from '@/components/Header'
+import { HeroBanner } from '@/components/HeroBanner'
+import { StaticSections } from '@/components/StaticSections'
+import { DetailDrawer } from '@/components/DetailDrawer'
+import { AiAssistant } from '@/components/AiAssistant'
+import { Footer } from '@/components/Footer'
+import type { CatalogItem } from '@/lib/catalog'
 import {
   itemMatchesAlbums,
   itemMatchesArtists,
@@ -29,7 +36,7 @@ import { VideoPlayerModal } from '@/components/player/VideoPlayerModal'
 import { GlobalAudioPlayer } from '@/components/player/GlobalAudioPlayer'
 import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
-import { AlertCircle, Compass } from 'lucide-react'
+import { AlertCircle, Compass, Film, Gamepad2, Music } from 'lucide-react'
 
 const HIDDEN_SOURCES_KEY = 'mf:hiddenSources'
 
@@ -59,6 +66,55 @@ export default function Home() {
     url: null,
     title: '',
   })
+
+  // Design system drawer, assistant, and watchlist states
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
+  const [watchlistIds, setWatchlistIds] = useState<string[]>([
+    'digger',
+    'baldurs-gate-3',
+    'sogand',
+  ])
+
+  // Sync category to body dataset for CSS variables
+  useEffect(() => {
+    document.body.dataset.cat = category
+  }, [category])
+
+  // Deep link from another page's header: /?cat=games opens home already on the
+  // Games tab. Read once on mount, then let the in-page tab buttons own the
+  // state — re-reading would fight the user on every render.
+  useEffect(() => {
+    const cat = new URLSearchParams(window.location.search).get('cat')
+    if (cat === 'movies' || cat === 'games' || cat === 'music') setCategory(cat)
+  }, [])
+
+  // Restore saved watchlist
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('linkschin:watchlist')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) setWatchlistIds(parsed)
+      }
+    } catch {}
+  }, [])
+
+  function handleToggleWatchlist(item: CatalogItem) {
+    setWatchlistIds((prev) => {
+      const next = prev.includes(item.id)
+        ? prev.filter((id) => id !== item.id)
+        : [...prev, item.id]
+      try {
+        window.localStorage.setItem('linkschin:watchlist', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }
+
+  function isItemInWatchlist(id: string) {
+    return watchlistIds.includes(id)
+  }
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -338,70 +394,63 @@ export default function Home() {
 
   return (
     <AudioPlayerProvider>
-      <div className="min-h-screen flex flex-col justify-between pb-24">
+      <div className="pb-24" data-cat={category}>
         {/* Top Header */}
-        <header className="w-full border-b border-zinc-900 bg-zinc-950/70 backdrop-blur-xl sticky top-0 z-30 py-2.5 px-4 sm:px-6">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <img src="/logo.png" alt="" width={18} height={24} className="h-6 w-auto" />
-              <span className="font-bold text-sm tracking-tight text-zinc-100">
-                Linkschin
-              </span>
-            </div>
+        <Header
+          category={category}
+          onCategoryChange={handleCategoryChange}
+          onOpenAi={() => setAiOpen(true)}
+          rightSlot={
+            <SourceStatusBar
+              sources={sources}
+              warnings={warnings}
+              hiddenSources={filters.hiddenSources}
+              onToggleHidden={(id) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  hiddenSources: prev.hiddenSources.includes(id)
+                    ? prev.hiddenSources.filter((item) => item !== id)
+                    : [...prev.hiddenSources, id],
+                }))
+              }
+              onRestoreAllSources={() =>
+                setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
+              }
+            />
+          }
+        />
 
-            <div>
-              <SourceStatusBar
-                sources={sources}
-                warnings={warnings}
-                hiddenSources={filters.hiddenSources}
-                onToggleHidden={(id) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    hiddenSources: prev.hiddenSources.includes(id)
-                      ? prev.hiddenSources.filter((item) => item !== id)
-                      : [...prev.hiddenSources, id],
-                  }))
-                }
-                onRestoreAllSources={() =>
-                  setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
-                }
-              />
-            </div>
-          </div>
-        </header>
-
-        {/* Hero & Search Section */}
-        <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex flex-col items-center gap-5 flex-1">
-          {/* Compact Welcome Title (Only shown when not searched) */}
+        {/* Main Content */}
+        <main id="main">
+          {/* Hero Banner (Shown when idle / not searched) */}
           {!hasSearched && items.length === 0 && (
-            <div className="text-center flex flex-col items-center gap-1.5 max-w-xl pt-2 animate-in fade-in">
-              <h1 className="text-lg sm:text-2xl font-bold text-zinc-100">
-                دسترسی مستقیم به فایل‌های فیلم، بازی و موسیقی
-              </h1>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                استخراج لحظه‌ای لینک‌های CDN بدون تبلیغات پاپ‌آپ، ریدایرکت یا واسطه
-              </p>
-            </div>
+            <HeroBanner
+              category={category}
+              onOpenDetails={setSelectedCatalogItem}
+              onToggleWatchlist={handleToggleWatchlist}
+              isItemInWatchlist={isItemInWatchlist}
+            />
           )}
 
           {/* SearchBar */}
-          <SearchBar
-            query={query}
-            category={category}
-            isLoading={isLoading}
-            onQueryChange={setQuery}
-            onCategoryChange={handleCategoryChange}
-            onSearch={(q, refresh, excludeSources, requestScope) =>
-              handleSearch(q, refresh, filters.hiddenSources, requestScope)
-            }
-            inputRef={searchInputRef}
-            scope={scope}
-            onScopeChange={setScope}
-          />
+          <section className="wrap" data-od-id="search-section" style={{ marginTop: '22px' }}>
+            <SearchBar
+              query={query}
+              category={category}
+              isLoading={isLoading}
+              onQueryChange={setQuery}
+              onSearch={(q, refresh, excludeSources, requestScope) =>
+                handleSearch(q, refresh, filters.hiddenSources, requestScope)
+              }
+              inputRef={searchInputRef}
+              scope={scope}
+              onScopeChange={setScope}
+            />
+          </section>
 
-          {/* Filter Bar */}
+          {/* Filter Bar (When items exist) */}
           {items.length > 0 && !isLoading && (
-            <div className="w-full max-w-5xl">
+            <div className="wrap" style={{ marginTop: '16px' }}>
               <InViewFilterBar
                 category={category}
                 availableQualities={availableFilterOptions.qualities}
@@ -416,92 +465,130 @@ export default function Home() {
             </div>
           )}
 
-          {/* Content States */}
+          {/* Loading Skeleton */}
           {isLoading && (
-            <div className="w-full max-w-7xl pt-4">
+            <div className="wrap" style={{ marginTop: '20px' }}>
               <SkeletonGrid count={8} />
             </div>
           )}
 
+          {/* Error Message */}
           {errorMessage && !isLoading && (
-            <div
-              role="alert"
-              className="w-full max-w-xl p-6 rounded-3xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex flex-col items-center text-center gap-3 mt-6 shadow-2xl"
-            >
-              <AlertCircle className="w-10 h-10 text-rose-400" />
-              <h3 className="font-bold text-base">خطا در دریافت اطلاعات</h3>
-              <p className="text-xs text-rose-300/90 leading-relaxed">
-                {errorMessage}
-              </p>
-              <button
-                type="button"
-                onClick={() => handleSearch(query, true)}
-                className="mt-2 px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold transition-colors"
+            <div className="wrap" style={{ marginTop: '20px' }}>
+              <div
+                role="alert"
+                className="w-full max-w-xl mx-auto p-6 rounded-3xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex flex-col items-center text-center gap-3 shadow-2xl"
               >
-                تلاش مجدد با دور زدن کش
-              </button>
-            </div>
-          )}
-
-          {!isLoading && !errorMessage && hasSearched && filteredItems.length === 0 && (
-            <div className="w-full max-w-md p-8 rounded-3xl bg-zinc-900/40 border border-zinc-800 text-center flex flex-col items-center gap-3 mt-8">
-              <Compass className="w-12 h-12 text-zinc-600" />
-              <h3 className="font-bold text-base text-zinc-200">
-                {items.length === 0
-                  ? 'موردی یافت نشد'
-                  : filters.hiddenSources.length > 0
-                    ? 'همه نتایج پنهان شده‌اند'
-                    : 'نتیجه‌ای با این فیلترها نیست'}
-              </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                {items.length === 0
-                  ? `عنوانی با مشخصات «${query}» در پایگاه‌ها پیدا نشد. املای کلمه را بررسی کرده یا نام انگلیسی/فارسی آن را جستجو کنید.`
-                  : filters.hiddenSources.length > 0
-                    ? `${filters.hiddenSources.length} منبع در فهرست منابع بالا پنهان شده و همه نتایج از آن‌هاست. از آیکن چشم آن‌ها را دوباره نشان دهید.`
-                    : 'فیلترهای انتخاب‌شده هیچ‌کدام از نتایج را پوشش نمی‌دهند. فیلترها را کم یا حذف کنید.'}
-              </p>
-              {items.length > 0 && filters.hiddenSources.length === 0 && (
+                <AlertCircle className="w-10 h-10 text-rose-400" />
+                <h3 className="font-bold text-base">خطا در دریافت اطلاعات</h3>
+                <p className="text-xs text-rose-300/90 leading-relaxed">
+                  {errorMessage}
+                </p>
                 <button
                   type="button"
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...EMPTY_FILTERS,
-                      hiddenSources: prev.hiddenSources,
-                    }))
-                  }
-                  className="mt-2 px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors"
+                  onClick={() => handleSearch(query, true)}
+                  className="mt-2 px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-semibold transition-colors"
                 >
-                  حذف تمام فیلترها
+                  تلاش مجدد با دور زدن کش
                 </button>
-              )}
+              </div>
             </div>
           )}
 
-          {!isLoading && !errorMessage && filteredItems.length > 0 && (
-            <div className="masonry w-full columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 pt-2">
-              {filteredItems.map((item) => {
-                if (item.category === 'movies') {
-                  return (
-                    <MovieCard
-                      key={item.id}
-                      item={item}
-                      onPlayStream={handleOpenVideo}
-                      activeTierFilter={filters.accessTier}
-                      activeCensorshipFilter={filters.censorship}
-                    />
-                  )
-                }
-                if (item.category === 'games') {
-                  return <GameCard key={item.id} item={item} />
-                }
-                if (item.category === 'music') {
-                  return <MusicCard key={item.id} item={item} />
-                }
-                return null
-              })}
+          {/* Empty Results State */}
+          {!isLoading && !errorMessage && hasSearched && filteredItems.length === 0 && (
+            <div className="wrap">
+              <div className="empty" style={{ marginTop: '24px' }}>
+                <Compass className="w-12 h-12 text-zinc-600" />
+                <strong>
+                  {items.length === 0
+                    ? 'موردی یافت نشد'
+                    : filters.hiddenSources.length > 0
+                      ? 'همه نتایج پنهان شده‌اند'
+                      : 'نتیجه‌ای با این فیلترها نیست'}
+                </strong>
+                <span>
+                  {items.length === 0
+                    ? `عنوانی با مشخصات «${query}» در پایگاه‌ها پیدا نشد. املای کلمه را بررسی کرده یا نام انگلیسی/فارسی آن را جستجو کنید.`
+                    : filters.hiddenSources.length > 0
+                      ? `${filters.hiddenSources.length} منبع در فهرست منابع بالا پنهان شده و همه نتایج از آن‌هاست. از آیکن چشم آن‌ها را دوباره نشان دهید.`
+                      : 'فیلترهای انتخاب‌شده هیچ‌کدام از نتایج را پوشش نمی‌دهند. فیلترها را کم یا حذف کنید.'}
+                </span>
+                {items.length > 0 && filters.hiddenSources.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFilters((prev) => ({
+                        ...EMPTY_FILTERS,
+                        hiddenSources: prev.hiddenSources,
+                      }))
+                    }
+                    className="btn btn-ghost mt-2"
+                  >
+                    حذف تمام فیلترها
+                  </button>
+                )}
+              </div>
             </div>
           )}
+
+          {/* Search Results Grid */}
+          {!isLoading && !errorMessage && filteredItems.length > 0 && (
+            <section className="wrap sec" data-od-id="section-results">
+              <div className="sec-head">
+                <h2>نتایج جستجو</h2>
+                <span className="sub">{filteredItems.length} مورد پیدا شد</span>
+              </div>
+              <div className="grid grid-6 pt-2">
+                {filteredItems.map((item) => {
+                  if (item.category === 'movies') {
+                    return (
+                      <MovieCard
+                        key={item.id}
+                        item={item}
+                        onPlayStream={handleOpenVideo}
+                        activeTierFilter={filters.accessTier}
+                        activeCensorshipFilter={filters.censorship}
+                      />
+                    )
+                  }
+                  if (item.category === 'games') {
+                    return <GameCard key={item.id} item={item} />
+                  }
+                  if (item.category === 'music') {
+                    return <MusicCard key={item.id} item={item} />
+                  }
+                  return null
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Idle Homepage Sections (Health, Trending, Shelf, Why, Watchlist, FAQ) */}
+          {!hasSearched && items.length === 0 && !isLoading && (
+            <StaticSections
+              category={category}
+              watchlistIds={watchlistIds}
+              onOpenDetails={setSelectedCatalogItem}
+            />
+          )}
         </main>
+
+        {/* Catalog Item Detail Drawer */}
+        <DetailDrawer
+          item={selectedCatalogItem}
+          isOpen={Boolean(selectedCatalogItem)}
+          onClose={() => setSelectedCatalogItem(null)}
+          onPlayStream={handleOpenVideo}
+        />
+
+        {/* AI Assistant */}
+        <AiAssistant
+          category={category}
+          isOpen={aiOpen}
+          onToggle={() => setAiOpen((prev) => !prev)}
+          onClose={() => setAiOpen(false)}
+        />
 
         {/* Global Video Modal */}
         <VideoPlayerModal
@@ -513,6 +600,9 @@ export default function Home() {
 
         {/* Global Audio Player Bar */}
         <GlobalAudioPlayer />
+
+        {/* Site Footer */}
+        <Footer />
       </div>
     </AudioPlayerProvider>
   )

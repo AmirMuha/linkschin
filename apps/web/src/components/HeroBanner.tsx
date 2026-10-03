@@ -1,0 +1,195 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import type { Category } from '@/types/media'
+import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib/catalog'
+import { toFaDigits, getCatalogItemById } from '@/lib/catalog'
+import { Download, Bookmark } from 'lucide-react'
+
+interface HeroBannerProps {
+  category: Category
+  onOpenDetails: (item: CatalogItem) => void
+  onToggleWatchlist: (item: CatalogItem) => void
+  isItemInWatchlist: (id: string) => boolean
+}
+
+const HERO_POOLS: Record<Category, string[]> = {
+  movies: ['digger', 'the-uprising', 'verity', 'war', 'east-of-eden', 'scrubs'],
+  games: ['baldurs-gate-3', 'cyberpunk-2077', 'red-dead-redemption-2', 'elden-ring'],
+  music: ['sogand', 'googoosh', 'parchame-sefid', 'zendouni'],
+}
+
+export function HeroBanner({
+  category,
+  onOpenDetails,
+  onToggleWatchlist,
+  isItemInWatchlist,
+}: HeroBannerProps) {
+  const [index, setIndex] = useState(0)
+
+  // Reset index when category switches
+  useEffect(() => {
+    setIndex(0)
+  }, [category])
+
+  const ids = HERO_POOLS[category] || []
+  const list = ids
+    .map((id) => getCatalogItemById(id))
+    .filter((it): it is CatalogItem => Boolean(it))
+
+  if (list.length === 0) return null
+
+  const activeIndex = index % list.length
+  const it = list[activeIndex]
+  const isMusic = category === 'music'
+  const isSaved = isItemInWatchlist(it.id)
+
+  const backdropSrc =
+    category === 'games'
+      ? `/images/keys/${it.id}.jpg`
+      : `/images/backdrops/${it.id}.jpg`
+
+  const eyebrowText =
+    category === 'games'
+      ? (it as CatalogGame).releaseGroup
+      : category === 'music'
+        ? 'Album'
+        : (it as CatalogMovie).kind === 'tv'
+          ? 'Series'
+          : 'Feature'
+
+  const metaText =
+    category === 'music'
+      ? `${it.title} · ${toFaDigits(it.year)}`
+      : `${
+          (it as CatalogMovie | CatalogGame).kind === 'game'
+            ? 'Repack'
+            : (it as CatalogMovie).kind === 'tv'
+              ? 'TV'
+              : 'Movie'
+        } · ${toFaDigits(it.year)}`
+
+  const descText =
+    category === 'music'
+      ? `${toFaDigits((it as CatalogMusic).tracks.length)} tracks with real runtimes. Preview inline, then take the 128 or 320 kbps MP3 straight from the upstream CDN.`
+      : it.blurb
+
+  const titleText =
+    category === 'music'
+      ? (it as CatalogMusic).artist.toUpperCase()
+      : it.title.toUpperCase()
+
+  return (
+    <section className="wrap" data-od-id="hero-section" aria-label="Featured release">
+      <div className={`hero ${isMusic ? 'cover' : ''}`} id="hero">
+        {!isMusic && (
+          <img
+            className="hero-shot"
+            src={backdropSrc}
+            alt={`${it.title} key art`}
+            width={3840}
+            height={2160}
+            onError={(e) => {
+              ;(e.target as HTMLImageElement).src = it.art
+            }}
+          />
+        )}
+
+        {isMusic && (
+          <div className="cover-cell">
+            <img src={it.art} alt={`${it.title} cover art`} />
+          </div>
+        )}
+
+        <div className="hero-rail" id="heroRail" aria-label="Featured releases">
+          {list.map((item, n) => {
+            const isCurrent = n === activeIndex
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={item.cat === 'music' ? 'sq' : ''}
+                aria-current={isCurrent}
+                aria-label={`Show ${item.title}`}
+                onClick={() => setIndex(n)}
+              >
+                <img src={item.art} alt="" loading="lazy" />
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="hero-body">
+          <div className="eyebrow">
+            <span className="pill-red" id="heroEyebrow">
+              {eyebrowText}
+            </span>
+            <span className="pill-ghost" id="heroMeta">
+              {metaText}
+            </span>
+          </div>
+
+          <h1 id="heroTitle">{titleText}</h1>
+          <p className="hero-desc" id="heroDesc">
+            {descText}
+          </p>
+
+          <div className="hero-cta">
+            <button
+              className="btn btn-primary"
+              type="button"
+              id="heroPrimary"
+              onClick={() => onOpenDetails(it)}
+            >
+              <Download className="w-4 h-4" />
+              <span>{isMusic ? 'View tracks' : 'View formats'}</span>
+            </button>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              id="heroSecondary"
+              onClick={() => onToggleWatchlist(it)}
+            >
+              <Bookmark
+                className={`w-4 h-4 ${isSaved ? 'fill-current text-amber-400' : ''}`}
+              />
+              <span>{isSaved ? 'In watchlist' : 'Add to watchlist'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="dots"
+        id="heroDots"
+        role="tablist"
+        aria-label="Featured release navigation"
+      >
+        {list.map((item, n) => {
+          const on = n === activeIndex
+          return (
+            <span
+              key={item.id}
+              style={{ position: 'relative', display: 'inline-flex' }}
+            >
+              <i
+                className={`hit ${on ? 'hit-long' : ''}`}
+                role="tab"
+                aria-label={item.title}
+                aria-current={on}
+                onClick={() => setIndex(n)}
+              />
+              <button
+                type="button"
+                aria-hidden="true"
+                tabIndex={-1}
+                aria-current={on}
+                onClick={() => setIndex(n)}
+              />
+            </span>
+          )
+        })}
+      </div>
+    </section>
+  )
+}

@@ -102,65 +102,68 @@ export function GamePartList({
       </div>
 
       {/* Parts List */}
-      <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pe-1">
-        {sortedParts.map((part, index) => {
-          const isCopied = copiedIndex === index
+      <div className="max-h-56 overflow-y-auto pe-1">
+        <table className="vtable">
+          <tbody>
+            {sortedParts.map((part, index) => {
+              const isCopied = copiedIndex === index
 
-          return (
-            <div
-              // part_number repeats across archives from the same post, so it is not
-              // unique on its own.
-              key={`${releaseId}:${part.part_number}:${part.download_url}`}
-              className="flex items-center justify-between gap-3 p-2 rounded-xl bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800 transition-colors text-xs"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-6 h-6 rounded-md bg-zinc-700/70 text-zinc-300 font-mono font-bold flex items-center justify-center text-xs shrink-0">
-                  {part.part_number}
-                </span>
-
-                {/* Not TechnicalText: the label is mixed Persian/Latin prose, and
-                    forcing LTR on it scrambles the reading order. */}
-                <span className="text-zinc-200 truncate" title={part.part_label}>
-                  {part.part_label}
-                </span>
-
-                {part.file_size && (
-                  <TechnicalText className="text-zinc-400 text-2xs bg-zinc-900/60 px-1.5 py-0.5 rounded shrink-0">
-                    {part.file_size}
-                  </TechnicalText>
-                )}
-
-                <AccessBadge access={part.access} />
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleCopyPart(part.download_url, index)}
-                  title="کپی لینک پارت"
-                  aria-label={`کپی لینک پارت ${part.part_number}`}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/60 transition-colors"
+              return (
+                <tr
+                  key={`${releaseId}:${part.part_number}:${part.download_url}`}
                 >
-                  {isCopied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
+                  <td className="res" style={{ width: '40px', textAlign: 'center' }}>
+                    <span className="w-6 h-6 rounded-md bg-zinc-700/70 text-zinc-300 font-mono font-bold flex items-center justify-center text-xs mx-auto">
+                      {part.part_number}
+                    </span>
+                  </td>
+                  <td>
+                    {/* Not TechnicalText: the label is mixed Persian/Latin prose, and
+                        forcing LTR on it scrambles the reading order. */}
+                    <span className="text-zinc-200" title={part.part_label}>
+                      {part.part_label}
+                    </span>
+                    <AccessBadge access={part.access} />
+                  </td>
+                  <td className="num tech-text">
+                    {part.file_size && (
+                      <span className="bg-zinc-900/60 px-1.5 py-0.5 rounded">
+                        {part.file_size}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ textAlign: 'end', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPart(part.download_url, index)}
+                      title="کپی لینک پارت"
+                      aria-label={`کپی لینک پارت ${part.part_number}`}
+                      className="btn btn-quiet btn-sm"
+                      style={{ padding: '0 10px', minHeight: '32px' }}
+                    >
+                      {isCopied ? (
+                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
 
-                <a
-                  href={part.download_url}
-                  download
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500 text-cyan-400 hover:text-slate-950 font-medium transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>دانلود</span>
-                </a>
-              </div>
-            </div>
-          )
-        })}
+                    <a
+                      href={part.download_url}
+                      download
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm"
+                      style={{ padding: '0 10px', minHeight: '32px' }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>دریافت</span>
+                    </a>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )
