@@ -12,7 +12,7 @@ and exits non-zero on any gap.
 | 007 | 12 | 3 | 10 |
 | **Total** | **85** | **21** | **71** |
 
-Tests carrying spec ids: **24**
+Tests carrying spec ids: **32**
 
 ## Not e2e-testable
 

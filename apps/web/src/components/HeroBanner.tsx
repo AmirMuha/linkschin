@@ -19,6 +19,14 @@ const HERO_POOLS: Record<Category, string[]> = {
   music: ['sogand', 'googoosh', 'parchame-sefid', 'zendouni'],
 }
 
+const HERO_INTERVAL_MS = 6000
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+
+// Games ship square key art under /keys/, everything else a landscape backdrop.
+function backdropFor(category: Category, it: CatalogItem): string {
+  return category === 'games' ? `/images/keys/${it.id}.jpg` : `/images/backdrops/${it.id}.jpg`
+}
+
 export function HeroBanner({
   category,
   onOpenDetails,
@@ -26,28 +34,70 @@ export function HeroBanner({
   isItemFavorite,
 }: HeroBannerProps) {
   const [index, setIndex] = useState(0)
+  // Pointer is resting on the rail or the dots — a click there is likely.
+  const [paused, setPaused] = useState(false)
+  // Tab is backgrounded; a timer that keeps firing there just wastes cycles.
+  const [hidden, setHidden] = useState(false)
+  // Bumped by manual navigation so the dwell restarts from a full interval
+  // instead of stranding the viewer on a slide that advances a beat later.
+  const [nav, setNav] = useState(0)
 
-  // Reset index when category switches
+  // Reset index when category switches. Paused resets too: React never fires
+  // onMouseLeave on unmount, and the pointer is still over the dots after the
+  // swap, which would otherwise leave the hero frozen.
   useEffect(() => {
     setIndex(0)
+    setPaused(false)
   }, [category])
+
+  useEffect(() => {
+    const onVisibility = () => setHidden(document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
 
   const ids = HERO_POOLS[category] || []
   const list = ids
     .map((id) => getCatalogItemById(id))
     .filter((it): it is CatalogItem => Boolean(it))
-
-  if (list.length === 0) return null
-
-  const activeIndex = index % list.length
-  const it = list[activeIndex]
+  const count = list.length
   const isMusic = category === 'music'
+  // Guarded rather than early-returned so the hook order below never shifts.
+  const activeIndex = count ? index % count : 0
+
+  useEffect(() => {
+    if (paused || hidden || count < 2) return
+    if (window.matchMedia(REDUCED_MOTION).matches) return
+    const timer = setInterval(
+      () => setIndex((i) => (i + 1) % count),
+      HERO_INTERVAL_MS
+    )
+    return () => clearInterval(timer)
+  }, [paused, hidden, count, nav])
+
+  // Warm the next slide's art. Backdrops are 3840x2160 and up to 2.4 MB, so
+  // without this the hero paints empty for a beat on every advance.
+  const nextItem = list[(activeIndex + 1) % count]
+  const nextSrc = nextItem
+    ? isMusic
+      ? nextItem.art
+      : backdropFor(category, nextItem)
+    : null
+
+  useEffect(() => {
+    if (nextSrc) new Image().src = nextSrc
+  }, [nextSrc])
+
+  if (count === 0) return null
+
+  const it = list[activeIndex]
   const isSaved = isItemFavorite(it.id)
 
-  const backdropSrc =
-    category === 'games'
-      ? `/images/keys/${it.id}.jpg`
-      : `/images/backdrops/${it.id}.jpg`
+  const backdropSrc = backdropFor(category, it)
+  const goTo = (n: number) => {
+    setIndex(n)
+    setNav((v) => v + 1)
+  }
 
   const eyebrowText =
     category === 'games'
@@ -90,6 +140,7 @@ export function HeroBanner({
       <div className={`hero ${isMusic ? 'cover' : ''}`} id="hero">
         {!isMusic && (
           <img
+            key={it.id}
             className="hero-shot"
             src={backdropSrc}
             alt={`تصویر شاخص ${it.title}`}
@@ -103,11 +154,17 @@ export function HeroBanner({
 
         {isMusic && (
           <div className="cover-cell">
-            <img src={it.art} alt={`کاور ${it.title}`} />
+            <img key={it.id} src={it.art} alt={`کاور ${it.title}`} />
           </div>
         )}
 
-        <div className="hero-rail" id="heroRail" aria-label="اثرهای شاخص">
+        <div
+          className="hero-rail"
+          id="heroRail"
+          aria-label="اثرهای شاخص"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
           {list.map((item, n) => {
             const isCurrent = n === activeIndex
             return (
@@ -117,7 +174,7 @@ export function HeroBanner({
                 className={item.cat === 'music' ? 'sq' : ''}
                 aria-current={isCurrent}
                 aria-label={`نمایش ${item.title}`}
-                onClick={() => setIndex(n)}
+                onClick={() => goTo(n)}
               >
                 <img src={item.art} alt="" loading="lazy" />
               </button>
@@ -176,6 +233,8 @@ export function HeroBanner({
         id="heroDots"
         role="tablist"
         aria-label="ناوبری اثرهای شاخص"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
       >
         {list.map((item, n) => {
           const on = n === activeIndex
@@ -189,14 +248,14 @@ export function HeroBanner({
                 role="tab"
                 aria-label={item.title}
                 aria-current={on}
-                onClick={() => setIndex(n)}
+                onClick={() => goTo(n)}
               />
               <button
                 type="button"
                 aria-hidden="true"
                 tabIndex={-1}
                 aria-current={on}
-                onClick={() => setIndex(n)}
+                onClick={() => goTo(n)}
               />
             </span>
           )

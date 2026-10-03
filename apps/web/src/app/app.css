@@ -185,8 +185,13 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   min-height: clamp(420px, 56vw, 620px);
   display: grid; grid-template-columns: 1fr; align-items: end;
 }
+/* key={it.id} remounts the slide image on every advance, which is what replays
+   this — a plain opacity transition would not animate a src swap. The global
+   prefers-reduced-motion rule below already collapses the duration to 0.01ms. */
+@keyframes hero-fade { from { opacity: 0 } to { opacity: 1 } }
 .hero-shot {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  animation: hero-fade .45s var(--ease) both;
 }
 .hero::after {
   content: ""; position: absolute; inset: 0;
@@ -244,7 +249,7 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   position: relative; overflow: hidden; border-inset-inline-start: 1px solid var(--border-soft);
   background: #000; display: grid; place-items: center; padding: clamp(16px, 3vw, 40px);
 }
-.hero.cover .cover-cell img { width: 100%; height: auto; max-height: 460px; object-fit: contain; }
+.hero.cover .cover-cell img { width: 100%; height: auto; max-height: 460px; object-fit: contain; animation: hero-fade .45s var(--ease) both; }
 .hero.cover .hero-body { align-self: center; }
 .hero.cover .hero-rail { display: none; }
 .dots { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
