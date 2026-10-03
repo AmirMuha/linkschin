@@ -222,6 +222,8 @@ class MediaItem:
     # SourceKind: every pre-006 constructor site and the DB rehydrate path default
     # to "full" without importing the enum. Set in _collect_items from config.kind.
     source_kind: str = "full"
+    is_featured: bool = False
+    view_count: int = 0
 
     def __post_init__(self):
         validate_media_url(self.page_url)
@@ -244,3 +246,94 @@ class CachedResult:
     @property
     def is_expired(self) -> bool:
         return (time.time() - self.created_at) > self.ttl_seconds
+
+
+# ============================================================================
+# Pydantic Schemas for AI Extraction & API Request/Response Payloads
+# ============================================================================
+
+from pydantic import BaseModel, Field  # noqa: E402
+
+
+class ExtractedDownloadVariant(BaseModel):
+    quality: str = Field(default="1080p", description="Resolution e.g. 1080p, 720p, 480p, 4k")
+    codec: str = Field(default="x264", description="Codec e.g. x264, x265, HEVC")
+    audio_track: str = Field(default="ORIGINAL", description="FA-DUB, FA-SUB, or ORIGINAL")
+    file_size_text: str = Field(default="", description="Human readable size e.g. 1.8 GB")
+    download_url: str = Field(default="", description="Direct HTTP/HTTPS link to media file")
+    is_censored: bool | None = Field(default=None, description="Whether this cut is censored")
+    is_premium: bool = Field(default=False, description="Whether VIP login is required")
+
+
+class MovieExtractionResult(BaseModel):
+    title: str = Field(default="", description="Movie or series title")
+    release_year: int | None = Field(default=None, description="Release year")
+    description: str = Field(default="", description="Plot synopsis or description")
+    poster_url: str | None = Field(default=None, description="Image cover URL")
+    imdb_rating: float | None = Field(default=None, description="IMDb score 0.0-10.0")
+    variants: list[ExtractedDownloadVariant] = Field(default_factory=list)
+
+
+class ExtractedGamePart(BaseModel):
+    part_number: int = Field(default=1, description="1-based integer sequence number")
+    part_label: str = Field(default="Part 1", description="Label e.g. Part 1, پارت ۱")
+    file_size: str = Field(default="", description="Size e.g. 2 GB")
+    download_url: str = Field(default="", description="Direct download URL for part archive")
+
+
+class GameReleaseExtractionResult(BaseModel):
+    title: str = Field(default="", description="Game title")
+    release_group: str = Field(default="", description="FitGirl, DODI, etc.")
+    version: str = Field(default="", description="Patch / build version")
+    total_size: str = Field(default="", description="Total unpacked size")
+    archive_password: str = Field(default="", description="Archive extraction password")
+    parts: list[ExtractedGamePart] = Field(default_factory=list)
+
+
+class MusicTrackExtractionResult(BaseModel):
+    title: str = Field(default="", description="Track or album title")
+    artist: str = Field(default="", description="Artist or band name")
+    poster_url: str | None = Field(default=None, description="Album artwork URL")
+    stream_url: str | None = Field(default=None, description="Online preview audio URL")
+    downloads: list[ExtractedDownloadVariant] = Field(default_factory=list)
+
+
+# --- API Request Payloads ---
+
+class SuggestionCreateRequest(BaseModel):
+    url: str
+    category: str
+    source_name: str
+    proposed_tier: str = "1"
+    default_audio_track: str = "EN"
+    contact: str | None = None
+    notes: str | None = None
+
+
+class SourceUpdateRequest(BaseModel):
+    base_url: str | None = None
+    mirror_url: str | None = None
+
+
+class SourceToggleRequest(BaseModel):
+    enabled: bool
+
+
+class ConvertCreateRequest(BaseModel):
+    url: str
+    bitrate: int = 320
+    sample_rate: int = 44100
+    write_meta: bool = True
+    norm_filename: bool = False
+
+
+class ChatMessageRequest(BaseModel):
+    message: str
+    session_id: str | None = None
+    category: str = "movies"
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+

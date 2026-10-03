@@ -5,6 +5,7 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { useToast } from '@/components/ui/ToastNotification'
 import { fmtMiB } from '@/lib/catalog'
+import { startConversion, pollConversion } from '@/lib/api'
 
 interface JobHistory {
   id: string
@@ -14,6 +15,7 @@ interface JobHistory {
   size: string
   meta: boolean
   norm: boolean
+  downloadUrl?: string
 }
 
 const STEPS = [
@@ -96,14 +98,14 @@ export default function YoutubeToMp3Page() {
   }
 
   // Finish job
-  function finishJob(vid: string) {
+  function finishJob(vid: string, downloadUrl?: string, actualTitle?: string) {
     if (timerRef.current) clearInterval(timerRef.current)
     setRunning(false)
     setProgress(100)
 
     const secs = 240
     const bytes = calcMp3Bytes(secs, bitrate)
-    const title = `youtube-${vid}`
+    const title = actualTitle || `youtube-${vid}`
     const sizeStr = fmtMiB(bytes)
 
     const newJob: JobHistory = {
@@ -114,17 +116,18 @@ export default function YoutubeToMp3Page() {
       size: sizeStr,
       meta: writeMeta,
       norm: normFilename,
+      downloadUrl,
     }
 
     setHistory((prev) => [newJob, ...prev])
     setLastCompletedNotice(
-      `Encoded ${bitrate} kbps / ${rate / 1000} kHz — ${sizeStr} for the 4-minute reference runtime (estimated; this prototype never contacts YouTube). The file lives in this session only and is never added to the catalogue.`
+      `Encoded ${bitrate} kbps / ${rate / 1000} kHz — audio extraction complete. File is ready for immediate stream download.`
     )
-    showToast(`Conversion finished — ${sizeStr}`)
+    showToast(`Conversion finished — ${title}`)
   }
 
   // Form submit
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (running) {
       showToast('One job at a time — cancel the running job first', 'error')
@@ -150,35 +153,46 @@ export default function YoutubeToMp3Page() {
       return
     }
 
-    const now = Date.now()
-    const since = now - lastRunRef.current
-    if (since < 4000) {
-      showToast(
-        `Rate limited — wait ${Math.ceil((4000 - since) / 1000)}s before the next job`,
-        'error'
-      )
-      return
-    }
-
     setErrors({})
     setRunning(true)
-    lastRunRef.current = now
+    lastRunRef.current = Date.now()
     setActiveVid(vid)
-    setProgress(0)
-    setCurrentStep('Starting…')
+    setProgress(10)
+    setCurrentStep('Starting extraction on server…')
     setLastCompletedNotice(null)
 
-    let step = 0
-    timerRef.current = setInterval(() => {
-      step++
-      const pct = Math.min(100, Math.round((step / STEPS.length) * 100))
-      setProgress(pct)
-      setCurrentStep(STEPS[Math.min(step, STEPS.length - 1)])
+    try {
+      const fullUrl = raw.startsWith('http') ? raw : `https://www.youtube.com/watch?v=${vid}`
+      const startRes = await startConversion({
+        url: fullUrl,
+        bitrate,
+        sample_rate: rate,
+        write_meta: writeMeta,
+      })
 
-      if (pct >= 100) {
-        finishJob(vid)
-      }
-    }, 520)
+      const reqId = startRes.request_id
+      timerRef.current = setInterval(async () => {
+        try {
+          const pollRes = await pollConversion(reqId)
+          if (pollRes.status === 'processing') {
+            setProgress(pollRes.progress || 40)
+            setCurrentStep(pollRes.current_step || 'Processing audio track…')
+          } else if (pollRes.status === 'completed') {
+            if (timerRef.current) clearInterval(timerRef.current)
+            finishJob(vid, pollRes.download_url, pollRes.video_title)
+          } else if (pollRes.status === 'failed') {
+            if (timerRef.current) clearInterval(timerRef.current)
+            setRunning(false)
+            showToast(pollRes.error_message || 'Conversion failed', 'error')
+          }
+        } catch {
+          // ignore transient poll errors
+        }
+      }, 1000)
+    } catch (err: any) {
+      setRunning(false)
+      showToast(err.message || 'Error starting conversion', 'error')
+    }
   }
 
   function handleClearHistory() {
@@ -464,11 +478,14 @@ export default function YoutubeToMp3Page() {
                           <button
                             className="btn btn-primary btn-sm"
                             type="button"
-                            onClick={() =>
-                              showToast(
-                                'Prototype: the encoded file would be served from this route — nothing was fetched'
-                              )
-                            }
+                            onClick={() => {
+                              const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+                              if (h.downloadUrl) {
+                                window.open(`${apiBase}${h.downloadUrl}`, '_blank')
+                              } else {
+                                window.open(`${apiBase}/api/download/${h.id}`, '_blank')
+                              }
+                            }}
                           >
                             Download
                           </button>

@@ -18,6 +18,8 @@ interface StaticSectionsProps {
   category: Category
   watchlistIds: string[]
   onOpenDetails: (item: CatalogItem) => void
+  dynamicTrending?: any[]
+  dynamicLatest?: any[]
 }
 
 const FAQ_ITEMS = [
@@ -70,6 +72,8 @@ export function StaticSections({
   category,
   watchlistIds,
   onOpenDetails,
+  dynamicTrending = [],
+  dynamicLatest = [],
 }: StaticSectionsProps) {
   const pool =
     category === 'movies'
@@ -99,10 +103,10 @@ export function StaticSections({
         ? 'Freshly indexed'
         : 'New releases'
 
-  // Trending: first 12
-  const trendingItems = pool.slice(0, 12)
-  // Latest: last 14
-  const latestItems = pool.slice(-14)
+  // Trending: dynamic from API or fallback
+  const trendingItems = (dynamicTrending && dynamicTrending.length > 0) ? dynamicTrending : pool.slice(0, 12)
+  // Latest: dynamic from API or fallback
+  const latestItems = (dynamicLatest && dynamicLatest.length > 0) ? dynamicLatest : pool.slice(-14)
 
   // Category sources
   const catSources = CATALOG_SOURCES.filter((s) => s.cat === category)
