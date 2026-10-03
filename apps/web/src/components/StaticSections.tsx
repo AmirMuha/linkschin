@@ -16,8 +16,9 @@ import { ChevronDown } from 'lucide-react'
 
 interface StaticSectionsProps {
   category: Category
-  watchlistIds: string[]
   onOpenDetails: (item: CatalogItem) => void
+  onToggleFavorite: (item: CatalogItem) => void
+  isItemFavorite: (id: string) => boolean
   dynamicTrending?: any[]
   dynamicLatest?: any[]
 }
@@ -70,8 +71,9 @@ const RESOLVE_STEPS = [
 
 export function StaticSections({
   category,
-  watchlistIds,
   onOpenDetails,
+  onToggleFavorite,
+  isItemFavorite,
   dynamicTrending = [],
   dynamicLatest = [],
 }: StaticSectionsProps) {
@@ -114,11 +116,6 @@ export function StaticSections({
   const warnSources = catSources.filter((s) => s.enabled && s.state === 'warn')
   const offSources = catSources.filter((s) => !s.enabled || s.state === 'bad')
   const ledStatus = warnSources.length > 0 ? 'warn' : 'ok'
-
-  // Watchlist items
-  const watchlistItems = watchlistIds
-    .map((id) => pool.find((i) => i.id === id))
-    .filter((it): it is CatalogItem => Boolean(it))
 
   return (
     <>
@@ -166,6 +163,8 @@ export function StaticSections({
               key={item.id}
               item={item}
               onClick={() => onOpenDetails(item)}
+              onToggleFavorite={onToggleFavorite}
+              isItemFavorite={isItemFavorite}
             />
           ))}
         </div>
@@ -183,6 +182,8 @@ export function StaticSections({
               key={item.id}
               item={item}
               onClick={() => onOpenDetails(item)}
+              onToggleFavorite={onToggleFavorite}
+              isItemFavorite={isItemFavorite}
             />
           ))}
         </div>
@@ -231,47 +232,6 @@ export function StaticSections({
               <span>{step.desc}</span>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Watchlist Section */}
-      <section className="wrap sec" data-od-id="section-suggest" id="watchlist">
-        <div className="notice" style={{ marginBottom: '20px' }}>
-          <span className="led warn"></span>
-          <span>
-            <strong style={{ color: '#fff' }}>Know a portal we are missing?</strong> Specs 005 and
-            006 grow the movie and music source sets to 20 each. Submissions land in the operator
-            review queue on the sources screen.
-          </span>
-        </div>
-        <div className="sec-head">
-          <h2>Watchlist</h2>
-          <span className="sub" id="watchCount">
-            {watchlistItems.length > 0
-              ? `${toFaDigits(watchlistItems.length)} saved`
-              : 'empty'}
-          </span>
-        </div>
-        <div id="watchSlot">
-          {watchlistItems.length === 0 ? (
-            <div className="empty">
-              <strong>Nothing saved yet</strong>
-              <span>
-                Open a movie, game or album and use “Add to watchlist” to keep it here for this
-                session.
-              </span>
-            </div>
-          ) : (
-            <div className="grid grid-6">
-              {watchlistItems.map((item) => (
-                <CatalogCard
-                  key={item.id}
-                  item={item}
-                  onClick={() => onOpenDetails(item)}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
