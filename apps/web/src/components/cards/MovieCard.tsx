@@ -8,7 +8,7 @@ import { TechnicalText } from '@/components/ui/TechnicalText'
 import type { CensorshipStatus, SourceAccessTier } from '@/types/media'
 import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
 
-const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: string }> = {
+export const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: string }> = {
   uncensored: {
     label: 'نسخه کامل',
     className: 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60',
@@ -27,7 +27,7 @@ const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: str
   },
 }
 
-const TIER_BADGE: Record<SourceAccessTier, { label: string; title: string; className: string }> = {
+export const TIER_BADGE: Record<SourceAccessTier, { label: string; title: string; className: string }> = {
   free: { label: 'رایگان', title: 'دسترسی کاملاً رایگان', className: 'bg-zinc-950/80 text-zinc-300 border-zinc-800/80' },
   premium: { label: 'VIP', title: 'فقط با خرید اشتراک سایت منبع', className: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
   freemium: { label: 'رایگان و VIP', title: 'شامل لینک‌های رایگان و پولی', className: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },

@@ -2,26 +2,38 @@
 
 import React, { useState } from 'react'
 import type { MediaItem } from '@/types/media'
-import { Gamepad2, HardDrive, Tag, ExternalLink } from 'lucide-react'
-import { PasswordPill } from './PasswordPill'
-import { GamePartList } from './GamePartList'
+import { Gamepad2, HardDrive, Tag, ExternalLink, Calendar, Star, Download } from 'lucide-react'
 import { TechnicalText } from '@/components/ui/TechnicalText'
+import { toFaDigits } from '@/lib/catalog'
+import { TIER_BADGE } from './MovieCard'
 
-interface GameCardProps {
+export interface GameCardProps {
   item: MediaItem
+  onOpenDetails?: (item: MediaItem) => void
 }
 
-export function GameCard({ item }: GameCardProps) {
+export function GameCard({ item, onOpenDetails }: GameCardProps) {
   const [imageError, setImageError] = useState(false)
-  // A post can ship several archives (an exFAT set and a PKG set), each numbered
-  // from 1. Only the first is summarised in the header; all of them are listed.
   const primaryRelease = item.game_releases?.[0]
-  const otherReleases = item.game_releases?.slice(1) ?? []
+  const partCount = (item.game_releases ?? []).reduce(
+    (acc, r) => acc + (r.parts?.length ?? 0),
+    0
+  )
 
   return (
     <article
-      className="card"
-      style={{ cursor: 'default' }}
+      className="card group"
+      style={{ cursor: 'pointer' }}
+      onClick={() => onOpenDetails?.(item)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpenDetails?.(item)
+        }
+      }}
+      aria-label={`مشاهده جزئیات و دانلود ${item.title}`}
     >
       {/* Cover Artwork */}
       <div className="card-art mb-4">
@@ -45,11 +57,41 @@ export function GameCard({ item }: GameCardProps) {
           <span>{item.source_id}</span>
         </div>
 
-        {/* Total Size Badge */}
-        {primaryRelease?.total_size && (
+        {/* Year Badge */}
+        {item.release_year ? (
+          <div className="absolute top-2.5 end-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 text-2xs font-mono text-zinc-300 backdrop-blur-md">
+            <Calendar className="w-3 h-3 text-cyan-400" />
+            <TechnicalText>{item.release_year}</TechnicalText>
+          </div>
+        ) : primaryRelease?.total_size ? (
           <div className="absolute top-2.5 end-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 text-2xs font-mono text-zinc-300 backdrop-blur-md">
             <HardDrive className="w-3 h-3 text-cyan-400" />
             <TechnicalText>{primaryRelease.total_size}</TechnicalText>
+          </div>
+        ) : null}
+
+        {/* Rating or Total Size Badge */}
+        {item.imdb_rating != null ? (
+          <div className="absolute bottom-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 font-mono text-2xs text-amber-300 backdrop-blur-md">
+            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+            <span className="inline-block w-[2.5ch] text-center">
+              {item.imdb_rating.toFixed(1)}
+            </span>
+          </div>
+        ) : primaryRelease?.total_size && item.release_year ? (
+          <div className="absolute bottom-2.5 start-2.5 flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-950/80 border border-zinc-800/80 font-mono text-2xs text-zinc-300 backdrop-blur-md">
+            <HardDrive className="w-3 h-3 text-cyan-400" />
+            <TechnicalText>{primaryRelease.total_size}</TechnicalText>
+          </div>
+        ) : null}
+
+        {/* Source Access Tier */}
+        {item.source_access_tier && TIER_BADGE[item.source_access_tier] && (
+          <div
+            className={`absolute bottom-2.5 end-2.5 px-2 py-0.5 rounded-full border text-2xs font-medium backdrop-blur-md ${TIER_BADGE[item.source_access_tier].className}`}
+            title={TIER_BADGE[item.source_access_tier].title}
+          >
+            {TIER_BADGE[item.source_access_tier].label}
           </div>
         )}
       </div>
@@ -95,51 +137,38 @@ export function GameCard({ item }: GameCardProps) {
         </p>
       )}
 
-      {/* Password Pill */}
-      {primaryRelease?.archive_password && (
-        <div className="mb-3">
-          <PasswordPill password={primaryRelease.archive_password} />
-        </div>
-      )}
-
       {/* Source page link */}
       <a
         href={item.page_url}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
         className="inline-flex items-center gap-1 text-2xs text-zinc-500 hover:text-cyan-400 transition-colors self-start mb-2"
       >
         <span>مشاهده در سایت مرجع</span>
         <ExternalLink className="w-3 h-3" />
       </a>
 
-      {/* Parts List */}
-      {primaryRelease && (
-        <div className="mt-auto border-t border-zinc-800/80 pt-2 flex flex-col gap-4">
-          <GamePartList
-            parts={primaryRelease.parts}
-            hasMissingParts={primaryRelease.has_missing_parts}
-            missingPartNumbers={primaryRelease.missing_part_numbers}
-            releaseId={primaryRelease.id}
-          />
-
-          {otherReleases.map((release, index) => (
-            <div key={release.id} className="border-t border-zinc-800/60 pt-3">
-              <div className="text-2xs text-zinc-500 mb-2">
-                آرشیو {index + 2}
-                {release.release_group && ` · ${release.release_group}`}
-                {release.total_size && ` · ${release.total_size}`}
-              </div>
-              <GamePartList
-                parts={release.parts}
-                hasMissingParts={release.has_missing_parts}
-                missingPartNumbers={release.missing_part_numbers}
-                releaseId={release.id}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Download Action Trigger (opens side panel) */}
+      <div className="mt-auto border-t border-zinc-800/80 pt-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenDetails?.(item)
+          }}
+          className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400/60 transition-colors text-xs sm:text-sm font-medium"
+          aria-label={`مشاهده لینک‌های دانلود ${item.title}`}
+        >
+          <Download className="w-4 h-4 shrink-0" />
+          <span>مشاهده لینک‌ها و دانلود</span>
+          {partCount > 0 && (
+            <span className="text-2xs bg-cyan-500/20 px-1.5 py-0.5 rounded-full text-cyan-200 font-mono">
+              {toFaDigits(partCount)} پارت
+            </span>
+          )}
+        </button>
+      </div>
     </article>
   )
 }

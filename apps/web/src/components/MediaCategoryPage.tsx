@@ -72,7 +72,7 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
   })
 
   // Design system drawer and assistant states
-  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(null)
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | MediaItem | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
   const favorites = useFavorites()
   const [dynamicTrending, setDynamicTrending] = useState<any[]>([])
@@ -516,7 +516,13 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
                     )
                   }
                   if (item.category === 'games') {
-                    return <GameCard key={item.id} item={item} />
+                    return (
+                      <GameCard
+                        key={item.id}
+                        item={item}
+                        onOpenDetails={setSelectedCatalogItem}
+                      />
+                    )
                   }
                   if (item.category === 'music') {
                     return <MusicCard key={item.id} item={item} />

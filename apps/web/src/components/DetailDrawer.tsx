@@ -2,18 +2,27 @@
 
 import React, { useEffect } from 'react'
 import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib/catalog'
+import type { MediaItem } from '@/types/media'
 import { toFaDigits, fmtMiB, getCatalogItemById } from '@/lib/catalog'
 import { copyToClipboard } from '@/lib/clipboard'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
-import { X, Play, AlertTriangle, Lock, Download, Copy, Check, Heart, Undo2 } from 'lucide-react'
+import { X, Play, AlertTriangle, Lock, Download, Copy, Check, Heart, Undo2, ExternalLink } from 'lucide-react'
+import { GamePartList } from '@/components/cards/GamePartList'
+import { MovieDownloadMatrix } from '@/components/cards/MovieDownloadMatrix'
+
+export type DrawerItem = CatalogItem | MediaItem
+
+function isMediaItem(item: DrawerItem): item is MediaItem {
+  return 'category' in item
+}
 
 interface DetailDrawerProps {
-  item: CatalogItem | null
+  item: DrawerItem | null
   isOpen: boolean
   onClose: () => void
   onPlayStream?: (url: string, title: string) => void
-  onToggleFavorite?: (item: CatalogItem) => void
+  onToggleFavorite?: (item: any) => void
   isItemFavorite?: (id: string) => boolean
   /** Set when the last write to storage was rejected — likes are session-only. */
   persistenceBlocked?: boolean
@@ -87,12 +96,17 @@ export function DetailDrawer({
     if (!lastAction || !onToggleFavorite) return
     const target = getCatalogItemById(lastAction.id)
     if (target) onToggleFavorite(target)
+    else if (item && item.id === lastAction.id) onToggleFavorite(item as any)
     setLastAction(null)
   }
 
+  const isMedia = isMediaItem(item)
+  const category = isMedia ? item.category : item.cat
+
   // Header image logic
-  const artSrc =
-    item.cat === 'music'
+  const artSrc = isMedia
+    ? (item.poster_url || (category === 'games' ? `/images/keys/${item.id}.jpg` : `/images/backdrops/${item.id}.jpg`))
+    : item.cat === 'music'
       ? item.art
       : item.cat === 'games'
         ? `/images/keys/${item.id}.jpg`
@@ -121,7 +135,11 @@ export function DetailDrawer({
             alt={`${item.title} artwork`}
             onError={(e) => {
               // Fallback to poster art if backdrop doesn't exist
-              ;(e.target as HTMLImageElement).src = item.art
+              if (!isMedia) {
+                ;(e.target as HTMLImageElement).src = item.art
+              } else if (item.poster_url && artSrc !== item.poster_url) {
+                ;(e.target as HTMLImageElement).src = item.poster_url
+              }
             }}
           />
         </div>
@@ -131,44 +149,82 @@ export function DetailDrawer({
           <div className="drawer-head">
             <div className="eyebrow">
               <span className="pill-red">
-                {item.cat === 'games'
-                  ? (item as CatalogGame).releaseGroup
-                  : item.cat === 'music'
+                {category === 'games'
+                  ? (isMedia
+                      ? item.game_releases?.[0]?.release_group || 'بازی'
+                      : (item as CatalogGame).releaseGroup)
+                  : category === 'music'
                     ? 'آلبوم'
-                    : (item as CatalogMovie).kind === 'tv'
-                      ? 'سریال'
-                      : 'فیلم سینمایی'}
+                    : isMedia
+                      ? 'فیلم'
+                      : (item as CatalogMovie).kind === 'tv'
+                        ? 'سریال'
+                        : 'فیلم سینمایی'}
               </span>
               <span className="pill-ghost">
-                {item.cat === 'movies'
+                {category === 'movies'
                   ? 'فیلم'
-                  : item.cat === 'games'
+                  : category === 'games'
                     ? 'بازی'
                     : 'آهنگ'}
               </span>
-              {'censored' in item && item.censored && (
-                <span className="pill-ghost">نسخه بازبینی‌شده</span>
+              {isMedia ? (
+                item.censorship_status === 'censored' && (
+                  <span className="pill-ghost">نسخه بازبینی‌شده</span>
+                )
+              ) : (
+                'censored' in item && item.censored && (
+                  <span className="pill-ghost">نسخه بازبینی‌شده</span>
+                )
               )}
-              {item.rating != null && (
-                <span className="pill-ghost">IMDb {item.rating.toFixed(1)}/10</span>
+              {isMedia ? (
+                item.imdb_rating != null && (
+                  <span className="pill-ghost">IMDb {item.imdb_rating.toFixed(1)}/10</span>
+                )
+              ) : (
+                item.rating != null && (
+                  <span className="pill-ghost">IMDb {item.rating.toFixed(1)}/10</span>
+                )
               )}
             </div>
 
             <h2>{item.title}</h2>
 
-            {item.fa && (
+            {(isMedia ? item.original_title : item.fa) && (
               <p className="hero-meta" lang="fa" dir="rtl">
-                <strong style={{ fontSize: '20px' }}>{item.fa}</strong>
+                <strong style={{ fontSize: '20px' }}>
+                  {isMedia ? item.original_title : item.fa}
+                </strong>
               </p>
             )}
           </div>
 
-          <p className="hero-desc">{item.blurb}</p>
+          <p className="hero-desc">{isMedia ? item.description : item.blurb}</p>
 
           {/* MOVIE BODY */}
-          {item.cat === 'movies' && (
-            <>
+          {category === 'movies' && (
+            isMedia ? (
               <div className="drawer-sec">
+                <h3>کیفیت‌ها و لینک‌های دانلود</h3>
+                {item.movie_variants && item.movie_variants.length > 0 ? (
+                  <MovieDownloadMatrix variants={item.movie_variants} />
+                ) : item.watch_url ? (
+                  <a
+                    href={item.watch_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary btn-sm inline-flex items-center gap-2"
+                  >
+                    <span>مشاهده در سایت منبع</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-zinc-400">لینکی یافت نشد.</p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="drawer-sec">
                 <h3>فرمت‌های موجود</h3>
                 <table className="vtable">
                   <thead>
@@ -255,12 +311,12 @@ export function DetailDrawer({
                 <h3>جزئیات</h3>
                 <dl className="kv">
                   <dt>سال انتشار</dt>
-                  <dd>{toFaDigits(item.year)}</dd>
+                  <dd>{toFaDigits((item as CatalogMovie).year)}</dd>
                   <dt>ژانر</dt>
-                  <dd>{item.genres}</dd>
+                  <dd>{(item as CatalogMovie).genres}</dd>
                   <dt>صدای اصلی</dt>
                   <dd>
-                    <TechnicalText>{item.audio}</TechnicalText>
+                    <TechnicalText>{(item as CatalogMovie).audio}</TechnicalText>
                   </dd>
                   {'censored' in item && item.censored && (
                     <>
@@ -299,10 +355,129 @@ export function DetailDrawer({
                 </div>
               </div>
             </>
-          )}
+          )
+        )}
 
           {/* GAME BODY */}
-          {item.cat === 'games' && (
+          {category === 'games' && (
+            isMedia ? (
+              <>
+                {item.game_releases && item.game_releases.length > 0 ? (
+                  item.game_releases.map((release, relIdx) => (
+                    <React.Fragment key={release.id || relIdx}>
+                      <div className="drawer-sec">
+                        <h3>
+                          {item.game_releases.length > 1
+                            ? `آرشیو ${toFaDigits(relIdx + 1)} · مشخصات`
+                            : 'مشخصات انتشار'}
+                        </h3>
+                        <dl className="kv">
+                          {release.release_group && (
+                            <>
+                              <dt>گروه انتشار</dt>
+                              <dd>
+                                <TechnicalText>{release.release_group}</TechnicalText>
+                              </dd>
+                            </>
+                          )}
+                          {release.version && (
+                            <>
+                              <dt>نسخه</dt>
+                              <dd>
+                                <TechnicalText>{release.version}</TechnicalText>
+                              </dd>
+                            </>
+                          )}
+                          <dt>تعداد پارت</dt>
+                          <dd>{toFaDigits(release.parts.length)} پارت</dd>
+                          {release.total_size && (
+                            <>
+                              <dt>حجم کل</dt>
+                              <dd>
+                                <TechnicalText>{release.total_size}</TechnicalText>
+                              </dd>
+                            </>
+                          )}
+                          <dt>منبع</dt>
+                          <dd>{item.source_id}</dd>
+                        </dl>
+                      </div>
+
+                      {release.archive_password && (
+                        <div className="drawer-sec">
+                          <h3>استخراج</h3>
+                          <div className="pw">
+                            <span
+                              style={{
+                                fontSize: '12px',
+                                letterSpacing: '.1em',
+                                textTransform: 'uppercase',
+                                color: 'var(--muted)',
+                              }}
+                            >
+                              رمز استخراج آرشیو
+                            </span>
+                            <TechnicalText as="code">
+                              {release.archive_password}
+                            </TechnicalText>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              type="button"
+                              onClick={() =>
+                                handleCopy(
+                                  release.archive_password,
+                                  'رمز فایل'
+                                )
+                              }
+                            >
+                              {copiedText === release.archive_password ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                              <span>کپی رمز</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="drawer-sec">
+                        <h3>
+                          {item.game_releases.length > 1
+                            ? `پارت‌های آرشیو ${toFaDigits(relIdx + 1)}`
+                            : 'پارت‌های دانلود'}
+                        </h3>
+                        <GamePartList
+                          parts={release.parts}
+                          hasMissingParts={release.has_missing_parts}
+                          missingPartNumbers={release.missing_part_numbers}
+                          releaseId={release.id}
+                        />
+                      </div>
+                    </React.Fragment>
+                  ))
+                ) : (
+                  <div className="drawer-sec">
+                    <p className="text-sm text-zinc-400">لینکی برای این بازی یافت نشد.</p>
+                  </div>
+                )}
+
+                {item.page_url && (
+                  <div className="drawer-sec">
+                    <h3>سایت مرجع</h3>
+                    <a
+                      href={item.page_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-ghost btn-sm inline-flex items-center gap-2"
+                    >
+                      <span>مشاهده در سایت {item.source_id}</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                )}
+              </>
+            ) : (
             <>
               <div className="drawer-sec">
                 <h3>آرشیو</h3>
@@ -452,10 +627,11 @@ export function DetailDrawer({
                 </div>
               </div>
             </>
-          )}
+          )
+        )}
 
           {/* MUSIC BODY */}
-          {item.cat === 'music' && (
+          {category === 'music' && !isMedia && (
             <>
               <div className="drawer-sec">
                 <h3>پیش‌نمایش</h3>
