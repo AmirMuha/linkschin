@@ -8,6 +8,7 @@ import { formatPartLinksForClipboard, sortParts } from '@/lib/archive'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 import { AccessBadge } from '@/components/ui/AccessBadge'
+import { toFaDigits } from '@/lib/catalog'
 
 interface GamePartListProps {
   parts: GamePartLink[]
@@ -79,13 +80,9 @@ export function GamePartList({
         </div>
       )}
 
-      {/* Header & Batch Copy Trigger */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-xs font-semibold text-zinc-400 flex items-center gap-1.5">
-          <span>پارت‌های دانلود ({sortedParts.length})</span>
-        </div>
-
-        {sortedParts.length > 1 && (
+      {/* Batch Copy Trigger */}
+      {sortedParts.length > 1 && (
+        <div className="flex items-center justify-end pb-1">
           <button
             type="button"
             onClick={handleCopyAll}
@@ -98,8 +95,8 @@ export function GamePartList({
             )}
             <span>کپی تمام پارت‌ها (IDM)</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Parts List */}
       <div className="max-h-56 overflow-y-auto pe-1">
@@ -107,23 +104,26 @@ export function GamePartList({
           <tbody>
             {sortedParts.map((part, index) => {
               const isCopied = copiedIndex === index
+              const label =
+                sortedParts.length === 1
+                  ? (!part.part_label || part.part_label === 'Full Game' || /^part\s*1$/i.test(part.part_label)
+                      ? 'بازی کامل'
+                      : part.part_label)
+                  : (/^part\s*\d+$/i.test(part.part_label) || /^پارت\s*\d+$/i.test(part.part_label)
+                      ? `پارت ${toFaDigits(part.part_number)}`
+                      : part.part_label)
 
               return (
                 <tr
                   key={`${releaseId}:${part.part_number}:${part.download_url}`}
                 >
-                  <td className="res" style={{ width: '40px', textAlign: 'center' }}>
-                    <span className="w-6 h-6 rounded-md bg-zinc-700/70 text-zinc-300 font-mono font-bold flex items-center justify-center text-xs mx-auto">
-                      {part.part_number}
-                    </span>
-                  </td>
-                  <td>
-                    {/* Not TechnicalText: the label is mixed Persian/Latin prose, and
-                        forcing LTR on it scrambles the reading order. */}
-                    <span className="text-zinc-200" title={part.part_label}>
-                      {part.part_label}
-                    </span>
-                    <AccessBadge access={part.access} />
+                  <td className="res">
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-200" title={label}>
+                        {label}
+                      </span>
+                      <AccessBadge access={part.access} />
+                    </div>
                   </td>
                   <td className="num tech-text">
                     {part.file_size && (
@@ -132,32 +132,34 @@ export function GamePartList({
                       </span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'end', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyPart(part.download_url, index)}
-                      title="کپی لینک پارت"
-                      aria-label={`کپی لینک پارت ${part.part_number}`}
-                      className="btn btn-quiet btn-sm"
-                      style={{ padding: '0 10px', minHeight: '32px' }}
-                    >
-                      {isCopied ? (
-                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                  <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPart(part.download_url, index)}
+                        title="کپی لینک پارت"
+                        aria-label={`کپی لینک پارت ${part.part_number}`}
+                        className="btn btn-quiet btn-sm"
+                        style={{ padding: '0 10px', minHeight: '32px' }}
+                      >
+                        {isCopied ? (
+                          <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
 
-                    <a
-                      href={part.download_url}
-                      download
-                      rel="noopener noreferrer"
-                      className="btn btn-primary btn-sm"
-                      style={{ padding: '0 10px', minHeight: '32px' }}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>دریافت</span>
-                    </a>
+                      <a
+                        href={part.download_url}
+                        download
+                        rel="noopener noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ padding: '0 10px', minHeight: '32px' }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>دریافت</span>
+                      </a>
+                    </div>
                   </td>
                 </tr>
               )

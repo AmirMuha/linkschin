@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { SourceStatus } from '@/types/media'
 import { AlertTriangle, X, Radio, ChevronDown, Film, Gamepad2, Music, Eye, EyeOff, RotateCcw } from 'lucide-react'
+import { toFaDigits } from '@/lib/catalog'
 
 interface SourceStatusBarProps {
   sources: SourceStatus[]
@@ -131,29 +132,29 @@ export function SourceStatusBar({
             onClick={() => setShowSourcesMenu((prev) => !prev)}
             aria-expanded={showSourcesMenu}
             aria-haspopup="true"
-            className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 text-xs font-medium transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-white/20 text-zinc-300 text-xs font-medium transition-all backdrop-blur-sm cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-            <span>{enabledCount} منبع متصل</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span>{toFaDigits(enabledCount)} منبع متصل</span>
             {hiddenSources.length > 0 && (
               <span
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-zinc-800 text-2xs text-zinc-300 border border-zinc-700"
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-2xs"
                 title="منابع پنهان‌شده در نتایج"
               >
                 <EyeOff className="w-3 h-3" aria-hidden="true" />
-                {hiddenSources.length}
+                <span>{toFaDigits(hiddenSources.length)}</span>
               </span>
             )}
-            <ChevronDown className={`w-3 h-3 text-zinc-500 transition-transform ${showSourcesMenu ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${showSourcesMenu ? 'rotate-180 text-zinc-200' : ''}`} />
           </button>
 
           {showSourcesMenu && (
             <div
-              className="absolute end-0 top-full mt-2 w-72 max-h-[26rem] overflow-y-auto p-2.5 rounded-2xl bg-zinc-950/95 border border-zinc-800 shadow-2xl z-50 flex flex-col gap-2.5 text-xs backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
+              className="absolute end-0 top-full mt-2 w-72 max-h-[26rem] overflow-y-auto p-2.5 rounded-xl bg-[#0e0e0e]/95 border border-white/10 shadow-2xl z-50 flex flex-col gap-2.5 text-xs backdrop-blur-xl animate-in fade-in slide-in-from-top-1"
               role="dialog"
               aria-label="وضعیت و پنهان‌سازی منابع"
             >
-              <div className="px-2 py-1 text-2xs text-zinc-400 font-semibold border-b border-zinc-800/80 flex items-center justify-between gap-2 sticky top-0 bg-zinc-950/95">
+              <div className="px-2 py-1 text-2xs text-zinc-400 font-semibold border-b border-white/10 flex items-center justify-between gap-2 sticky top-0 bg-[#0e0e0e]/95 backdrop-blur-md z-10">
                 <span>وضعیت منابع سایت‌ها</span>
                 <div className="flex items-center gap-2">
                   {canHide && hiddenSources.length > 0 && (
@@ -168,7 +169,7 @@ export function SourceStatusBar({
                   )}
                   <div className="flex items-center gap-1 text-emerald-400">
                     <Radio className="w-3 h-3" />
-                    <span>{enabledCount} فعال</span>
+                    <span>{toFaDigits(enabledCount)} فعال</span>
                   </div>
                 </div>
               </div>
@@ -189,13 +190,13 @@ export function SourceStatusBar({
                 return (
                   <div key={cat.id} className="flex flex-col gap-1">
                     {/* Category Header */}
-                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-zinc-900/80 text-2xs font-semibold text-zinc-300">
+                    <div className="flex items-center justify-between px-2 py-1 rounded-md bg-white/[0.04] text-2xs font-semibold text-zinc-300">
                       <div className="flex items-center gap-1.5">
                         <Icon className="w-3 h-3 text-cyan-400" />
                         <span>{cat.label}</span>
                       </div>
                       <span className="text-zinc-500">
-                        {catEnabledCount} از {catSources.length}
+                        {toFaDigits(catEnabledCount)} از {toFaDigits(catSources.length)}
                       </span>
                     </div>
 

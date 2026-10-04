@@ -118,17 +118,7 @@ export function Header({
 
       <div className="hdr-right">
         {rightSlot}
-        {onOpenAi && (
-          <button
-            className="btn btn-ghost btn-sm"
-            type="button"
-            id="askAi"
-            onClick={onOpenAi}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>پرسش از هوش مصنوعی</span>
-          </button>
-        )}
+        {/* ponytail: hide askAi button; restore when ready */}
         <button
           className="burger"
           type="button"

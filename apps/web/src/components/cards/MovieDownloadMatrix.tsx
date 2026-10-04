@@ -84,32 +84,34 @@ export function MovieDownloadMatrix({
                     <AccessBadge access={v.access} />
                   </td>
                   <td className="num tech-text">{sizeStr}</td>
-                  <td style={{ textAlign: 'end', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(v.download_url, v.id)}
-                      title="کپی لینک مستقیم"
-                      aria-label="کپی لینک مستقیم"
-                      className="btn btn-quiet btn-sm"
-                      style={{ padding: '0 10px', minHeight: '32px' }}
-                    >
-                      {isCopied ? (
-                        <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                  <td style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(v.download_url, v.id)}
+                        title="کپی لینک مستقیم"
+                        aria-label="کپی لینک مستقیم"
+                        className="btn btn-quiet btn-sm"
+                        style={{ padding: '0 10px', minHeight: '32px' }}
+                      >
+                        {isCopied ? (
+                          <Check className="w-3.5 h-3.5" style={{ color: 'var(--ok)' }} />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
 
-                    <a
-                      href={v.download_url}
-                      download
-                      rel="noopener noreferrer"
-                      className="btn btn-primary btn-sm"
-                      style={{ padding: '0 10px', minHeight: '32px' }}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>دریافت</span>
-                    </a>
+                      <a
+                        href={v.download_url}
+                        download
+                        rel="noopener noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ padding: '0 10px', minHeight: '32px' }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>دریافت</span>
+                      </a>
+                    </div>
                   </td>
                 </tr>
               )

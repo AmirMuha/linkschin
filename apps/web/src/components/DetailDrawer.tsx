@@ -103,6 +103,30 @@ export function DetailDrawer({
   const isMedia = isMediaItem(item)
   const category = isMedia ? item.category : item.cat
 
+  const releaseGroup = isMedia
+    ? item.game_releases?.[0]?.release_group
+    : (item as CatalogGame).releaseGroup
+
+  const primaryBadge =
+    category === 'games'
+      ? releaseGroup || 'بازی'
+      : category === 'music'
+        ? 'آلبوم'
+        : isMedia
+          ? 'فیلم'
+          : (item as CatalogMovie).kind === 'tv'
+            ? 'سریال'
+            : 'فیلم سینمایی'
+
+  const categoryBadge =
+    category === 'movies'
+      ? 'فیلم'
+      : category === 'games'
+        ? 'بازی'
+        : 'آهنگ'
+
+  const showCategoryBadge = Boolean(categoryBadge && categoryBadge !== primaryBadge)
+
   // Header image logic
   const artSrc = isMedia
     ? (item.poster_url || (category === 'games' ? `/images/keys/${item.id}.jpg` : `/images/backdrops/${item.id}.jpg`))
@@ -148,26 +172,10 @@ export function DetailDrawer({
           {/* Drawer Header Block */}
           <div className="drawer-head">
             <div className="eyebrow">
-              <span className="pill-red">
-                {category === 'games'
-                  ? (isMedia
-                      ? item.game_releases?.[0]?.release_group || 'بازی'
-                      : (item as CatalogGame).releaseGroup)
-                  : category === 'music'
-                    ? 'آلبوم'
-                    : isMedia
-                      ? 'فیلم'
-                      : (item as CatalogMovie).kind === 'tv'
-                        ? 'سریال'
-                        : 'فیلم سینمایی'}
-              </span>
-              <span className="pill-ghost">
-                {category === 'movies'
-                  ? 'فیلم'
-                  : category === 'games'
-                    ? 'بازی'
-                    : 'آهنگ'}
-              </span>
+              <span className="pill-red">{primaryBadge}</span>
+              {showCategoryBadge && (
+                <span className="pill-ghost">{categoryBadge}</span>
+              )}
               {isMedia ? (
                 item.censorship_status === 'censored' && (
                   <span className="pill-ghost">نسخه بازبینی‌شده</span>
@@ -407,16 +415,7 @@ export function DetailDrawer({
                         <div className="drawer-sec">
                           <h3>استخراج</h3>
                           <div className="pw">
-                            <span
-                              style={{
-                                fontSize: '12px',
-                                letterSpacing: '.1em',
-                                textTransform: 'uppercase',
-                                color: 'var(--muted)',
-                              }}
-                            >
-                              رمز استخراج آرشیو
-                            </span>
+                            <span>رمز استخراج آرشیو</span>
                             <TechnicalText as="code">
                               {release.archive_password}
                             </TechnicalText>
@@ -446,6 +445,11 @@ export function DetailDrawer({
                           {item.game_releases.length > 1
                             ? `پارت‌های آرشیو ${toFaDigits(relIdx + 1)}`
                             : 'پارت‌های دانلود'}
+                          {release.parts?.length > 0 && (
+                            <span className="text-zinc-400 font-normal ms-1">
+                              ({toFaDigits(release.parts.length)})
+                            </span>
+                          )}
                         </h3>
                         <GamePartList
                           parts={release.parts}
@@ -506,16 +510,7 @@ export function DetailDrawer({
                 <h3>استخراج</h3>
                 {(item as CatalogGame).password ? (
                   <div className="pw">
-                    <span
-                      style={{
-                        fontSize: '12px',
-                        letterSpacing: '.1em',
-                        textTransform: 'uppercase',
-                        color: 'var(--muted)',
-                      }}
-                    >
-                      رمز استخراج آرشیو
-                    </span>
+                    <span>رمز استخراج آرشیو</span>
                     <TechnicalText as="code">
                       {(item as CatalogGame).password}
                     </TechnicalText>
