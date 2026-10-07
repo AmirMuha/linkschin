@@ -2,11 +2,10 @@
 
 import React, { useState } from 'react'
 import type { MediaItem } from '@/types/media'
-import { Film, PlayCircle, Calendar, ExternalLink, Star, Eye } from 'lucide-react'
-import { MovieDownloadMatrix } from './MovieDownloadMatrix'
+import { Film, PlayCircle, Calendar, ExternalLink, Star } from 'lucide-react'
+import { FavoriteButton } from './FavoriteButton'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 import type { CensorshipStatus, SourceAccessTier } from '@/types/media'
-import type { CensorshipFilter, TierFilter } from '@/lib/urlFilters'
 
 export const CENSORSHIP_BADGE: Record<CensorshipStatus, { label: string; className: string }> = {
   uncensored: {
@@ -36,29 +35,40 @@ export const TIER_BADGE: Record<SourceAccessTier, { label: string; title: string
 interface MovieCardProps {
   item: MediaItem
   onPlayStream?: (streamUrl: string, title: string) => void
-  activeTierFilter?: TierFilter
-  activeCensorshipFilter?: CensorshipFilter
+  /** Opens the detail drawer — download links live there, not on the card. */
+  onOpenDetails?: (item: MediaItem) => void
+  onToggleFavorite?: (item: MediaItem) => void
+  isItemFavorite?: (id: string) => boolean
 }
 
 export function MovieCard({
   item,
   onPlayStream,
-  activeTierFilter = 'all',
-  activeCensorshipFilter = 'all',
+  onOpenDetails,
+  onToggleFavorite,
+  isItemFavorite,
 }: MovieCardProps) {
   const [imageError, setImageError] = useState(false)
 
-  // FR-017: the server drops an item that has neither a download nor a watch page, so
-  // `movie_variants` is empty here only for a genuine watch-only source. Guarded
-  // anyway: an unfiltered list can still yield empty variants, and a dead link to
-  // undefined is worse than no button.
-  const hasDownload = (item.movie_variants?.length ?? 0) > 0
-  const watchUrl = item.watch_url ?? ''
+  function handleOpenDetails() {
+    onOpenDetails?.(item)
+  }
 
   return (
     <article
       className="card"
-      style={{ cursor: 'default' }}
+      style={{ cursor: onOpenDetails ? 'pointer' : 'default' }}
+      role={onOpenDetails ? 'button' : undefined}
+      tabIndex={onOpenDetails ? 0 : undefined}
+      aria-label={onOpenDetails ? `مشاهده جزئیات و دانلود ${item.title}` : undefined}
+      onClick={handleOpenDetails}
+      onKeyDown={(e) => {
+        if (!onOpenDetails) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleOpenDetails()
+        }
+      }}
     >
       {/* Poster Image / Header */}
       <div className="card-art mb-4">
@@ -77,11 +87,14 @@ export function MovieCard({
           </div>
         )}
 
-        {/* Floating Stream Preview Trigger */}
+        {/* Floating Stream Preview Trigger — playback, not the drawer */}
         {item.stream_url && onPlayStream && (
           <button
             type="button"
-            onClick={() => onPlayStream(item.stream_url!, item.title)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPlayStream(item.stream_url!, item.title)
+            }}
             className="absolute inset-0 m-auto w-12 h-12 rounded-full bg-cyan-500/90 text-slate-950 flex items-center justify-center shadow-2xl opacity-90 group-hover:opacity-100 hover:scale-110 transition-all backdrop-blur-sm"
             aria-label={`پخش پیش‌نمایش ${item.title}`}
           >
@@ -93,6 +106,13 @@ export function MovieCard({
         <div className="absolute top-2.5 start-2.5 flex items-center gap-1 px-2.5 py-1 rounded-full bg-zinc-950/80 border border-zinc-800/80 text-2xs text-zinc-300 font-medium backdrop-blur-md">
           <span>{item.source_id}</span>
         </div>
+
+        <FavoriteButton
+          item={item}
+          onToggleFavorite={onToggleFavorite}
+          isItemFavorite={isItemFavorite}
+          className="below"
+        />
 
         {/* Year Badge */}
         {item.release_year && (
@@ -156,36 +176,14 @@ export function MovieCard({
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-2xs text-zinc-500 hover:text-cyan-400 transition-colors self-start mb-2"
+        onClick={(e) => e.stopPropagation()}
       >
         <span>مشاهده در سایت مرجع</span>
         <ExternalLink className="w-3 h-3" />
       </a>
 
-      {/* Download Variants Matrix — or, for a watch-only source, a watch action
-          (FR-006, FR-017). The two are mutually exclusive: a card that offers a
-          download must not also offer "watch", or the user cannot tell whether the
-          source actually has a public file. */}
-      <div className="mt-auto border-t border-zinc-800/80 pt-2">
-        {hasDownload ? (
-          <MovieDownloadMatrix
-            variants={item.movie_variants}
-            activeTierFilter={activeTierFilter}
-            activeCensorshipFilter={activeCensorshipFilter}
-          />
-        ) : (
-          <a
-            href={watchUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl bg-violet-500/15 border border-violet-500/40 text-violet-300 hover:bg-violet-500/25 hover:border-violet-400/60 transition-colors text-xs sm:text-sm font-medium"
-            aria-label={`مشاهده ${item.title} در سایت منبع`}
-          >
-            <Eye className="w-4 h-4 shrink-0" />
-            <span>مشاهده در سایت منبع</span>
-            <ExternalLink className="w-3 h-3 shrink-0" />
-          </a>
-        )}
-      </div>
+      {/* Download links (variants, watch fallback FR-006/FR-017) live in the
+          detail drawer — the card only points at it. */}
     </article>
   )
 }

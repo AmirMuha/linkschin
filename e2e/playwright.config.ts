@@ -5,7 +5,11 @@ import { join } from 'node:path'
 
 const API_PORT = 8010
 const API = `http://127.0.0.1:${API_PORT}`
-const WEB = 'http://localhost:3000'
+// 3000 is a common squatter on a shared dev box (other apps' dev servers), so the
+// web port is overridable; `next dev` must get the same value via PORT below or
+// it silently falls back to 3001+ while this file polls 3000 forever.
+const WEB_PORT = process.env.E2E_WEB_PORT || '3000'
+const WEB = `http://localhost:${WEB_PORT}`
 const STUB_PORT = 8910
 const STUB = `http://127.0.0.1:${STUB_PORT}`
 // __dirname, not import.meta.dirname: Node loads a .ts config as CJS unless the nearest
@@ -36,7 +40,9 @@ const apiServer = {
   cwd: join(REPO, 'apps', 'api'),
   url: `${API}/health`,
   reuseExistingServer: false,
-  env: { LINKSCHIN_DB: dbPath, ...sourceUrlEnv },
+  // FRONTEND_URL keeps the CORS allow-list pointed at whatever port the web
+  // server actually got — the API's defaults only cover 3000/3001.
+  env: { LINKSCHIN_DB: dbPath, FRONTEND_URL: WEB, ...sourceUrlEnv },
 }
 
 // The live project is config-level, not project-level: `webServer` is not a project option,
@@ -55,7 +61,7 @@ const servers = [apiServer, {
   cwd: join(REPO, 'apps', 'web'),
   url: WEB,
   reuseExistingServer: !process.env.CI,
-  env: { NEXT_PUBLIC_API_BASE: API },
+  env: { NEXT_PUBLIC_API_BASE: API, PORT: WEB_PORT },
 }]
 
 export default defineConfig({

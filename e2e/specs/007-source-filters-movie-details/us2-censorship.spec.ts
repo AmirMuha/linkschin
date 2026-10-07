@@ -83,7 +83,7 @@ test.describe('007 US2 — censorship status visibility and filtering', () => {
     await page.goto('/?q=batman&censorship=censored')
 
     await expect(page.getByRole('article')).toHaveCount(5)
-    await expect(page.getByRole('textbox', { name: 'متن جستجو' })).toHaveValue('batman')
+    await expect(page.getByRole('searchbox', { name: 'متن جستجو' })).toHaveValue('batman')
     await expect(page.getByRole('button', { name: 'سانسور شده' })).toHaveAttribute('aria-pressed', 'true')
     expect(new URL(page.url()).searchParams.get('censorship')).toBe('censored')
   })

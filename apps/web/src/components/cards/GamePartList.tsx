@@ -8,7 +8,7 @@ import { formatPartLinksForClipboard, sortParts } from '@/lib/archive'
 import { useToast } from '@/components/ui/ToastNotification'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 import { AccessBadge } from '@/components/ui/AccessBadge'
-import { toFaDigits } from '@/lib/catalog'
+import { toFaDigits } from '@/lib/format'
 
 interface GamePartListProps {
   parts: GamePartLink[]

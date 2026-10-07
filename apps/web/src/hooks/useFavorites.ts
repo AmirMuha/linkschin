@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CatalogItem } from '@/lib/catalog'
 import {
   DEFAULT_META,
   loadFavorites,
@@ -17,7 +16,7 @@ export interface Favorites {
   persistenceBlocked: boolean
   isLiked: (id: string) => boolean
   /** Takes the item every caller already has in hand, so it drops straight in. */
-  toggle: (item: CatalogItem) => void
+  toggle: (item: { id: string }) => void
   remove: (id: string) => void
 }
 
@@ -59,7 +58,7 @@ export function useFavorites(): Favorites {
   )
 
   const toggle = useCallback(
-    (item: CatalogItem) => {
+    (item: { id: string }) => {
       const id = item.id
       apply(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])
     },

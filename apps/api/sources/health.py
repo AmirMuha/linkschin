@@ -91,10 +91,36 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _from_db_row(row: dict) -> SourceHealth:
+    return SourceHealth(
+        source_id=row["source_id"],
+        state=SourceState(row.get("state") or SourceState.PROVIDING_RESULTS.value),
+        reason=row.get("reason"),
+        last_success_at=row.get("last_success_at"),
+        last_failure_at=row.get("last_failure_at"),
+        consecutive_failures=int(row.get("consecutive_failures") or 0),
+        active_address=row.get("active_address"),
+    )
+
+
 def get(source_id: str) -> SourceHealth:
-    """Get or lazily initialize source health."""
+    """Get or lazily initialize source health, restoring the persisted record.
+
+    The registry is in-memory only, so every restart starts it empty. Without the
+    DB read below, the first record_* call after boot would sync a *default* object
+    over the stored row and wipe states such as requires_login — which the probe
+    guarantees to hit for every source on its first sweep.
+    """
     if source_id not in _REGISTRY:
-        if source_id in INITIAL_UNPROVEN_SITES:
+        row = None
+        try:
+            import db
+            row = db.get_source_health(source_id)
+        except Exception:
+            row = None  # a DB that cannot be read must not break the registry
+        if row:
+            _REGISTRY[source_id] = _from_db_row(row)
+        elif source_id in INITIAL_UNPROVEN_SITES:
             init_state, init_reason = INITIAL_UNPROVEN_SITES[source_id]
             _REGISTRY[source_id] = SourceHealth(
                 source_id=source_id,
@@ -151,6 +177,24 @@ def record_failure(source_id: str, reason: str | None = None, address: str | Non
     else:
         h.reason = reason or "خطا در دریافت اطلاعات"
 
+    _sync_to_db(h)
+
+
+def record_reachable(source_id: str, address: str | None = None) -> None:
+    """Record that the portal answered a reachability probe (web/probe.py).
+
+    Reachability is not the same claim as record_success, which asserts the source
+    *provided results* — only a search can prove that. A homepage answering 200
+    proves neither (login walls, Cloudflare challenges). So the failure counters are
+    cleared and the timestamps stamped, but ``state`` is left as-is: the next search
+    still decides whether the source deserves PROVIDING_RESULTS.
+    """
+    h = get(source_id)
+    h.consecutive_failures = 0
+    h.last_success_at = _now_iso()
+    if address:
+        h.active_address = address
+        GLOBAL_BREAKER.record_success(address)
     _sync_to_db(h)
 
 

@@ -52,6 +52,11 @@ from sources.music.upsong import UpSongPlugin
 from sources.music.youtube_music import YoutubeMusicPlugin
 from sources.profiles import load_profiles, register_parser
 
+# 3 consecutive failures → degraded, excluded from search (FR-018a). Lives here so
+# web/app.py and web/probe.py share it without importing each other (web.app imports
+# web.probe for its lifespan loop).
+DEGRADED_THRESHOLD = 3
+
 
 # Per-registry INACTIVE_REASONS strings for every source with enabled=False.
 # Lives beside the registry rather than on SourceConfig (data-model.md).

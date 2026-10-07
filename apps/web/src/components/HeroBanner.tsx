@@ -1,34 +1,25 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import type { Category } from '@/types/media'
-import type { CatalogItem, CatalogMovie, CatalogGame, CatalogMusic } from '@/lib/catalog'
-import { toFaDigits, getCatalogItemById } from '@/lib/catalog'
+import type { Category, MediaItem } from '@/types/media'
+import { toFaDigits } from '@/lib/format'
 import { Download, Heart } from 'lucide-react'
 
 interface HeroBannerProps {
   category: Category
-  onOpenDetails: (item: CatalogItem) => void
-  onToggleFavorite: (item: CatalogItem) => void
+  /** Fetched rows only — an empty shelf renders no hero at all. */
+  items: MediaItem[]
+  onOpenDetails: (item: MediaItem) => void
+  onToggleFavorite: (item: MediaItem) => void
   isItemFavorite: (id: string) => boolean
-}
-
-const HERO_POOLS: Record<Category, string[]> = {
-  movies: ['digger', 'the-uprising', 'verity', 'war', 'east-of-eden', 'scrubs'],
-  games: ['baldurs-gate-3', 'cyberpunk-2077', 'red-dead-redemption-2', 'elden-ring'],
-  music: ['sogand', 'googoosh', 'parchame-sefid', 'zendouni'],
 }
 
 const HERO_INTERVAL_MS = 6000
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
-// Games ship square key art under /keys/, everything else a landscape backdrop.
-function backdropFor(category: Category, it: CatalogItem): string {
-  return category === 'games' ? `/images/keys/${it.id}.jpg` : `/images/backdrops/${it.id}.jpg`
-}
-
 export function HeroBanner({
   category,
+  items,
   onOpenDetails,
   onToggleFavorite,
   isItemFavorite,
@@ -48,7 +39,7 @@ export function HeroBanner({
   useEffect(() => {
     setIndex(0)
     setPaused(false)
-  }, [category])
+  }, [category, items])
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden)
@@ -56,10 +47,7 @@ export function HeroBanner({
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
-  const ids = HERO_POOLS[category] || []
-  const list = ids
-    .map((id) => getCatalogItemById(id))
-    .filter((it): it is CatalogItem => Boolean(it))
+  const list = items
   const count = list.length
   const isMusic = category === 'music'
   // Guarded rather than early-returned so the hook order below never shifts.
@@ -75,14 +63,10 @@ export function HeroBanner({
     return () => clearInterval(timer)
   }, [paused, hidden, count, nav])
 
-  // Warm the next slide's art. Backdrops are 3840x2160 and up to 2.4 MB, so
-  // without this the hero paints empty for a beat on every advance.
+  // Warm the next slide's art: a poster is often several hundred KB, so without
+  // this the hero paints empty for a beat on every advance.
   const nextItem = list[(activeIndex + 1) % count]
-  const nextSrc = nextItem
-    ? isMusic
-      ? nextItem.art
-      : backdropFor(category, nextItem)
-    : null
+  const nextSrc = nextItem?.poster_url ?? null
 
   useEffect(() => {
     if (nextSrc) new Image().src = nextSrc
@@ -93,69 +77,35 @@ export function HeroBanner({
   const it = list[activeIndex]
   const isSaved = isItemFavorite(it.id)
 
-  const backdropSrc = backdropFor(category, it)
   const goTo = (n: number) => {
     setIndex(n)
     setNav((v) => v + 1)
   }
 
-  const eyebrowText =
-    category === 'games'
-      ? (it as CatalogGame).releaseGroup
-      : category === 'music'
-        ? 'آلبوم'
-        : (it as CatalogMovie).kind === 'tv'
-          ? 'سریال'
-          : 'فیلم سینمایی'
+  const eyebrowText = isMusic
+    ? 'آلبوم'
+    : category === 'games'
+      ? it.game_releases?.[0]?.release_group || 'بازی'
+      : 'فیلم و سریال'
 
-  const metaText =
-    category === 'music'
-      ? `${it.title} · ${toFaDigits(it.year)}`
-      : `${
-          (it as CatalogMovie | CatalogGame).kind === 'game'
-            ? 'ریپک'
-            : (it as CatalogMovie).kind === 'tv'
-              ? 'تلویزیونی'
-              : 'فیلم'
-        } · ${toFaDigits(it.year)}`
+  const metaText = it.release_year ? toFaDigits(it.release_year) : ''
 
-  const descText =
-    category === 'music' ? (
-      <>
-        {toFaDigits((it as CatalogMusic).tracks.length)} قطعه با زمان‌بندی واقعی. ابتدا پیش‌نمایش را
-        در همین صفحه ببینید، سپس فایل MP3 را با کیفیت <bdi dir="ltr">128</bdi> یا{' '}
-        <bdi dir="ltr">320 kbps</bdi> مستقیم از CDN منبع بگیرید.
-      </>
-    ) : (
-      it.blurb
-    )
+  const descText = it.description || ' '
 
-  const titleText =
-    category === 'music'
-      ? (it as CatalogMusic).artist.toUpperCase()
-      : it.title.toUpperCase()
+  const titleText = (it.original_title || it.title).toUpperCase()
 
   return (
     <section className="wrap" data-od-id="hero-section" aria-label="اثر شاخص">
       <div className={`hero ${isMusic ? 'cover' : ''}`} id="hero">
-        {!isMusic && (
+        {it.poster_url ? (
           <img
             key={it.id}
             className="hero-shot"
-            src={backdropSrc}
+            src={it.poster_url}
             alt={`تصویر شاخص ${it.title}`}
-            width={3840}
-            height={2160}
-            onError={(e) => {
-              ;(e.target as HTMLImageElement).src = it.art
-            }}
           />
-        )}
-
-        {isMusic && (
-          <div className="cover-cell">
-            <img key={it.id} src={it.art} alt={`کاور ${it.title}`} />
-          </div>
+        ) : (
+          <div className="hero-shot" />
         )}
 
         <div
@@ -171,12 +121,12 @@ export function HeroBanner({
               <button
                 key={item.id}
                 type="button"
-                className={item.cat === 'music' ? 'sq' : ''}
+                className={item.music_tracks?.length ? 'sq' : ''}
                 aria-current={isCurrent}
                 aria-label={`نمایش ${item.title}`}
                 onClick={() => goTo(n)}
               >
-                <img src={item.art} alt="" loading="lazy" />
+                {item.poster_url ? <img src={item.poster_url} alt="" loading="lazy" /> : null}
               </button>
             )
           })}
@@ -187,9 +137,11 @@ export function HeroBanner({
             <span className="pill-red" id="heroEyebrow">
               {eyebrowText}
             </span>
-            <span className="pill-ghost" id="heroMeta">
-              {metaText}
-            </span>
+            {metaText ? (
+              <span className="pill-ghost" id="heroMeta">
+                {metaText}
+              </span>
+            ) : null}
           </div>
 
           <h1 id="heroTitle">{titleText}</h1>

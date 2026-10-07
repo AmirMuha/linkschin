@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any
 
@@ -30,36 +31,42 @@ from models import (
     ConvertCreateRequest,
     ChatMessageRequest,
 )
-from sources import INACTIVE_REASONS, get_all_source_configs, get_sources_for_category
+from sources import DEGRADED_THRESHOLD, INACTIVE_REASONS, get_all_source_configs, get_sources_for_category
 from sources import health
 from sources.base import validate_stream_url
 import web.catalog as catalog
 import web.convert as convert
 import web.chat as chat
+import web.probe as probe
 from web.auth import authenticate_operator, create_access_token, get_current_operator
 import extraction.dead_letter as dlq
 
-DEGRADED_THRESHOLD = 3  # 3 consecutive failures → degraded, excluded from search (FR-018a)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Probe source reachability on a timer so health updates without a search."""
+    task = asyncio.create_task(probe.probe_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+
 
 app = FastAPI(
     title="Iranian Multi-Media Direct Link Aggregator",
     version="0.2.0",
     docs_url=None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
-# Enable CORS for frontend web client
+# Enable CORS for frontend web client. `next dev` picks its own port when
+# 3000/3001 are taken by other local apps, so any localhost port is allowed;
+# non-local origins still go through FRONTEND_URL.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        os.environ.get("FRONTEND_URL", "http://localhost:3000"),
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://0.0.0.0:3000",
-        "http://0.0.0.0:3001",
-    ],
+    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -521,12 +528,17 @@ async def api_update_source(
     base_cfg = all_cfgs.get(id)
     if not base_cfg:
         raise HTTPException(status_code=404, detail=f"Source '{id}' not found")
+    # upsert's ON CONFLICT writes `enabled = excluded.enabled`, whose default is True —
+    # without passing the current value, editing an address silently re-enabled a
+    # source that was turned off (operator- or probe-side).
+    existing = db.get_source_config(id)
     res = db.upsert_source_config(
         source_id=id,
         category=base_cfg.category.value,
         name=base_cfg.name,
         base_url=req.base_url or base_cfg.primary_base_url,
         mirror_url=req.mirror_url,
+        enabled=bool(existing["enabled"]) if existing else base_cfg.enabled,
     )
     return JSONResponse(res)
 

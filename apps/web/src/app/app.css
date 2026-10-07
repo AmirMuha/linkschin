@@ -117,11 +117,8 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   border-bottom: 1px solid var(--border-soft);
 }
 .brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; min-height: 44px; }
-.brand img { height: 32px; width: auto; }
-.brand-word {
-  font-size: 20px; font-weight: 800; letter-spacing: 0.16em;
-  color: var(--brand-red);
-}
+.brand img { height: 55px; width: auto; }
+.brand img.brand-word { height: 75px; width: auto; }
 /* The header is `flex` with the nav as its only shrinkable child, so any
    overflow crushed the links (labels overlapped their icons) instead of
    handing the burger the job — the burger only appears below 1140px. Nav is
@@ -184,13 +181,18 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   border: 1px solid var(--border-soft);
   min-height: clamp(420px, 56vw, 620px);
   display: grid; grid-template-columns: 1fr; align-items: end;
+  /* Letterbox backdrop: the shot is fully visible and centered (object-fit:
+     contain below), so the area around it must read as intentional darkness. */
+  background: #060606;
 }
 /* key={it.id} remounts the slide image on every advance, which is what replays
    this — a plain opacity transition would not animate a src swap. The global
    prefers-reduced-motion rule below already collapses the duration to 0.01ms. */
 @keyframes hero-fade { from { opacity: 0 } to { opacity: 1 } }
 .hero-shot {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  /* Whole image, centered — never cropped. */
+  object-fit: contain; object-position: center;
   animation: hero-fade .45s var(--ease) both;
 }
 .hero::after {
@@ -326,6 +328,8 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 .card-fav:focus-visible,
 .card-fav[aria-pressed="true"] { opacity: 1; }
 .card-fav:hover { background: rgba(8, 8, 8, 0.9); }
+/* Cards whose year badge already owns top-inline-end drop the heart below it. */
+.card-fav.below { top: 40px; }
 @media (hover: none) { .card-fav { opacity: 1; } }
 
 .tag {
@@ -345,10 +349,16 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
   padding: 12px 16px; border-radius: 10px; background: var(--surface);
   border: 1px solid var(--border); font-size: 13px;
 }
-.health .led { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+/* Not scoped to .health: the /sources registry table renders the same dot too. */
+.led { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
 .led.ok { background: var(--ok); }
 .led.warn { background: var(--warn); }
 .led.bad { background: var(--bad); }
+@keyframes led-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.led { animation: led-pulse 2.2s ease-in-out infinite; }
+/* A dead source must read as dead before it reads as merely quiet. */
+.led.bad { animation-duration: 1.2s; }
+@media (prefers-reduced-motion: reduce) { .led { animation: none; } }
 .health ul { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
 .health .chip {
   display: inline-flex; align-items: center; gap: 6px; font-size: 11px; min-height: 30px;

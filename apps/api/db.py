@@ -218,6 +218,10 @@ _ADDED_COLUMNS = {
     ],
     "game_parts": [("access", "TEXT DEFAULT 'direct'")],
     "crawl_state": [("consecutive_failures", "INTEGER NOT NULL DEFAULT 0")],
+    # Non-NULL only while the probe loop holds a source off (web/probe.py). It is
+    # what separates "the probe turned this off" from "an operator turned this off" —
+    # without it the probe would re-enable a portal someone deliberately disabled.
+    "source_configs": [("auto_disabled_at", "REAL")],
 }
 
 
@@ -789,11 +793,28 @@ def toggle_source_config(source_id: str, enabled: bool, db_path: Path | str | No
     conn = connect(db_path)
     try:
         with conn:
+            # An explicit operator action always wins over a probe-held disable:
+            # clear the marker so the probe never re-enables what the operator just set.
             conn.execute(
-                "UPDATE source_configs SET enabled = ?, updated_at = ? WHERE source_id = ?",
+                "UPDATE source_configs SET enabled = ?, auto_disabled_at = NULL, updated_at = ? WHERE source_id = ?",
                 (int(enabled), time.time(), source_id),
             )
         return get_source_config(source_id, db_path)
+    finally:
+        conn.close()
+
+
+def set_source_auto_disabled(
+    source_id: str, auto_disabled_at: float | None, db_path: Path | str | None = None
+) -> None:
+    """Stamp/clear the probe's hold on a source. NULL means the probe has no hold."""
+    conn = connect(db_path)
+    try:
+        with conn:
+            conn.execute(
+                "UPDATE source_configs SET auto_disabled_at = ? WHERE source_id = ?",
+                (auto_disabled_at, source_id),
+            )
     finally:
         conn.close()
 

@@ -5,8 +5,8 @@ import { test, expect } from '../../fixtures/app'
 // expected values are what the real parsers actually extract, not guesses.
 test.describe('001 US1 — movie search and format variants', () => {
   test('[001-US1-AC1][FR-001] presents matching items with title, year and format variants', async ({ page, search }) => {
+    // `/` redirects to /movies — the category is the route now, not a tab.
     await page.goto('/')
-    await page.getByRole('tab', { name: 'فیلم و سریال' }).click()
     await search('batman')
 
     const card = page.getByRole('article').filter({ hasText: 'سقوط شوالیه' }).first()

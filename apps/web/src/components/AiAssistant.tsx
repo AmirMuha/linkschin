@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import type { Category } from '@/types/media'
 import { Sparkles, Send, X } from 'lucide-react'
-import { normalizeFa, toFaDigits, searchCatalog, CATALOG_SOURCES, CATALOG_GAMES } from '@/lib/catalog'
 import { sendChatMessage } from '@/lib/api'
+
+const OFFLINE_ERROR = 'اتصال به سرور برقرار نشد. لطفا بعدا دوباره تلاش کنید.'
 
 interface AiAssistantProps {
   category: Category
@@ -36,41 +37,6 @@ export function AiAssistant({ category, isOpen, onToggle, onClose }: AiAssistant
   ])
   const [input, setInput] = useState('')
 
-  function getBotResponse(q: string): string {
-    const n = normalizeFa(q)
-
-    if (/source|منبع|داون|خراب|سلامت|status|health/i.test(n)) {
-      const down = CATALOG_SOURCES.filter((s) => !s.enabled || s.state !== 'ok')
-      const ok = CATALOG_SOURCES.filter((s) => s.enabled && s.state === 'ok')
-      return `وضعیت منابع در حال حاضر: ${toFaDigits(ok.length)} منبع فعال و ${toFaDigits(
-        down.length
-      )} منبع خارج از دسترس (${down.map((s) => s.name).join('، ')}).`
-    }
-
-    if (/part|قسمت|پارت|رمز|password/i.test(n)) {
-      const g = CATALOG_GAMES.find((x) => x.id === 'the-witcher-3-wild-hunt')
-      if (g) {
-        return `نسخه دارای گپ آرشیو: «${g.title}» (${g.releaseGroup}) فاقد پارت ۳ است. برای جلوگیری از خرابی آرشیو شماره پارت تغییر نکرده است. رمز استخراج: ${g.password}.`
-      }
-      return 'تمامی بازی‌های چند پارتی دارای زنجیره پیوسته پارت‌ها هستند.'
-    }
-
-    if (/دوبله|dub|1080/i.test(n)) {
-      return 'فیلم‌های Digger و The Uprising دارای نسخه 1080p با دوبله فارسی اختصاصی و صدای دوکاناله هستند.'
-    }
-
-    if (/320|کیفیت|music|موزیک/i.test(n)) {
-      return 'تمامی آلبوم‌های بخش موسیقی با دو کیفیت استاندارد ۱۲۸kbps و کیفیت عالی ۳۲۰kbps با لینک مستقیم ارائه می‌شوند.'
-    }
-
-    const hits = searchCatalog(category, q).slice(0, 2)
-    if (hits.length > 0) {
-      return `یافته‌ها در بخش ${category}: ${hits.map((h) => `«${h.title}» (${h.year})`).join(' و ')}.`
-    }
-
-    return 'سؤال شما دریافت شد. می‌توانید نام عنوان، سال یا کیفیت مورد نظر را بفرمایید.'
-  }
-
   async function handleSend(text: string) {
     const trimmed = text.trim()
     if (!trimmed) return
@@ -89,15 +55,14 @@ export function AiAssistant({ category, isOpen, onToggle, onClose }: AiAssistant
       const botMsg: ChatMessage = {
         id: String(Date.now() + 1),
         role: 'bot',
-        text: res.message || getBotResponse(trimmed),
+        text: res.message || OFFLINE_ERROR,
       }
       setMessages((prev) => [...prev, botMsg])
     } catch {
-      const botResponseText = getBotResponse(trimmed)
       const botMsg: ChatMessage = {
         id: String(Date.now() + 1),
         role: 'bot',
-        text: botResponseText,
+        text: OFFLINE_ERROR,
       }
       setMessages((prev) => [...prev, botMsg])
     }

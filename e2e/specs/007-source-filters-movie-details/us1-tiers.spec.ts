@@ -55,7 +55,7 @@ test.describe('007 US1 — access tier filtering', () => {
     await page.goto('/?q=batman&tier=free')
 
     await expect(page.getByRole('article')).toHaveCount(28)
-    await expect(page.getByRole('textbox', { name: 'متن جستجو' })).toHaveValue('batman')
+    await expect(page.getByRole('searchbox', { name: 'متن جستجو' })).toHaveValue('batman')
     await expect(page.getByRole('button', { name: 'فقط رایگان' })).toHaveAttribute('aria-pressed', 'true')
     expect(new URL(page.url()).searchParams.get('tier')).toBe('free')
   })

@@ -45,9 +45,12 @@ export function Header({
           width={32}
           height={32}
         />
-        {/* Brand name stays Latin; `dir="ltr"` keeps it and its letter-spacing
-            from being reordered inside the RTL shell. */}
-        <span className="brand-word" dir="ltr">Linkschin</span>
+        <img
+          className="brand-word"
+          src="/images/brand/linkschin-wordmark.png"
+          alt="لینک‌چین"
+          height={40}
+        />
       </Link>
 
       <nav

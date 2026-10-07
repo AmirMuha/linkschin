@@ -1,14 +1,20 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
-import { CatalogCard } from '@/components/CatalogCard'
 import { DetailDrawer } from '@/components/DetailDrawer'
 import { useToast } from '@/components/ui/ToastNotification'
+import { SkeletonGrid } from '@/components/ui/SkeletonGrid'
 import { useFavorites } from '@/hooks/useFavorites'
-import { getCatalogItemById, toFaDigits, type CatalogItem } from '@/lib/catalog'
+import { fetchItemDetail } from '@/lib/api'
+import { toFaDigits } from '@/lib/format'
+import type { MediaItem } from '@/types/media'
+import { MovieCard } from '@/components/cards/MovieCard'
+import { GameCard } from '@/components/cards/GameCard'
+import { MusicCard } from '@/components/cards/MusicCard'
+import { AudioPlayerProvider } from '@/context/AudioPlayerContext'
 import { Film, Gamepad2, Heart, Music, X } from 'lucide-react'
 
 /** Display order and copy per group; ids carry no category of their own. */
@@ -21,7 +27,7 @@ const GROUPS = [
 export default function FavoritesPage() {
   const favorites = useFavorites()
   const { showToast } = useToast()
-  const [selected, setSelected] = useState<CatalogItem | null>(null)
+  const [selected, setSelected] = useState<MediaItem | null>(null)
 
   // A corrupt collection loads empty; say so once instead of silently showing
   // the first-run empty state (FR-009).
@@ -31,15 +37,41 @@ export default function FavoritesPage() {
     showToast('بارگذاری علاقه‌مندی‌ها ناموفق بود؛ شروع دوباره', 'info')
   }
 
-  const entries = favorites.ids
-    .map((id) => ({ id, item: getCatalogItemById(id) }))
-    .filter((e): e is { id: string; item: CatalogItem } => Boolean(e.item))
+  // Favorites store ids only; each record is resolved from the API on view. An
+  // unresolvable id lands as `null` and surfaces in the "ناموجود" list instead
+  // of vanishing.
+  const [resolved, setResolved] = useState<Record<string, MediaItem | null>>({})
 
-  const staleIds = favorites.ids.filter((id) => !entries.some((e) => e.id === id))
+  useEffect(() => {
+    const ids = favorites.ids
+    if (ids.length === 0) {
+      setResolved({})
+      return
+    }
+    let ignore = false
+    Promise.all(
+      ids.map(async (id) => [id, await fetchItemDetail(id)] as const)
+    ).then((pairs) => {
+      if (ignore) return
+      setResolved(Object.fromEntries(pairs))
+    })
+    return () => {
+      ignore = true
+    }
+  }, [favorites.ids])
+
+  const entries = favorites.ids
+    .map((id) => ({ id, item: resolved[id] ?? null }))
+    .filter((e): e is { id: string; item: MediaItem } => Boolean(e.item))
+
+  const staleIds = favorites.ids.filter(
+    (id) => id in resolved && !resolved[id]
+  )
+  const loading = favorites.ids.some((id) => !(id in resolved))
   const isEmpty = favorites.ids.length === 0
 
   return (
-    <>
+    <AudioPlayerProvider>
       <Header activePage="favorites" />
 
       <main id="main" className="wrap" style={{ paddingTop: 'calc(var(--hdr) + 34px)' }}>
@@ -77,10 +109,14 @@ export default function FavoritesPage() {
               مرور کاتالوگ
             </Link>
           </div>
+        ) : loading ? (
+          <div style={{ marginTop: '28px' }}>
+            <SkeletonGrid count={6} />
+          </div>
         ) : (
           <>
             {GROUPS.map(({ key, label, Icon }) => {
-              const items = entries.filter((e) => e.item.cat === key)
+              const items = entries.filter((e) => e.item.category === key)
               if (items.length === 0) return null
               return (
                 <section
@@ -100,15 +136,33 @@ export default function FavoritesPage() {
                     <span className="sub">{toFaDigits(items.length)} مورد ذخیره شده</span>
                   </div>
                   <div className="grid grid-6">
-                    {items.map(({ id, item }) => (
-                      <CatalogCard
-                        key={id}
-                        item={item}
-                        onClick={() => setSelected(item)}
-                        onToggleFavorite={favorites.toggle}
-                        isItemFavorite={favorites.isLiked}
-                      />
-                    ))}
+                    {items.map(({ id, item }) =>
+                      item.category === 'games' ? (
+                        <GameCard
+                          key={id}
+                          item={item}
+                          onOpenDetails={setSelected}
+                          onToggleFavorite={favorites.toggle}
+                          isItemFavorite={favorites.isLiked}
+                        />
+                      ) : item.category === 'music' ? (
+                        <MusicCard
+                          key={id}
+                          item={item}
+                          onOpenDetails={setSelected}
+                          onToggleFavorite={favorites.toggle}
+                          isItemFavorite={favorites.isLiked}
+                        />
+                      ) : (
+                        <MovieCard
+                          key={id}
+                          item={item}
+                          onOpenDetails={setSelected}
+                          onToggleFavorite={favorites.toggle}
+                          isItemFavorite={favorites.isLiked}
+                        />
+                      )
+                    )}
                   </div>
                 </section>
               )
@@ -119,11 +173,11 @@ export default function FavoritesPage() {
                 <div className="sec-head">
                   <h2>ناموجود</h2>
                   <span className="sub">
-                    {toFaDigits(staleIds.length)} مورد دیگر در کاتالوگ نیست
+                    {toFaDigits(staleIds.length)} مورد در سرور یافت نشد
                   </span>
                 </div>
                 <p className="hero-desc" style={{ marginBottom: '12px' }}>
-                  این شناسه‌های ذخیره‌شده دیگر در کاتالوگ نیستند، بنابراین چیزی برای نمایش وجود ندارد. حذف هرکدام، آن را برای همیشه پاک می‌کند.
+                  این شناسه‌های ذخیره‌شده قابل بازیابی نیستند، بنابراین چیزی برای نمایش وجود ندارد. حذف هرکدام، آن را برای همیشه پاک می‌کند.
                 </p>
                 <ul style={{ listStyle: 'none', display: 'grid', gap: '8px' }}>
                   {staleIds.map((id) => (
@@ -168,6 +222,6 @@ export default function FavoritesPage() {
       />
 
       <Footer />
-    </>
+    </AudioPlayerProvider>
   )
 }

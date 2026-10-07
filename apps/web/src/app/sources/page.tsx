@@ -4,12 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { useToast } from '@/components/ui/ToastNotification'
-import {
-  CATALOG_SOURCES,
-  EXPANSION_TARGETS,
-  toFaDigits,
-  type CatalogSource,
-} from '@/lib/catalog'
+import { toFaDigits } from '@/lib/format'
 import {
   fetchSources,
   updateSourceAddress,
@@ -17,9 +12,26 @@ import {
   submitSourceSuggestion,
 } from '@/lib/api'
 
+/** One registry row: the display shape the table edits, filled from /api/sources. */
+interface SourceRow {
+  id: string
+  name: string
+  cat: 'movies' | 'games' | 'music'
+  tier: 1 | 2 | 3
+  tierLabel: string
+  notes: string
+  baseUrl: string
+  mirrorUrl: string
+  enabled: boolean
+  state: 'ok' | 'warn' | 'bad'
+}
+
+/** Display copy for the expansion goal — live counts come from the API. */
+const EXPANSION_TARGETS = { movies: 20, games: 8, music: 20 } as const
+
 export default function SourcesPage() {
   const { showToast } = useToast()
-  const [sources, setSources] = useState<CatalogSource[]>(CATALOG_SOURCES)
+  const [sources, setSources] = useState<SourceRow[]>([])
   const [hidden, setHidden] = useState<Record<string, boolean>>({})
 
   // Fetch live sources from backend
@@ -27,15 +39,15 @@ export default function SourcesPage() {
     fetchSources().then((live) => {
       if (live && live.length > 0) {
         setSources(
-          live.map((s: any) => ({
+          live.map((s) => ({
             id: s.id,
             name: s.name,
-            cat: s.category,
+            cat: s.category as SourceRow['cat'],
             tier: (s.access_tier === 'premium' ? 2 : (s.access_tier === 'freemium' ? 3 : 1)) as 1 | 2 | 3,
             tierLabel: s.access_tier ? `سطح ${toFaDigits(s.access_tier)}` : 'سطح ۱',
             notes: s.inactive_reason || s.status || '',
             baseUrl: s.base_url || '',
-            mirrorUrl: s.mirror_url || '',
+            mirrorUrl: (s as { mirror_url?: string }).mirror_url || '',
             enabled: s.enabled,
             state: s.status === 'active' ? 'ok' : (s.status === 'degraded' ? 'warn' : 'bad'),
           }))
@@ -218,8 +230,10 @@ export default function SourcesPage() {
             id="expansion"
           >
             {(['movies', 'games', 'music'] as const).map((catKey) => {
-              const exp = EXPANSION_TARGETS[catKey]
-              const pct = Math.round((exp.live / exp.target) * 100)
+              // Live count from the fetched registry; the target is display copy.
+              const live = sources.filter((s) => s.cat === catKey && s.enabled).length
+              const target = EXPANSION_TARGETS[catKey]
+              const pct = Math.min(100, Math.round((live / target) * 100))
               const label =
                 catKey === 'movies'
                   ? 'پورتال فیلم و سریال'
@@ -249,17 +263,17 @@ export default function SourcesPage() {
                   </strong>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontSize: '26px', fontWeight: 800 }}>
-                      {toFaDigits(exp.live)}
+                      {toFaDigits(live)}
                     </span>
                     <span style={{ color: 'var(--muted-2)' }}>
-                      از {toFaDigits(exp.target)} پورتال فعال
+                      از {toFaDigits(target)} پورتال فعال
                     </span>
                   </div>
                   <div className="bar">
                     <i style={{ width: `${pct}%` }}></i>
                   </div>
                   <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                    {toFaDigits(exp.target - exp.live)} پورتال دیگر باقی‌مانده — آن‌ها را در فرم پایین ثبت کنید.
+                    {toFaDigits(Math.max(0, target - live))} پورتال دیگر باقی‌مانده — آن‌ها را در فرم پایین ثبت کنید.
                   </span>
                 </div>
               )

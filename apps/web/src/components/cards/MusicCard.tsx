@@ -5,13 +5,18 @@ import type { MediaItem } from '@/types/media'
 import { Music, Play, Pause, ExternalLink } from 'lucide-react'
 import { useAudioPlayer } from '@/context/AudioPlayerContext'
 import { MusicDownloadRow } from './MusicDownloadRow'
+import { FavoriteButton } from './FavoriteButton'
 import { TechnicalText } from '@/components/ui/TechnicalText'
 
 interface MusicCardProps {
   item: MediaItem
+  /** Opens the detail drawer with the full track list and download links. */
+  onOpenDetails?: (item: MediaItem) => void
+  onToggleFavorite?: (item: MediaItem) => void
+  isItemFavorite?: (id: string) => boolean
 }
 
-export function MusicCard({ item }: MusicCardProps) {
+export function MusicCard({ item, onOpenDetails, onToggleFavorite, isItemFavorite }: MusicCardProps) {
   const [imageError, setImageError] = useState(false)
   const { currentTrack, isPlaying, play, togglePlay } = useAudioPlayer()
 
@@ -23,7 +28,8 @@ export function MusicCard({ item }: MusicCardProps) {
   // row must be ABSENT from the DOM, not hidden — so they are never rendered.
   const isReference = item.source_kind === 'reference'
 
-  function handlePlayToggle() {
+  function handlePlayToggle(e: React.MouseEvent) {
+    e.stopPropagation()
     if (!primaryTrack || !hasStream) return
     if (isCurrent) {
       togglePlay()
@@ -35,7 +41,18 @@ export function MusicCard({ item }: MusicCardProps) {
   return (
     <article
       className={`card ${isCurrent ? 'playing' : ''}`}
-      style={{ cursor: 'default' }}
+      style={{ cursor: onOpenDetails ? 'pointer' : 'default' }}
+      role={onOpenDetails ? 'button' : undefined}
+      tabIndex={onOpenDetails ? 0 : undefined}
+      aria-label={onOpenDetails ? `مشاهده جزئیات و دانلود ${item.title}` : undefined}
+      onClick={() => onOpenDetails?.(item)}
+      onKeyDown={(e) => {
+        if (!onOpenDetails) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpenDetails(item)
+        }
+      }}
     >
       {/* Cover / Track Image */}
       <div className="card-art square mb-4">
@@ -83,6 +100,12 @@ export function MusicCard({ item }: MusicCardProps) {
           <span>{item.source_id}</span>
           {isReference && <span className="text-violet-300">ارجاعی</span>}
         </div>
+
+        <FavoriteButton
+          item={item}
+          onToggleFavorite={onToggleFavorite}
+          isItemFavorite={isItemFavorite}
+        />
       </div>
 
       {/* Title & Artist */}
@@ -114,6 +137,7 @@ export function MusicCard({ item }: MusicCardProps) {
             ? 'font-semibold text-violet-300 hover:text-violet-200'
             : 'text-zinc-500 hover:text-cyan-400'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         <span>{isReference ? 'گوش دادن در سایت منبع' : 'مشاهده در سایت مرجع'}</span>
         <ExternalLink className="w-3 h-3" />

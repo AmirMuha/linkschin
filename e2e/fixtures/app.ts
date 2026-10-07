@@ -38,7 +38,7 @@ export const test = base.extend<App>({
     // Scoped by role, not getByLabel: the clear button's label is
     // "پاک کردن متن جستجو", which substring-matches and trips strict mode.
     await use(async (query: string) => {
-      const input = page.getByRole('textbox', { name: 'متن جستجو' })
+      const input = page.getByRole('searchbox', { name: 'متن جستجو' })
       await input.fill(query)
       await input.press('Enter')
     })

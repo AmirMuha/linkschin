@@ -2,25 +2,24 @@
 
 import React from 'react'
 import Link from 'next/link'
-import type { Category } from '@/types/media'
-import type { CatalogItem } from '@/lib/catalog'
-import {
-  CATALOG_MOVIES,
-  CATALOG_GAMES,
-  CATALOG_MUSIC,
-  CATALOG_SOURCES,
-  toFaDigits,
-} from '@/lib/catalog'
-import { CatalogCard } from '@/components/CatalogCard'
+import type { Category, MediaItem, SourceStatus } from '@/types/media'
+import { toFaDigits } from '@/lib/format'
+import { describeSource } from '@/components/SourceStatusBar'
+import { MovieCard } from '@/components/cards/MovieCard'
+import { GameCard } from '@/components/cards/GameCard'
+import { MusicCard } from '@/components/cards/MusicCard'
 import { ChevronDown } from 'lucide-react'
 
 interface StaticSectionsProps {
   category: Category
-  onOpenDetails: (item: CatalogItem) => void
-  onToggleFavorite: (item: CatalogItem) => void
+  /** Live rows from GET /api/sources — never a hardcoded table. */
+  sources: SourceStatus[]
+  /** Fetched shelves; each renders nothing when empty. */
+  trending: MediaItem[]
+  latest: MediaItem[]
+  onOpenDetails: (item: MediaItem) => void
+  onToggleFavorite: (item: MediaItem) => void
   isItemFavorite: (id: string) => boolean
-  dynamicTrending?: any[]
-  dynamicLatest?: any[]
 }
 
 const FAQ_ITEMS = [
@@ -69,21 +68,21 @@ const RESOLVE_STEPS = [
   },
 ]
 
+const LED: Record<'active' | 'degraded' | 'inactive', string> = {
+  active: 'ok',
+  degraded: 'warn',
+  inactive: 'bad',
+}
+
 export function StaticSections({
   category,
+  sources,
+  trending,
+  latest,
   onOpenDetails,
   onToggleFavorite,
   isItemFavorite,
-  dynamicTrending = [],
-  dynamicLatest = [],
 }: StaticSectionsProps) {
-  const pool =
-    category === 'movies'
-      ? CATALOG_MOVIES
-      : category === 'games'
-        ? CATALOG_GAMES
-        : CATALOG_MUSIC
-
   const trendTitle =
     category === 'movies'
       ? 'پربازدیدترین‌های امروز'
@@ -105,89 +104,108 @@ export function StaticSections({
         ? 'تازه فهرست‌شده'
         : 'انتشارات جدید'
 
-  // Trending: dynamic from API or fallback
-  const trendingItems = (dynamicTrending && dynamicTrending.length > 0) ? dynamicTrending : pool.slice(0, 12)
-  // Latest: dynamic from API or fallback
-  const latestItems = (dynamicLatest && dynamicLatest.length > 0) ? dynamicLatest : pool.slice(-14)
+  // One card renderer for every shelf: the same components the search grid uses.
+  const renderCard = (item: MediaItem) => {
+    if (item.category === 'games') {
+      return (
+        <GameCard
+          key={item.id}
+          item={item}
+          onOpenDetails={onOpenDetails}
+          onToggleFavorite={onToggleFavorite}
+          isItemFavorite={isItemFavorite}
+        />
+      )
+    }
+    if (item.category === 'music') {
+      return (
+        <MusicCard
+          key={item.id}
+          item={item}
+          onOpenDetails={onOpenDetails}
+          onToggleFavorite={onToggleFavorite}
+          isItemFavorite={isItemFavorite}
+        />
+      )
+    }
+    return (
+      <MovieCard
+        key={item.id}
+        item={item}
+        onOpenDetails={onOpenDetails}
+        onToggleFavorite={onToggleFavorite}
+        isItemFavorite={isItemFavorite}
+      />
+    )
+  }
 
-  // Category sources
-  const catSources = CATALOG_SOURCES.filter((s) => s.cat === category)
-  const okSources = catSources.filter((s) => s.enabled && s.state === 'ok')
-  const warnSources = catSources.filter((s) => s.enabled && s.state === 'warn')
-  const offSources = catSources.filter((s) => !s.enabled || s.state === 'bad')
-  const ledStatus = warnSources.length > 0 ? 'warn' : 'ok'
+  // Live source health for the current category only.
+  const catSources = sources.filter((s) => s.category === category)
+  const described = catSources.map((s) => ({ s, status: describeSource(s).status }))
+  const okCount = described.filter((d) => d.status === 'active').length
+  const offSources = described.filter((d) => d.status === 'inactive')
+  const ledStatus = described.some((d) => d.status === 'degraded') ? 'warn' : 'ok'
 
   return (
     <>
-      {/* Health Strip */}
-      <div className="wrap">
-        <div className="health" data-od-id="source-health" style={{ marginTop: '16px' }}>
-          <span className={`led ${ledStatus}`}></span>
-          <strong>
-            {toFaDigits(okSources.length)} منبع از {toFaDigits(catSources.length)} منبع پاسخ دادند
-          </strong>
-          <ul>
-            {catSources.map((s) => {
-              const led = !s.enabled || s.state === 'bad' ? 'bad' : s.state === 'warn' ? 'warn' : 'ok'
-              return (
+      {/* Health Strip — live rows only; no strip at all until the API answers. */}
+      {catSources.length > 0 && (
+        <div className="wrap">
+          <div className="health" data-od-id="source-health" style={{ marginTop: '16px' }}>
+            <span className={`led ${ledStatus}`}></span>
+            <strong>
+              {toFaDigits(okCount)} منبع از {toFaDigits(catSources.length)} منبع پاسخ دادند
+            </strong>
+            <ul>
+              {described.map(({ s, status }) => (
                 <li key={s.id} className="chip">
-                  <span className={`led ${led}`}></span>
+                  <span className={`led ${LED[status]}`}></span>
                   <span>{s.name}</span>
-                  <span style={{ color: 'var(--muted-2)' }}>{s.tierLabel}</span>
+                  <span style={{ color: 'var(--muted-2)' }}>
+                    {status === 'active' ? 'فعال' : status === 'degraded' ? 'افت کیفیت' : 'غیرفعال'}
+                  </span>
                 </li>
-              )
-            })}
-          </ul>
-          {offSources.length > 0 && (
-            <span style={{ color: 'var(--muted-2)', fontSize: '12px' }}>
-              در دسترس نیست: {offSources.map((s) => s.name).join('، ')}
-            </span>
-          )}
-          <Link className="btn btn-quiet btn-sm" href="/sources">
-            مدیریت منابع
-          </Link>
+              ))}
+            </ul>
+            {offSources.length > 0 && (
+              <span style={{ color: 'var(--muted-2)', fontSize: '12px' }}>
+                در دسترس نیست: {offSources.map(({ s }) => s.name).join('، ')}
+              </span>
+            )}
+            <Link className="btn btn-quiet btn-sm" href="/sources">
+              مدیریت منابع
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Trending Section */}
-      <section className="wrap sec" data-od-id="section-trending" id="trending">
-        <div className="sec-head">
-          <h2 id="trendTitle">{trendTitle}</h2>
-          <span className="sub" id="trendSub">
-            {trendSub}
-          </span>
-        </div>
-        <div className="grid grid-6" id="trendGrid">
-          {trendingItems.map((item) => (
-            <CatalogCard
-              key={item.id}
-              item={item}
-              onClick={() => onOpenDetails(item)}
-              onToggleFavorite={onToggleFavorite}
-              isItemFavorite={isItemFavorite}
-            />
-          ))}
-        </div>
-      </section>
+      {trending.length > 0 && (
+        <section className="wrap sec" data-od-id="section-trending" id="trending">
+          <div className="sec-head">
+            <h2 id="trendTitle">{trendTitle}</h2>
+            <span className="sub" id="trendSub">
+              {trendSub}
+            </span>
+          </div>
+          <div className="grid grid-6" id="trendGrid">
+            {trending.map(renderCard)}
+          </div>
+        </section>
+      )}
 
       {/* Latest Shelf Section */}
-      <section className="wrap sec" data-od-id="section-latest" id="latest">
-        <div className="sec-head">
-          <h2 id="latestTitle">{latestTitle}</h2>
-          <span className="sub">مرتب‌شده بر اساس تاریخ انتشار</span>
-        </div>
-        <div className="shelf no-sb" id="latestShelf">
-          {latestItems.map((item) => (
-            <CatalogCard
-              key={item.id}
-              item={item}
-              onClick={() => onOpenDetails(item)}
-              onToggleFavorite={onToggleFavorite}
-              isItemFavorite={isItemFavorite}
-            />
-          ))}
-        </div>
-      </section>
+      {latest.length > 0 && (
+        <section className="wrap sec" data-od-id="section-latest" id="latest">
+          <div className="sec-head">
+            <h2 id="latestTitle">{latestTitle}</h2>
+            <span className="sub">مرتب‌شده بر اساس تاریخ انتشار</span>
+          </div>
+          <div className="shelf no-sb" id="latestShelf">
+            {latest.map(renderCard)}
+          </div>
+        </section>
+      )}
 
       {/* Why Section */}
       <section className="wrap sec" data-od-id="section-why" id="why">

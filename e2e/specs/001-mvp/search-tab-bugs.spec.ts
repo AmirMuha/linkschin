@@ -20,18 +20,22 @@ test.describe('search-tab-bugs — tab switch resets the query', () => {
   })
 
   test('clears the search input and does not auto-search the previous term', async ({ page, search }) => {
+    // `/` lands on /movies; the category switch is a header link to /games now.
     await page.goto('/')
-    await page.getByRole('tab', { name: 'فیلم و سریال' }).click()
     await search('batman')
-    await expect(page.getByRole('textbox', { name: 'متن جستجو' })).toHaveValue('batman')
+    await expect(page.getByRole('searchbox', { name: 'متن جستجو' })).toHaveValue('batman')
 
     const before = await page.locator('body').evaluate(() => performance.getEntriesByType('resource')
       .filter((e) => e.name.includes('/api/search')).length)
     expect(before).toBeGreaterThan(0)
 
-    await page.getByRole('tab', { name: 'بازی‌ها' }).click()
+    // Scoped to the header: the footer carries a link with the same name.
+    await page
+      .getByRole('navigation', { name: 'ناوبری اصلی' })
+      .getByRole('link', { name: 'بازی‌ها' })
+      .click()
 
-    await expect(page.getByRole('textbox', { name: 'متن جستجو' })).toHaveValue('')
+    await expect(page.getByRole('searchbox', { name: 'متن جستجو' })).toHaveValue('')
     // The stale term must not be re-issued against the new category.
     await expect.poll(async () => page.locator('body').evaluate(() => performance.getEntriesByType('resource')
       .filter((e) => e.name.includes('/api/search')).length)).toBe(before)

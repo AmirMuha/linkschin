@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import type { SourceStatus } from '@/types/media'
 import { AlertTriangle, X, Radio, ChevronDown, Film, Gamepad2, Music, Eye, EyeOff, RotateCcw } from 'lucide-react'
-import { toFaDigits } from '@/lib/catalog'
+import { toFaDigits } from '@/lib/format'
 
 interface SourceStatusBarProps {
   sources: SourceStatus[]
@@ -29,7 +29,7 @@ const CATEGORY_CONFIG: {
  * deriving it from `enabled`. Kind and status are always returned as TEXT —
  * colour is decoration, never the only signal.
  */
-function describeSource(s: SourceStatus): {
+export function describeSource(s: SourceStatus): {
   status: 'active' | 'degraded' | 'inactive'
   statusLabel: string
   reason: string | null
@@ -54,6 +54,7 @@ export function SourceStatusBar({
 
   const activeWarnings = warnings.filter((_, idx) => !dismissedWarnings[idx])
   const enabledCount = sources.filter((s) => s.enabled).length
+  const activeCount = sources.filter((s) => describeSource(s).status === 'active').length
   const canHide = Boolean(onToggleHidden)
 
   // Auto-dismiss warnings; a new warning set restarts the timers from scratch.
@@ -134,7 +135,11 @@ export function SourceStatusBar({
             aria-haspopup="true"
             className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-white/20 text-zinc-300 text-xs font-medium transition-all backdrop-blur-sm cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 animate-pulse ${
+                activeCount > 0 ? 'bg-emerald-400' : 'bg-rose-500'
+              }`}
+            />
             <span>{toFaDigits(enabledCount)} منبع متصل</span>
             {hiddenSources.length > 0 && (
               <span

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { useToast } from '@/components/ui/ToastNotification'
-import { fmtMiB, toFaDigits } from '@/lib/catalog'
+import { fmtMiB, toFaDigits } from '@/lib/format'
 import { startConversion, pollConversion } from '@/lib/api'
 
 interface JobHistory {

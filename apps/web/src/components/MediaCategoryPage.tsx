@@ -5,7 +5,6 @@ import type { Category, MediaItem, SourceStatus } from '@/types/media'
 import { searchMedia, fetchSources, fetchTrending, fetchLatest } from '@/lib/api'
 import { addRecentSearch } from '@/lib/history'
 import { SearchBar } from '@/components/SearchBar'
-import { SourceStatusBar } from '@/components/SourceStatusBar'
 import { InViewFilterBar, EMPTY_FILTERS, type FilterState } from '@/components/InViewFilterBar'
 import { Header } from '@/components/Header'
 import { HeroBanner } from '@/components/HeroBanner'
@@ -13,7 +12,6 @@ import { StaticSections } from '@/components/StaticSections'
 import { DetailDrawer } from '@/components/DetailDrawer'
 import { AiAssistant } from '@/components/AiAssistant'
 import { Footer } from '@/components/Footer'
-import type { CatalogItem } from '@/lib/catalog'
 import {
   itemMatchesAlbums,
   itemMatchesArtists,
@@ -72,11 +70,11 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
   })
 
   // Design system drawer and assistant states
-  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | MediaItem | null>(null)
+  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
   const favorites = useFavorites()
-  const [dynamicTrending, setDynamicTrending] = useState<any[]>([])
-  const [dynamicLatest, setDynamicLatest] = useState<any[]>([])
+  const [dynamicTrending, setDynamicTrending] = useState<MediaItem[]>([])
+  const [dynamicLatest, setDynamicLatest] = useState<MediaItem[]>([])
 
   // Fetch live trending and latest items dynamically from catalog API
   useEffect(() => {
@@ -363,24 +361,6 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
           activePage={category}
           category={category}
           onOpenAi={() => setAiOpen(true)}
-          rightSlot={
-            <SourceStatusBar
-              sources={sources}
-              hiddenSources={filters.hiddenSources}
-              onToggleHidden={(id) =>
-                setFilters((prev) => {
-                  const exists = prev.hiddenSources.includes(id)
-                  const next = exists
-                    ? prev.hiddenSources.filter((s) => s !== id)
-                    : [...prev.hiddenSources, id]
-                  return { ...prev, hiddenSources: next }
-                })
-              }
-              onRestoreAllSources={() =>
-                setFilters((prev) => ({ ...EMPTY_FILTERS, hiddenSources: prev.hiddenSources }))
-              }
-            />
-          }
         />
 
         {/* Main Content */}
@@ -389,7 +369,8 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
           {!hasSearched && items.length === 0 && (
             <HeroBanner
               category={category}
-              onOpenDetails={setSelectedCatalogItem}
+              items={dynamicTrending}
+              onOpenDetails={setSelectedItem}
               onToggleFavorite={favorites.toggle}
               isItemFavorite={favorites.isLiked}
             />
@@ -510,8 +491,7 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
                         key={item.id}
                         item={item}
                         onPlayStream={handleOpenVideo}
-                        activeTierFilter={filters.accessTier}
-                        activeCensorshipFilter={filters.censorship}
+                        onOpenDetails={setSelectedItem}
                       />
                     )
                   }
@@ -520,12 +500,18 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
                       <GameCard
                         key={item.id}
                         item={item}
-                        onOpenDetails={setSelectedCatalogItem}
+                        onOpenDetails={setSelectedItem}
                       />
                     )
                   }
                   if (item.category === 'music') {
-                    return <MusicCard key={item.id} item={item} />
+                    return (
+                      <MusicCard
+                        key={item.id}
+                        item={item}
+                        onOpenDetails={setSelectedItem}
+                      />
+                    )
                   }
                   return null
                 })}
@@ -537,23 +523,26 @@ export function MediaCategoryPage({ category }: MediaCategoryPageProps) {
           {!hasSearched && items.length === 0 && !isLoading && (
             <StaticSections
               category={category}
-              onOpenDetails={setSelectedCatalogItem}
+              sources={sources}
+              trending={dynamicTrending}
+              latest={dynamicLatest}
+              onOpenDetails={setSelectedItem}
               onToggleFavorite={favorites.toggle}
               isItemFavorite={favorites.isLiked}
-              dynamicTrending={dynamicTrending}
-              dynamicLatest={dynamicLatest}
             />
           )}
         </main>
 
         {/* Catalog Item Detail Drawer */}
         <DetailDrawer
-          item={selectedCatalogItem}
-          isOpen={Boolean(selectedCatalogItem)}
-          onClose={() => setSelectedCatalogItem(null)}
+          item={selectedItem}
+          isOpen={Boolean(selectedItem)}
+          onClose={() => setSelectedItem(null)}
           onPlayStream={handleOpenVideo}
           onToggleFavorite={favorites.toggle}
           isItemFavorite={favorites.isLiked}
+          activeTierFilter={filters.accessTier}
+          activeCensorshipFilter={filters.censorship}
           persistenceBlocked={favorites.persistenceBlocked}
         />
 
