@@ -33,7 +33,14 @@ _CHROME_PATH_SEGMENTS = frozenset({
     "supportbot", "tag", "terms", "upload", "wp-admin", "login", "register",
     "signup", "signin", "sign-in", "sign-up", "logout", "account", "profile",
     "wp-content", "wp-json", "rss", "sitemap.xml",
+    "mobile-app", "genre", "language", "published",
 })
+
+# Class markers of furniture blocks that the block regex matches by accident:
+# a WordPress "Top 10" widget (tptn_posts), a sidebar widget, a telegram
+# support box. Their anchors are site chrome, not search results -- babakfilm
+# showed the same fixed widget in every query (20 identical junk rows).
+_NON_RESULT_BLOCK_MARKERS = ("tptn", "widget", "sidebar", "related", "support")
 
 
 def extract_movie_variants_from_html(
@@ -218,7 +225,19 @@ class BaseMoviePlugin:
             re.DOTALL | re.IGNORECASE,
         )
         blocks = list(block_pattern.finditer(stripped))
-        content_blocks = [m.group(1) for m in blocks] if blocks else [stripped]
+        content_blocks = []
+        for m in blocks:
+            opening_tag = m.group(0).split(">", 1)[0]
+            cls = re.search(r'class=["\']([^"\']*)["\']', opening_tag, re.I)
+            classes = cls.group(1).lower() if cls else ""
+            if any(marker in classes for marker in _NON_RESULT_BLOCK_MARKERS):
+                continue
+            content_blocks.append(m.group(1))
+        if not content_blocks and blocks:
+            # Every matched block was furniture: no results on this page.
+            return items
+        if not blocks:
+            content_blocks = [stripped]
 
         for block in content_blocks:
             # Find candidate links
@@ -249,6 +268,10 @@ class BaseMoviePlugin:
 
                 # Same reasoning for a bare first segment: /login, /upload, /blog.
                 if _is_chrome_link(raw_url):
+                    continue
+
+                # Site-root links (/, /?redirect_to=random) are never results.
+                if not urlsplit(raw_url).path.strip("/"):
                     continue
 
                 abs_url = clean_absolute_url(resolve_base, raw_url)

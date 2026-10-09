@@ -288,6 +288,27 @@ def test_namasha_keeps_video_pages_and_drops_chrome(namasha_search_html):
     assert all(i.watch_url for i in items)
 
 
+def test_babakfilm_drops_the_popular_widget_and_chrome(babakfilm_search_html):
+    """babakfilm injects a fixed "Top 10" widget (tptn_posts) into every search.
+
+    That widget carries the same ~20 unrelated titles plus telegram/mobile-app
+    chrome on each query, so without the block filter every search returned
+    junk rows (e.g. Fifty Shades of Grey) next to the real hit.
+    """
+    items = _plugin("babakfilm").parse_search_results(babakfilm_search_html)
+
+    assert items, "babakfilm fixture produced no items"
+    assert all("babakfilm.com/" in i.page_url for i in items), (
+        f"external/chrome link survived: {[i.page_url for i in items if 'babakfilm.com/' not in i.page_url][:3]}"
+    )
+    assert all(not any(seg in i.page_url for seg in ("/mobile-app", "redirect_to", "t.me")) for i in items)
+    assert all("fifty" not in i.title.lower() for i in items), (
+        f"widget item leaked: {[i.title for i in items][:3]}"
+    )
+    # The one real search result for the fixture query.
+    assert any("batman" in i.page_url for i in items)
+
+
 def test_rubika_search_page_carries_no_release_cards(rubika_search_html):
     """rubika.ir serves a navigation-only response for a search query.
 

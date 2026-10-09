@@ -168,3 +168,8 @@ def namasha_search_html(fixtures_dir: Path) -> str:
 @pytest.fixture
 def rubika_search_html(fixtures_dir: Path) -> str:
     return (fixtures_dir / "rubika_search.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def babakfilm_search_html(fixtures_dir: Path) -> str:
+    return (fixtures_dir / "babakfilm_search.html").read_text(encoding="utf-8")
