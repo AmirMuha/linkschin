@@ -118,7 +118,6 @@ html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
 }
 .brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; min-height: 44px; }
 .brand img { height: 55px; width: auto; }
-.brand img.brand-word { height: 75px; width: auto; }
 /* The header is `flex` with the nav as its only shrinkable child, so any
    overflow crushed the links (labels overlapped their icons) instead of
    handing the burger the job — the burger only appears below 1140px. Nav is

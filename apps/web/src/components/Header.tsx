@@ -45,12 +45,6 @@ export function Header({
           width={32}
           height={32}
         />
-        <img
-          className="brand-word"
-          src="/images/brand/linkschin-wordmark.png"
-          alt="لینک‌چین"
-          height={40}
-        />
       </Link>
 
       <nav
